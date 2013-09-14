@@ -3,6 +3,15 @@
 Workshop outline
 ================
 
+Days 1 and 2 are introductory and are targeted at people who use and
+configure JGroups, e.g. a mixture of app programmers and system admins. Pure
+system admins should not attend, as we're going to look at code.
+
+The rest of the workshop is for people who have used JGroups before and who
+are interested in the innards of JGroups, e.g. how a protocol is written,
+how STABLE works and how to write services on top of JGroups, or how to
+integrate JGroups into their own products.
+
 
 Day 1: overview, architecture, API, protocols
 ---------------------------------------------
@@ -25,5 +34,78 @@ GMS, UFC/MFC, FRAG, STATE_TRANSFER
 
 
 
-Day 2: 
---------
+Day 2: building blocks
+----------------------
+* Building blocks
+** RpcDispatcher
+*** Asynchronous invocation API
+* Cluster-wide locking
+* Distributed task execution
+* Clustered atomic counters
+
+* Diagnostics
+** JMX and jconsole
+** probe.sh
+
+
+Day 3: advanced I
+-----------------
+* The transport
+** Regular, OOB and internal thread pools
+** Customization (replacing thread pool, thread and socket factories)
+** Message bundling and message batching
+
+* Message flags (OOB, DONT_BUNDLE, NO_FC etc)
+
+* Control over view generation (pinning down a coordinator)
+
+* Fork channels: light weight channels over the same protocol stack
+
+
+* Anatomy of a protocol
+** Callbacks
+** Headers
+*** (Efficient) marshalling, magic numbers, protocol IDs and header registration
+** Writing your own protocol
+
+
+* RELAY2: bridging geopgraphically separated data centers
+
+
+* Debugging 
+** What breakpoints can do
+
+
+* Strategies for handling network partitions
+** Primary partition, merging data
+
+
+Day 4: a closer look at protocols
+---------------------------------
+* Discovery
+** PING, TCPPING
+
+* Merging
+** MERGE2, MERGE3
+
+* Failure detection
+** FD, FD_ALL, FD_SOCK
+
+* Reliable message transmission and ordering
+** NAKACK, UNICAST, SEQUENCER, RSVP
+
+* Message stability
+** STABLE
+
+* Cluster membership
+** GMS
+
+* Flow control
+** MFC, UFC
+
+* State transfer
+** STATE_TRANSFER, STATE, STATE_SOCK
+
+* Misc
+** FRAG, COMPRESS, STOMP
+
