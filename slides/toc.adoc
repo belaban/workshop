@@ -1,0 +1,29 @@
+
+
+Workshop outline
+================
+
+
+Day 1: overview, architecture, API, protocols
+---------------------------------------------
+* Overview of JGroups
+** What is it, what is it *not*, use cases
+* Architecture
+* API
+** JChannel, Message, View
+** Creating a channel
+** Joining a cluster
+** Sending and receiving messages
+** Handling view changes
+** Leaving a cluster
+** Closing a channel
+* Protocols
+** What do the most frequently used protocols do ?
+*** UDP/TCP, PING/TCPPING, FD_SOCK/FD/FD_ALL, NAKACK, UNICAST, STABLE,
+GMS, UFC/MFC, FRAG, STATE_TRANSFER
+** What are the configuration options ?
+
+
+
+Day 2: 
+--------
