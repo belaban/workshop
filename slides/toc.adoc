@@ -3,14 +3,14 @@
 Workshop outline
 ================
 
-Days 1 and 2 are introductory and are targeted at people who use and
-configure JGroups, e.g. a mixture of app programmers and system admins. Pure
+Days 1 and 2 are introductory and are targeted at people who _use_ and
+_configure_ JGroups, e.g. a mixture of app programmers and system admins. Pure
 system admins should not attend, as we're going to look at code.
 
-The rest of the workshop is for people who have used JGroups before and who
-are interested in the innards of JGroups, e.g. how a protocol is written,
-how STABLE works and how to write services on top of JGroups, or how to
-integrate JGroups into their own products.
+The rest of the workshop is hard-core; for people who have used JGroups
+before and who are interested in the innards of JGroups, e.g. how a protocol
+is written, how STABLE works and how to write services on top of JGroups, or
+how to integrate JGroups into their products.
 
 
 Day 1: overview, architecture, API, protocols
@@ -24,6 +24,7 @@ Day 1: overview, architecture, API, protocols
 ** Joining a cluster
 ** Sending and receiving messages
 ** Handling view changes
+** State transfer
 ** Leaving a cluster
 ** Closing a channel
 * Protocols
@@ -37,15 +38,19 @@ GMS, UFC/MFC, FRAG, STATE_TRANSFER
 Day 2: building blocks
 ----------------------
 * Building blocks
-** RpcDispatcher
+** RpcDispatcher / MessageDispatcher
 *** Asynchronous invocation API
+*** Working with futures
 * Cluster-wide locking
 * Distributed task execution
 * Clustered atomic counters
 
 * Diagnostics
+** Logging
 ** JMX and jconsole
 ** probe.sh
+*** Getting and setting properties, invoking methods, changing the log level
+
 
 
 Day 3: advanced I
@@ -74,6 +79,8 @@ Day 3: advanced I
 
 * Debugging 
 ** What breakpoints can do
+** Byteman: installing rules into a running JVM (and removing them again)
+*** A look at a unit test _black-box style_
 
 
 * Strategies for handling network partitions
