@@ -103,6 +103,7 @@ Day 4: a closer look at protocols
 
 * Merging
 ** MERGE2, MERGE3
+** Strategies to handle split brain scenarios
 
 * Failure detection
 ** FD, FD_ALL, FD_SOCK
