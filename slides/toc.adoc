@@ -51,6 +51,12 @@ Day 2: building blocks
 ** probe.sh
 *** Getting and setting properties, invoking methods, changing the log level
 
+* Most common pain points
+** Members don't find each other
+** Switch problems (IGMP snooping)
+** Firewall issues
+
+
 
 
 Day 3: advanced I
@@ -76,6 +82,9 @@ Day 3: advanced I
 
 * RELAY2: bridging geopgraphically separated data centers
 
+* Tuning
+** UDP/TCP buffer sizes
+** Multicasting and flow control (802.3)
 
 * Debugging 
 ** What breakpoints can do
@@ -112,6 +121,9 @@ Day 4: a closer look at protocols
 
 * State transfer
 ** STATE_TRANSFER, STATE, STATE_SOCK
+
+* Security
+** AUTH and ENCRYPT
 
 * Misc
 ** FRAG, COMPRESS, STOMP
