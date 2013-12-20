@@ -306,7 +306,7 @@ Compress Digest and MutableDigest
 * Delta views: when we have a cluster of 1000 nodes, and new nodes X and Y join while
   B, C and D leave, JGroups used to send a new view of 1001 members to *all* current
   members and to X and Y
-** Now the full view is onyl sent to the new joiners X and Y
+** Now the full view is only sent to the new joiners X and Y
 ** A so called _delta view_ is sent to all existing (1000) members
 ** A delta view has a ref to the previous view and contains only the joiners and
    leavers
