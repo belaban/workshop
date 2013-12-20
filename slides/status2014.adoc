@@ -1,0 +1,33 @@
+
+
+Status JGroups 2013/2014
+========================
+
+* Status JGroups 2013
+** 3.2, 3.3, 3.4, 3.5
+* Work planned for 2014
+** 4.0
+* Large scale
+** 2000+ nodes
+** Google Compute Engine
+
+
+JGroups 3.2
+-----------
+
+
+JGroups 3.3
+-----------
+
+
+JGroups 3.4
+-----------
+
+JGroups 3.5
+-----------
+
+
+JGroups 4.0
+-----------
+
+
