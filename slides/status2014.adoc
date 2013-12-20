@@ -232,19 +232,114 @@ STABLE: reduction of time until stability
 
 
 
-JGroups 3.4
------------
-
-
-JGroups 3.4.1
+JGroups 3.4.2
 -------------
-* Used in EAP 7.x (not yet released)
+* 3.4.1 used in EAP 7.x (not yet released)
 * Current version: 3.4.2.Final
 
 
 
-JGroups 3.4.2
--------------
+Pluggable policy for picking coordinator
+----------------------------------------
+* https://issues.jboss.org/browse/JGRP-592[JGRP-592]
+* View and merge-view creation is now pluggable; this means that an application can
+  determine which member is the coordinator
+* Documentation: http://www.jgroups.org/manual/html/user-advanced.html#MembershipChangePolicy.
+
+
+RELAY2: allow for more than one site master
+-------------------------------------------
+* https://issues.jboss.org/browse/JGRP-1649[JGRP-1649]
+* If we have a lot of traffic between sites, having more than 1 site master
+increases performance and reduces stress on the single site master
+
+
+Fork channels: private light-weight channels
+--------------------------------------------
+* https://issues.jboss.org/browse/JGRP-1613[JGRP-1613]
+* This allows multiple light-weight channels to be created over the same (base) channel
+* The fork channels are private to the app which creates them and the app can also add
+  protocols over the default stack
+* These protocols are also private to the app.
+* Doc: http://www.jgroups.org/manual/html/user-advanced.html#ForkChannel
+* Blog: http://belaban.blogspot.ch/2013/08/how-to-hijack-jgroups-channel-inside.html
+
+
+
+Kerberos based authentication
+-----------------------------
+* https://issues.jboss.org/browse/JGRP-1657[JGRP-1657]
+* New AUTH plugin contributed by Martin Swales
+* Experimental, needs more work
+
+
+Probe now works with TCP too
+----------------------------
+* https://issues.jboss.org/browse/JGRP-1568[JGRP-1568]
+* If multicasting is not enabled, probe.sh can be started as follows:
+    +probe.sh -addr 192.168.1.5 -port 12345+
+, where +192.168.1.5:12345+ is the physical address:port of a node.
+* Probe will ask that node for the addresses of all other members and then send the
+  request to all members
+
+
+
+UNICAST3: ack messages sooner
+-----------------------------
+* https://issues.jboss.org/browse/JGRP-1664[JGRP-1664]
+* A message would get acked after delivery, not reception
+* This was changed, so that long running app code would not delay acking the message,
+  which could lead to unneeded retransmission by the sender
+
+
+Compress Digest and MutableDigest
+---------------------------------
+* https://issues.jboss.org/browse/JGRP-1317[JGRP-1317],
+  https://issues.jboss.org/browse/JGRP-1354[JGRP-1354], 
+  https://issues.jboss.org/browse/JGRP-1391[JGRP-1391],
+  https://issues.jboss.org/browse/JGRP-1690[JGRP-1690]
+* When a digest and a view are the same, the +members+ field of the digest points to
+  the +members+ field of the view, resulting in reduced memory use.
+** The members are marshalled only once.
+* View and MergeView now use arrays rather than lists to store
+  membership and subgroups
+* Delta views: when we have a cluster of 1000 nodes, and new nodes X and Y join while
+  B, C and D leave, JGroups used to send a new view of 1001 members to *all* current
+  members and to X and Y
+** Now the full view is onyl sent to the new joiners X and Y
+** A so called _delta view_ is sent to all existing (1000) members
+** A delta view has a ref to the previous view and contains only the joiners and
+   leavers
+** Every member which receives a delta view computes the new view based on the prev
+   view and the deltas
+*** This reduces view based traffic *dramatically* for large clusters
+
+
+Large clusters
+--------------
+* https://issues.jboss.org/browse/JGRP-1700: uses a bitset rather than a list for STABLE msgs, reducing memory consumption
+* https://issues.jboss.org/browse/JGRP-1704: don't print the full list of members
+* https://issues.jboss.org/browse/JGRP-1705: suppression of fake merge-views
+* https://issues.jboss.org/browse/JGRP-1710: move contents of GMS headers into message body (otherwise packet at
+  transport gets too big)
+* https://issues.jboss.org/browse/JGRP-1713: ditto for VIEW-RSP in MERGE3
+* https://issues.jboss.org/browse/JGRP-1714: move large data in headers to message body
+
+
+
+Bundler: send batch of 1 as a single message
+--------------------------------------------
+* https://issues.jboss.org/browse/JGRP-1726[JGRP-1726]
+* Sending a single message is a bit more efficient than sending a message list of 1
+
+
+Fixed regression between 3.2 and 3.3/3.4
+----------------------------------------
+* https://issues.jboss.org/browse/JGRP-1716[JGRP-1716]
+
+
+
+
 
 
 JGroups 3.5
@@ -255,3 +350,11 @@ JGroups 4.0
 -----------
 
 
+Large clusters
+--------------
+* Largest cluster is 1500+ nodes
+
+
+Google Compute Engine
+---------------------
+* 1000 USD credits to test large JGroups cluster
