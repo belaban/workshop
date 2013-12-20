@@ -1,11 +1,11 @@
 
 
-Status JGroups 2013/2014
+Status JGroups 2012-2014
 ========================
 
-* Status JGroups 2013
+* Status JGroups 2012-2013
 ** 3.2, 3.3, 3.4, 3.5
-* Work planned for 2014
+* Work planned for 2014 and beyond
 ** 4.0
 * Large scale
 ** 2000+ nodes
@@ -14,10 +14,59 @@ Status JGroups 2013/2014
 
 JGroups 3.2
 -----------
+* Used in EAP 6.2.0
+* Current version: 3.2.12.Final
+
+
+
+RELAY2: multi-site clustering
+-----------------------------
+
+* https://issues.jboss.org/browse/JGRP-1433[JGRP-1433],
+  http://issues.jboss.org/browse/JGRP-1401[JGRP-1401],
+  https://issues.jboss.org/browse/JGRP-1521[JGRP-1521],
+  https://issues.jboss.org/browse/JGRP-1519[JGRP-1519],
+  https://issues.jboss.org/browse/JGRP-1525[JGRP-1525]
+
+* Provides clustering between multiple sites
+** Successor to RELAY (which allowed for only 2 sites)
+* RELAY2 is added to the of the stack and relays both multicast and
+  unicast messages between sites (local clusters) 
+* For documentation go to
+  http://www.jgroups.org/manual-3.x/html/user-advanced.html#Relay2Advanced
+
+
+
+I8N logging
+-----------
+* https://issues.jboss.org/browse/JGRP-1475[JGRP-1475]
+* Use of ResourceBundles to internationalize certain warn and error
+  messages
+* The +JGroups/conf/jg-messages*.properties+ files contain the
+  translations
+* Currently, only German is supported, but support for any language
+  can be added easily, and without recompilation, e.g. by adding
+  +jg-messages_fr.properties+ (for French) to the classpath
+
+
+Suppress identical log warnings
+-------------------------------
+* https://issues.jboss.org/browse/JGRP-1518[JGRP-1518]
+* Sometimes we get a lot of log messages about the same problem,
+  e.g. messages from a non-member, from a different cluster or from a
+  member running a different version of JGroups 
+** If we get 20'000 messages from a non-member, we'd log 20'000 warnings...
+* We can now suppress indentical warnings for a given period of time
+  (60s by default), so the logs don't get blown up beyond proportion
+
+
+
+
 
 
 JGroups 3.3
 -----------
+* Used in EAP 7.x (not yet released)
 
 
 JGroups 3.4
