@@ -327,23 +327,64 @@ Large clusters
 
 
 
-Bundler: send batch of 1 as a single message
---------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1726[JGRP-1726]
-* Sending a single message is a bit more efficient than sending a message list of 1
-
-
-Fixed regression between 3.2 and 3.3/3.4
-----------------------------------------
-* https://issues.jboss.org/browse/JGRP-1716[JGRP-1716]
-
-
 
 
 
 
 JGroups 3.5
 -----------
+
+New bundler
+-----------
+* https://issues.jboss.org/browse/JGRP-1717[JGRP-1717]
+* sender-send-with-timer (old defaulkt bundler)
+* transfer-queue: uses a a transfer queue and a separate bundler thread
+* sender-sends: latest bundler
+TODO: separate slide on the new bundlers and DONT_BUNDLE
+
+
+
+Bundler: send batch of 1 as a single message
+--------------------------------------------
+* https://issues.jboss.org/browse/JGRP-1726[JGRP-1726]
+* Sending a single message is a bit more efficient than sending a message list of 1
+
+
+
+Ignore DONT_BUNDLE flag
+-----------------------
+* https://issues.jboss.org/browse/JGRP-1737[JGRP-1737]
+* Bundles all messages on the sender, even ones marked with DONT_BUNDLE
+** On the receiver, removes messages marked with DONT_BUNDLE and OOB
+   and sends them up as separate messages on a separate thread via the
+   thread pool
+* Requires a recent bundler (transfer-queue, sender-sends)
+
+
+Threads processed by the internal thread pool should not do work stealing
+-------------------------------------------------------------------------
+* https://issues.jboss.org/browse/JGRP-1732[JGRP-1732]
+* This prevents the internal thread pool from getting exhausted
+
+
+
+Fixed regression between 3.2 and 3.3/3.4
+----------------------------------------
+* https://issues.jboss.org/browse/JGRP-1716[JGRP-1716]
+* Single messages are now parsed by the thread pool again rather than by
+  the receiving thread
+
+
+
+Enable diagnostics dynamically
+------------------------------
+* https://issues.jboss.org/browse/JGRP-1747[JGRP-1747]
+* Even with diagnostics disabled in the config, there's a method call
+  that can turn diagnostics on via JMX or byteman
+
+
+
+
 
 
 JGroups 4.0
