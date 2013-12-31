@@ -2,6 +2,11 @@
 
 Status JGroups 2012-2014
 ========================
+:author:    Bela Ban
+:backend:   slidy
+:max-width: 45em
+:data-uri:
+:icons:
 
 * Status JGroups 2012-2013
 ** 3.2, 3.3, 3.4, 3.5
@@ -16,6 +21,13 @@ JGroups 3.2
 -----------
 * Used in EAP 6.2.0
 * Current version: 3.2.12.Final
+
+
+//Images
+//------
+//.Yes, you can use images
+//image:../images/belanew.gif[Bela,200,200,float="right",align="center"] 
+
 
 
 
@@ -42,11 +54,21 @@ I8N logging
 * https://issues.jboss.org/browse/JGRP-1475[JGRP-1475]
 * Use of ResourceBundles to internationalize certain warn and error
   messages
+** Forced upon me by the TAG
+** I'm not convinced a Czech support engineer needs to see French
+warning messages...
 * The +JGroups/conf/jg-messages*.properties+ files contain the
   translations
-* Currently, only German is supported, but support for any language
-  can be added easily, and without recompilation, e.g. by adding
-  +jg-messages_fr.properties+ (for French) to the classpath
+** Currently, only English and German are supported, but any language
+  can be supported by adding -messages_fr.properties+ to the classpath
+* Code reduction
+[source,java]
+  if(log.isTraceEnabled())
+      log.trace(local_addr + ": sent msg " + seqno);
+
+* replaced by
+[source,java]
+  log.trace("%s: sent msg %d", local_addr, seqno);
 
 
 Suppress identical log warnings
@@ -71,9 +93,10 @@ Message batching
 ----------------
 * https://issues.jboss.org/browse/JGRP-1564[JGRP-1564],
   https://issues.jboss.org/browse/JGRP-1581[JGRP-1581] 
-* On the receiver, message bundles received are passed up together, in the form of message batches. The advantage is
-  that the costs for passing up messages is amortized, as (e.g.) locks
-  are acquired only once per batch instead of once per message.
+* On the receiver, message bundles are passed up in the form of _message batches_. Advantage:
+  the cost of passing up messages is amortized; ie. locks
+  are acquired only *once per batch* instead of *once per message*.
+** Not exposed at the channel level; no +receive(MessageBatch)+
 * Example:
 [source,java]
     public void up(MessageBatch batch) {
@@ -196,16 +219,6 @@ TP: simplified message bundler
 * Note that OOB messages are now bundled, too, so if bundling is to be avoided, the
   +DONT_BUNDLE+ flag has to be used 
 
-
-Speed improvements in FORWARD_TO_COORD and SEQUENCER
-----------------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1544[JGRP-1544],
-  https://issues.jboss.org/browse/JGRP-1604[JGRP-1604]
-
-
-TCP: better handling of concurrent connections
-----------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1549[JGRP-1549]
 
 
 New Timer implementation
@@ -340,6 +353,7 @@ New bundler
 * sender-send-with-timer (old defaulkt bundler)
 * transfer-queue: uses a a transfer queue and a separate bundler thread
 * sender-sends: latest bundler
+
 TODO: separate slide on the new bundlers and DONT_BUNDLE
 
 
@@ -384,11 +398,37 @@ Enable diagnostics dynamically
 
 
 
-
-
-
 JGroups 4.0
 -----------
+* API changes
+** Trashing UNICAST, UNICAST2, NAKACK
+* NIO.2
+** Direct buffers
+** Reducing of buffer copying
+** Scattering and gathering
+** Selector model for UDP and TCP ?
+
+
+
+
+Details
+-------
+* Message batching
+* Bundling
+** 3 bundler down to 1-2 bundlers
+** DONT_BUNDLE flag (ignored)
+* NIO.2
+** Direct buffers
+** Reducing of buffer copying
+** Scattering and gathering
+** Selector model for UDP and TCP ?
+** API changes
+* Internal thread pools
+* Async Invocation API
+
+
+
+
 
 
 Large clusters
@@ -399,3 +439,4 @@ Large clusters
 Google Compute Engine
 ---------------------
 * 1000 USD credits to test large JGroups cluster
+** Credits expire June 2014
