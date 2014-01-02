@@ -409,6 +409,35 @@ JGroups 4.0
 ** Selector model for UDP and TCP ?
 
 
+NIO.2: goals
+------------
+* Reduce buffer copying
+** Native buffers
+* Gathering writes
+** Infinispan passes its buffer directly to the network socket
+* Scattering reads
+** The buffer read from the network socket is passed directly to Infinispan
+* Non-blocking
+** Reduces threads needed
+*** Currently TCP uses a 1 thread-per-connection model
+** Not relevant for UDP
+* Selector based model
+** Common selection based model for all transports (UDP and TCP)
+** parallel use of (multiple?) UDP and TCP transports
+*** Flag to select transport type (e.g. select TCP for unicast messages)
+
+
+
+Current buffer handling
+-----------------------
+image:../images/CurrentArch.png["Current architecture"] 
+
+
+
+NIO.2 buffer handling
+---------------------
+image:../images/NIOArch.png["NIO.2 architecture"] 
+
 
 
 Details
