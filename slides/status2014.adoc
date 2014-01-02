@@ -54,13 +54,12 @@ I8N logging
 * https://issues.jboss.org/browse/JGRP-1475[JGRP-1475]
 * Use of ResourceBundles to internationalize certain warn and error
   messages
-** Forced upon me by the TAG
 ** I'm not convinced a Czech support engineer needs to see French
 warning messages...
 * The +JGroups/conf/jg-messages*.properties+ files contain the
   translations
 ** Currently, only English and German are supported, but any language
-  can be supported by adding -messages_fr.properties+ to the classpath
+  can be supported by adding +messages_fr.properties+ to the classpath
 * Code reduction
 [source,java]
   if(log.isTraceEnabled())
@@ -121,19 +120,30 @@ Async Invocation API
 --------------------
 * https://issues.jboss.org/browse/JGRP-1587[JGRP-1587]
 * This allows the recipient of a message in MessageDispatcher or RpcDispatcher to make the delivering thread return
-  immediately (making it available for other requests) and to send the
-  response later
-* The advantage is that it is the application which now decides how to
-  deliver messages (e.g. sequentially or in parallel), and not JGroups 
+  immediately (making it available for other requests) and to send the response later
+* Advantages
+** It is the _application_ which now decides how to deliver messages (e.g. sequentially
+   or in parallel), and _not JGroups_. The  application knows this better than JGroups
+   anyway.
+** No clogging of the JGroups thread pools
+* Example: Infinispan RPCs accessing different key sets could be delivered concurrently
 * Documentation is here: http://www.jgroups.org/manual-3.x/html/user-building-blocks.html#AsyncInvocation.
 
 
 UNICAST3
 --------
 * https://issues.jboss.org/browse/JGRP-1589[JGRP-1589]
-* New unicast protocol which combines the advantages of UNICAST and UNICAST2. UNICAST3 has the immediately delivery
-  characteristics of UNICAST and the speed of UNICAST2
-* It is the default unicast protocol in 3.3
+* New unicast protocol combining the advantages of +UNICAST+ and +UNICAST2+. It has the immediately delivery
+  characteristics of +UNICAST+ and the speed of +UNICAST2+ and is the default unicast protocol in 3.3
+* Characteristics
+** Reduces ack-based traffic while still acking messages quickly (solves
+   last-message-lost problem)
+*** Message batches are acked as a whole, e.g. batch 20-60 acks only 60
+** Prevents problems with concurrent closing and message sending on the same
+   connection by flushing pending messages  before closing a connection
+** Reduces memory requirements at the sender by quickly purging messages received by the receiver
+** Provides selective retransmission (request from receiver to sender)
+*** There's not more than 1 ack per +xmit_interval+ period
 * For details: https://github.com/belaban/JGroups/blob/master/doc/design/UNICAST3.txt
 
 
@@ -169,19 +179,26 @@ RELAY2 fixes and enhancements
 PDC
 ---
 * https://issues.jboss.org/browse/JGRP-1541[JGRP-1541]
-* A new protocol to cache discovery responses on disk, suitable for use with (e.g.) TCPPING.
+* A new protocol to cache discovery responses on disk, suitable for use with (e.g.)
+  TCPPING.
+* Ref: http://belaban.blogspot.ch/2012/11/persisting-discovery-responses-with.html
 
 
 SUPERVISOR
 ----------
 * https://issues.jboss.org/browse/JGRP-1557[JGRP-1557]
 * New protocol which can auto-correct (or log) things at runtime, based on rules
+* Ref: http://belaban.blogspot.ch/2013/01/supervisor-detecting-faults-and-fixing.html
 
 
 Log4j2 is now the default logging framework used
 ------------------------------------------------
 * https://issues.jboss.org/browse/JGRP-1585[JGRP-1585]
-* Log4j is still supported, but log4j2 is preferred (more efficient and less blocking)
+* Log4j is still supported, but log4j2 is preferred (more efficient and less
+  blocking)
+* Less useless logging code if(log.isCrapEnabled())
+** Exception: heavily executed code (there is a small perf penalty)
+
 
 
 Pick NIC based on pattern matching
@@ -197,15 +214,6 @@ MPerfRpc
 
 
 
-NAKACK2: unneeded retransmissions
----------------------------------
-* https://issues.jboss.org/browse/JGRP-1539[JGRP-1539]
-* The retransmit algorithm in NAKACK2 would sometimes ask the sender
-  to retransmit messages which were received a few ms later
-* This created unnecessary traffic
-* The adopted fix reduces the number of retransmits.
-
-
 TP: simplified message bundler
 ------------------------------
 * https://issues.jboss.org/browse/JGRP-1540[JGRP-1540]
@@ -218,6 +226,30 @@ TP: simplified message bundler
 * This is important for sync RPCs.
 * Note that OOB messages are now bundled, too, so if bundling is to be avoided, the
   +DONT_BUNDLE+ flag has to be used 
+
+
+3 bundlers
+----------
+* +sender-sends-with-timer+ (old)
+** Sends a message bundle if time has elapsed or queued msgs have exceeded max size
+** High latency but good throughput
+*** Not good for sync RPCs: use DONT_BUNDLE flag
+* +transfer-queue+ (new): 
+** All messages are placed in a transfer queue
+** Dedicated thread to pull messages and send
+*** A message bundle is sent when max size has been exceeded or no other messages are
+    in the queue
+**** Single message are sent quickly (DONT_BUNDLE is not needed)
+* +sender-sends+ (latest):
+** A sender thread is used to send the message bundle when max size has been
+   exceeded or no other thread is present
+** Similar to transfer-queue in latency and throughput
+** DONT_BUNDLE is not used anymore
+
+
++bundler_type="sender-sends"+
+-----------------------------
+image:../images/SenderSendsBundler.png["sender-sends bundler"]
 
 
 
@@ -340,6 +372,30 @@ Large clusters
 
 
 
+Moved to Ivy for dependency management
+--------------------------------------
+[source,xml]
+<?xml version="1.0" encoding="UTF-8"?>
+<ivy-module version="2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
+    <info organisation="org.jgroups" module="jgroups" revision="3.5.0.Alpha1"/>
+    <dependencies>
+        <dependency org="biz.aQute"                name="bnd"             rev="1.50.0"/>
+        <dependency org="bouncycastle"             name="bcprov-jdk15"    rev="140"/>
+        <dependency org="org.jboss.byteman"        name="byteman"         rev="2.1.4"/>
+        <dependency org="org.jboss.byteman"        name="byteman-bmunit"  rev="2.1.4"/>
+        <dependency org="org.jboss.byteman"        name="byteman-install" rev="2.1.4"/>
+        <dependency org="org.jboss.byteman"        name="byteman-submit"  rev="2.1.4"/>
+        <dependency org="log4j"                    name="log4j"           rev="1.2.14"/>
+        <dependency org="org.apache.logging.log4j" name="log4j-api"       rev="2.0-beta9"/>
+        <dependency org="org.apache.logging.log4j" name="log4j-core"      rev="2.0-beta9"/>
+        <dependency org="xalan"                    name="serializer"      rev="2.7.1"/>
+        <dependency org="xalan"                    name="xalan"           rev="2.7.1"/>
+        <dependency org="org.testng"               name="testng"          rev="6.8.7"/>
+        <dependency org="com.beust"                name="jcommander"      rev="1.5"/>
+    </dependencies>
+</ivy-module>
+
 
 
 
@@ -413,17 +469,17 @@ NIO.2: goals
 ------------
 * Reduce buffer copying
 ** Native buffers
-* Gathering writes
-** Infinispan passes its buffer directly to the network socket
-* Scattering reads
-** The buffer read from the network socket is passed directly to Infinispan
+** Gathering writes
+*** Infinispan passes its buffer directly to the network socket
+** Scattering reads
+*** The buffer read from the network socket is passed directly to Infinispan
 * Non-blocking
 ** Reduces threads needed
 *** Currently TCP uses a 1 thread-per-connection model
 ** Not relevant for UDP
 * Selector based model
 ** Common selection based model for all transports (UDP and TCP)
-** parallel use of (multiple?) UDP and TCP transports
+** Parallel use of (multiple?) UDP and TCP transports
 *** Flag to select transport type (e.g. select TCP for unicast messages)
 
 
@@ -439,21 +495,55 @@ NIO.2 buffer handling
 image:../images/NIOArch.png["NIO.2 architecture"] 
 
 
+NIO.2: buffer handling
+----------------------
+* Buffer reuse
+** When can a buffer be released and filled with new data ?
+*** Example: JGroups creates a buffer, reads data into it, passes
+    +buf/offset/length+ to Infinispan
+*** If Infinispan returns immediately and reads the buffer in a different
+    thread (e.g. using the Async Invocation API), the buffer cannot be reused
+    by JGroups immediately
+**** Release API ?
+** Should we create new buffers for every read/write or reuse buffers ?
+*** Buffers might grow when receiving large messages
+*** Penalty for creation of native buffers (slow)
+* Make the choice of native versus heap buffers configurable ?
+* RDMA
+** Use of native buffers should suppress buffer copying on the same box
+*** Currently only implemented for TCP (Oracle's JVM)
+
+
+NIO.2: API changes
+------------------
+* API changes
+** How does Infinispan pass a ref to its buffer to JGroups ?
+*** For gathering writes
+** Use of +(Byte)Buffer+ rather than +byte[] buffer+ ?
+** Use with RpcDispatcher 
+*** +(Request,Response)Marshaller+
+** Streamable
+*** Use of an adapter class (+ByteBuffer(Output,Input)Stream+) ?
+
+
+NIO.2: selector model
+---------------------
+* 1 selector thread, thread pools for processing of reads and writes
+* UDP and TCP sockets are simply registered with the same selector
+* Messages can be sent over different transports
+** Message flag to select
+*** Defaults: multicasts=UDP, unicasts=TCP
+* Issues to investigate
+** Do we really need non-blocking for UDP ?
+
+
 
 Details
 -------
-* Message batching
 * Bundling
 ** 3 bundler down to 1-2 bundlers
 ** DONT_BUNDLE flag (ignored)
-* NIO.2
-** Direct buffers
-** Reducing of buffer copying
-** Scattering and gathering
-** Selector model for UDP and TCP ?
-** API changes
 * Internal thread pools
-* Async Invocation API
 
 
 
