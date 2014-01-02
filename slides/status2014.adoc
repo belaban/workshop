@@ -224,8 +224,8 @@ TP: simplified message bundler
   the bundle will fill quickly, or no more message is available and so we send the
   message(s) quickly
 * This is important for sync RPCs.
-* Note that OOB messages are now bundled, too, so if bundling is to be avoided, the
-  +DONT_BUNDLE+ flag has to be used 
+* Note that +DONT_BUNDLE+ messages are now bundled, too, so if bundling is to be avoided, the
+  +DONT_BUNDLE+ flag has to be used *and* +ignore_dont_bundle+ set to false
 
 
 3 bundlers
@@ -240,16 +240,31 @@ TP: simplified message bundler
 *** A message bundle is sent when max size has been exceeded or no other messages are
     in the queue
 **** Single message are sent quickly (DONT_BUNDLE is not needed)
-* +sender-sends+ (latest):
+* +sender-sends+ (latest) *in 3.5*:
 ** A sender thread is used to send the message bundle when max size has been
    exceeded or no other thread is present
 ** Similar to transfer-queue in latency and throughput
 ** DONT_BUNDLE is not used anymore
 
 
+
 +bundler_type="sender-sends"+
 -----------------------------
 image:../images/SenderSendsBundler.png["sender-sends bundler"]
+
+
+
+
+Characteristics of the 3 bundlers
+---------------------------------
+* For single threads, +sender-sends+ is the worst, +transfer-queue+ the best
+* For 2 and more threads, +sender-sends+ is about the same as +transfer-queue+,
+  +sender-sends-with-timer+ si the best
+* For many threads (10 and more), +sender-sends+ has the best performance
+* More perf investigation is needed here...
+* Eventually I want to remove +sender-sends-with-timer+
+
+
 
 
 
@@ -269,7 +284,8 @@ STABLE: reduction of time until stability
 * This is not done anymore, and we have now by default enabled
   +send_stable_msgs_to_coord_only+
 * Members send their STABLE messages to the current coordinator only instead of
-  multicasting them to all members (cuts down on traffic) 
+  multicasting them to all members
+** This cuts traffic, especially with TCP
 
 
 
@@ -289,6 +305,7 @@ Pluggable policy for picking coordinator
 * https://issues.jboss.org/browse/JGRP-592[JGRP-592]
 * View and merge-view creation is now pluggable; this means that an application can
   determine which member is the coordinator
+** Might be useful to implement cluster singletons in Wildfly
 * Documentation: http://www.jgroups.org/manual/html/user-advanced.html#MembershipChangePolicy.
 
 
@@ -403,37 +420,36 @@ Moved to Ivy for dependency management
 JGroups 3.5
 -----------
 
-New bundler
------------
-* https://issues.jboss.org/browse/JGRP-1717[JGRP-1717]
-* sender-send-with-timer (old defaulkt bundler)
-* transfer-queue: uses a a transfer queue and a separate bundler thread
-* sender-sends: latest bundler
 
-TODO: separate slide on the new bundlers and DONT_BUNDLE
+Bundler improvements
+--------------------
 
+* New bundler_type names
+** +sender-sends-with-timer+, +transfer-queue+
+** New bundler +sender-sends+
+** See previous discussion
 
+* Send batch of 1 as a single message
+** https://issues.jboss.org/browse/JGRP-1726[JGRP-1726]
+** Sending a single message is a bit more efficient than sending a message batch of 1
 
-Bundler: send batch of 1 as a single message
---------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1726[JGRP-1726]
-* Sending a single message is a bit more efficient than sending a message list of 1
-
-
-
-Ignore DONT_BUNDLE flag
------------------------
-* https://issues.jboss.org/browse/JGRP-1737[JGRP-1737]
-* Bundles all messages on the sender, even ones marked with DONT_BUNDLE
-** On the receiver, removes messages marked with DONT_BUNDLE and OOB
+* Ignore DONT_BUNDLE flag
+** https://issues.jboss.org/browse/JGRP-1737[JGRP-1737]
+** Bundles all messages on the sender, even ones marked with DONT_BUNDLE
+*** On the receiver, removes messages marked with DONT_BUNDLE and OOB
    and sends them up as separate messages on a separate thread via the
    thread pool
-* Requires a recent bundler (transfer-queue, sender-sends)
+** Requires a recent bundler (transfer-queue, sender-sends)
 
 
 Threads processed by the internal thread pool should not do work stealing
 -------------------------------------------------------------------------
 * https://issues.jboss.org/browse/JGRP-1732[JGRP-1732]
+* Even internal threads used to do work stealing
+** When done, an internal thread tried to remove messages from the message table
+   and pass them up
+** Now this is not done anymore
+** The point is that internal threads should only do internal work and nothing else
 * This prevents the internal thread pool from getting exhausted
 
 
@@ -538,24 +554,18 @@ NIO.2: selector model
 
 
 
-Details
--------
-* Bundling
-** 3 bundler down to 1-2 bundlers
-** DONT_BUNDLE flag (ignored)
-* Internal thread pools
-
-
-
-
-
-
 Large clusters
 --------------
 * Largest cluster is 1500+ nodes
+** http://belaban.blogspot.ch/2013/09/new-record-for-large-jgroups-cluster.html
+* This resulted in many improvements (see previous slides) from which smaller
+  clusters also benefit
+* The goal is 2000+
 
 
 Google Compute Engine
 ---------------------
 * 1000 USD credits to test large JGroups cluster
-** Credits expire June 2014
+** Credits expire June 2014, so I have to tackle this soonish
+
+
