@@ -262,6 +262,12 @@ Characteristics of the 3 bundlers
 ** With +transfer-queue+, message bundles are sent which is faster
 ** Comparable to Nagling (TCP_NODELAY): single threads have a better perf if
    it is off
+** Discussion: sender sends 1000 messages
+*** Flag 1-999 with MORE_MSGS_COMING flag
+*** Never send a message is this flag is set (unless max bundle size has
+    been exceeded)
+*** Send message bundle when flag is absent
+**** Requires the notion of a _batch_ (present in Infinispan?)
 * For 2 and more threads, +sender-sends+ is about the same as +transfer-queue+,
   +sender-sends-with-timer+ is the best
 * For many threads (10 and more), +sender-sends+ has the best performance
