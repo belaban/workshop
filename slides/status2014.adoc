@@ -553,6 +553,25 @@ NIO.2: selector model
 ** Do we really need non-blocking for UDP ?
 
 
+Infiniband support
+------------------
+* Available for TCP only (no code changes): Sockets Direct Protocol (SDP)
+** Solaris and Linux supported by Oracle's JVM
+** Define in a config file which connections should bypass TCP and directly use Infiniband
+** Use system prop to enable:
+[literal]
+  java -Dcom.sun.sdp.conf=sdp.conf -Djava.net.preferIPv4Stack=true  ExampleApplication
+
+* Non-transparent support
+** JNI to RDMA API (Verbs/OFED API)
+** Not really an option; I don't want any C code in JGroups
+** I'd rather wait for a Java API for Infiniband in the JDK
+*** If there's none, then this shows that there's no demand for Infiniband/Java 
+
+* We should test Infinispan over Infiniband (DIST mode)
+* http://docs.oracle.com/javase/tutorial/sdp/sockets
+
+
 
 Large clusters
 --------------
