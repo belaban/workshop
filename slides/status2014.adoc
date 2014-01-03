@@ -239,7 +239,7 @@ TP: simplified message bundler
 ** Dedicated thread to pull messages and send
 *** A message bundle is sent when max size has been exceeded or no other messages are
     in the queue
-**** Single message are sent quickly (DONT_BUNDLE is not needed)
+**** Single messages are sent quickly (DONT_BUNDLE is not needed)
 * +sender-sends+ (latest) *in 3.5*:
 ** A sender thread is used to send the message bundle when max size has been
    exceeded or no other thread is present
@@ -258,8 +258,12 @@ image:../images/SenderSendsBundler.png["sender-sends bundler"]
 Characteristics of the 3 bundlers
 ---------------------------------
 * For single threads, +sender-sends+ is the worst, +transfer-queue+ the best
+** Single threads always end up sending a single message with +sender-sends+
+** With +transfer-queue+, message bundles are sent which is faster
+** Comparable to Nagling (TCP_NODELAY): single threads have a better perf if
+   it is off
 * For 2 and more threads, +sender-sends+ is about the same as +transfer-queue+,
-  +sender-sends-with-timer+ si the best
+  +sender-sends-with-timer+ is the best
 * For many threads (10 and more), +sender-sends+ has the best performance
 * More perf investigation is needed here...
 * Eventually I want to remove +sender-sends-with-timer+
