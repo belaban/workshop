@@ -5,7 +5,6 @@ Status JGroups 2012-2014
 :author:    Bela Ban
 :backend:   slidy
 :max-width: 45em
-:data-uri:
 :icons:
 
 * Status JGroups 2012-2013
@@ -21,12 +20,6 @@ JGroups 3.2
 -----------
 * Used in EAP 6.2.0
 * Current version: 3.2.12.Final
-
-
-//Images
-//------
-//.Yes, you can use images
-//image:../images/belanew.gif[Bela,200,200,float="right",align="center"] 
 
 
 
@@ -214,65 +207,104 @@ MPerfRpc
 
 
 
-TP: simplified message bundler
-------------------------------
-* https://issues.jboss.org/browse/JGRP-1540[JGRP-1540]
-* The new bundler (enabled by default) is simpler and more efficient than the previous ones
-* It queues messages until a max size has been reached, or until no more messages are
-  available in the queue, and then sends the queued messages as a message bundle
-* The advantage is that we now don't need the +DONT_BUNDLE+ message flag anymore, as either
-  the bundle will fill quickly, or no more message is available and so we send the
-  message(s) quickly
-* This is important for sync RPCs.
-* Note that +DONT_BUNDLE+ messages are now bundled, too, so if bundling is to be avoided, the
-  +DONT_BUNDLE+ flag has to be used *and* +ignore_dont_bundle+ set to false
+//TP: simplified +transfer-queue+ bundler
+//---------------------------------------
+//* https://issues.jboss.org/browse/JGRP-1540[JGRP-1540]
+//* The new bundler (enabled by default) is simpler and more efficient than the previous ones
+//* It queues messages until a max size has been reached, or until no more messages are
+//  available in the queue, and then sends the queued messages as a message bundle
+//* The advantage is that we now don't need the +DONT_BUNDLE+ message flag anymore, as either
+//  the bundle will fill quickly, or no more message is available and so we send the
+//  message(s) quickly
+//* This is important for sync RPCs.
+//* Note that +DONT_BUNDLE+ messages are now bundled, too, so if bundling is to be avoided, the
+//  +DONT_BUNDLE+ flag has to be used *and* +ignore_dont_bundle+ set to false
 
 
 3 bundlers
 ----------
-* +sender-sends-with-timer+ (old)
-** Sends a message bundle if time has elapsed or queued msgs have exceeded max size
-** High latency but good throughput
-*** Not good for sync RPCs: use DONT_BUNDLE flag
-* +transfer-queue+ (new): 
-** All messages are placed in a transfer queue
-** Dedicated thread to pull messages and send
-*** A message bundle is sent when max size has been exceeded or no other messages are
-    in the queue
-**** Single messages are sent quickly (DONT_BUNDLE is not needed)
-* +sender-sends+ (latest) *in 3.5*:
-** A sender thread is used to send the message bundle when max size has been
+* +sender-sends-with-timer+ ("old")
+* +transfer-queue+ ("new")
+* +sender-sends+ ("latest")
+
++sender-sends-with-timer+
+-------------------------
+* Sends a message bundle if time has elapsed or queued msgs have exceeded max size
+* High latency but good throughput
+** Not good for sync RPCs: use +DONT_BUNDLE+ flag
+
+image:../images/sender-sends-with-timer.png["sender-sends"]
+
+
+
+
++transfer-queue+
+----------------
+* Messages are placed in a bounded queue; senders block if it is full
+* Dedicated thread to pull and send messages
+** A message (bundle) is sent when max size is exceeded or queue is empty
+*** Single messages are sent quickly; +DONT_BUNDLE+ is not needed
+* Thread contention for access to the queue when we have many sender threads
+
+
+image:../images/transfer-queue.png["transfer-queue"]
+
+
++sender-sends+ (3.5)
+--------------------
+* A sender thread is used to send the message bundle when max size has been
    exceeded or no other thread is present
-** Similar to transfer-queue in latency and throughput
-** DONT_BUNDLE is not used anymore
+* Similar to transfer-queue in latency and throughput
+* +DONT_BUNDLE+ is not used anymore
+
+image:../images/sender-sends.png["sender-sends"]
 
 
 
-+bundler_type="sender-sends"+
------------------------------
+
+Message bundling with +sender-sends+ or +transfer-queue+
+--------------------------------------------------------
+* Messages are sent when
+** max size is exceeded, or
+** no other message is in the queue (+transfer-queue+), or
+** no other sender thread is present (+sender-sends+)
+
 image:../images/SenderSendsBundler.png["sender-sends bundler"]
 
 
 
 
-Characteristics of the 3 bundlers
----------------------------------
+Performance of the bundlers
+---------------------------
+[cols="5,1,10",options="header"]
+|========================================
+| Name | Latency | Throughput
+| +sender-sends-with-timer+ | high | high, decreases with more threads
+| +transfer-queue+ | low | high, decreases with many threads
+| +sender-sends+ | low | low for 1 thread, increases with more threads
+|========================================
+* With TCP as transport, Nagling should be disabled (TCP.tcp_nodelay=true) for low latency
+
+
+Performance characteristics of the bundlers
+-------------------------------------------
 * For single threads, +sender-sends+ is the worst, +transfer-queue+ the best
 ** Single threads always end up sending a single message with +sender-sends+
-** With +transfer-queue+, message bundles are sent which is faster
-** Comparable to Nagling (TCP_NODELAY): single threads have a better perf if
-   it is off
+** With +transfer-queue+, _message bundles_ are sent which is faster
+** Like Nagling (TCP_NODELAY): single threads have a better perf if it is on
 ** Discussion: sender sends 1000 messages
 *** Flag 1-999 with MORE_MSGS_COMING flag
-*** Never send a message is this flag is set (unless max bundle size has
-    been exceeded)
-*** Send message bundle when flag is absent
+*** Never send a single message if this flag is set
+*** Send message (bundle) when flag is absent
 **** Requires the notion of a _batch_ (present in Infinispan?)
 * For 2 and more threads, +sender-sends+ is about the same as +transfer-queue+,
   +sender-sends-with-timer+ is the best
 * For many threads (10 and more), +sender-sends+ has the best performance
-* More perf investigation is needed here...
+** More perf investigation is needed here...
 * Eventually I want to remove +sender-sends-with-timer+
+* Note that +DONT_BUNDLE+ messages are now bundled, too, so if bundling is to be avoided, the
+  +DONT_BUNDLE+ flag has to be used *and* +ignore_dont_bundle+ set to false
+
 
 
 
