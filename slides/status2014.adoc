@@ -107,6 +107,23 @@ Message batching
     }
 
 
+Message batching and performance
+--------------------------------
+* Unless +ignore_dont_bundle=false+, messages marked as +DONT_BUNDLE+ will get bundled
+* On the receiver, all messages marked as +DONT_BUNDLE+ and +OOB+ are removed and
+  delivered on a separate thread
+** Regular messages marked as +DONT_BUNDLE+ will *not* be delivered on a separate
+   thread as they need to be delivered in order
+** E.g. if we receive a batch +A[1-4]+, +A:5+ and +A[6-9]+, message +A:5+ cannot be delivered
+   before +A:6+, so it doesn't make any sense to deliver it on a separate thread
+* So if 3 different threads on A invoke sync RPCs (even on different keys), this will
+  result in messages +A:1+, +A:2+ and +A:3+.
+** At the receiver, +A:3+ has to wait until +A:1+ and +A:2+ have been processed
+-> Either use the Async Invocation API to deliver the 3 RPCs in parallel (if possible)
+   or mark the RPCs as +DONT_BUNDLE|OOB+
+* This is not necessarily a feature of message batching; we'd have the same behavior
+  with single messages
+
 
 
 Async Invocation API
