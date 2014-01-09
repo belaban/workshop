@@ -290,6 +290,22 @@ image:../images/SenderSendsBundler.png["sender-sends bundler"]
 
 
 
+Message bundling and delivery
+-----------------------------
+* All messages are bundled at the sender (ignoring +DONT_BUNDLE+)
+* At the receiver, we receive single messages or message batches (bundles)
+* The correct thread pool is found and single msgs or batches are passed up
+* Before OOB or OOB_INTERNAL batches are passed up, we remove messages
+  tagged with +DONT_BUNDLE|OOB+ and deliver them in separate threads
+* OOB batches (no +DONT_BUNDLE+) are delivered before regular batches
+* All messages of an OOB batch are delivered by the same thread
+** If we want delivery of each message in an OOB batch by a separate thread,
+   use +DONT_BUNDLE|OOB+
+
+
+
+
+
 
 Performance of the bundlers
 ---------------------------
@@ -301,8 +317,8 @@ Performance of the bundlers
 | +sender-sends+ | low | low for 1 thread, increases with more threads
 |========================================
 * With TCP as transport, Nagling should be disabled (TCP.tcp_nodelay=true) for low latency
+* Performance test numbers: https://issues.jboss.org/browse/JGRP-1717
 * We need to re-run the Infinispan perf tests
-** https://issues.jboss.org/browse/JGRP-1717
 
 
 Performance characteristics of the bundlers
