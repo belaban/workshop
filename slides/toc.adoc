@@ -2,6 +2,10 @@
 
 Workshop outline
 ================
+author: Bela Ban belaban@yahoo.com
+
+Ideas for a JGroups workshop. The different parts should be able to be
+combined into a custom workshop.
 
 Days 1 and 2 are introductory and are targeted at people who _use_ and
 _configure_ JGroups, e.g. a mixture of app programmers and system admins. Pure
@@ -128,4 +132,21 @@ Day 4: a closer look at protocols
 
 * Misc
 ** FRAG, COMPRESS, STOMP
+
+
+Admin part
+----------
+* Discuss the provided default stacks (UDP, TCP, perhaps EC2)
+* If TCP is used: which protocols can be removed, same with UDP
+* Most important config changes, e.g.
+** Timeouts in discovery protocol
+** Listing all nodes in TCPPING
+** Thread pool configuration (min/max threads, queues)
+
+
+JGroups and JDG
+---------------
+* Thread pool configuration, back pressure into JGroups
+** Missing heartbeats caused by exhausted thread pools and false suspicions 
+* High concurrent access to the same key set --> possible use of total order
 
