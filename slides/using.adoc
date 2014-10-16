@@ -31,3 +31,7 @@ What is it ?
 ** Distributed caches, counters, locks
 
 
+Architecture
+------------
+image::../images/arch.png["Architecture of JGroups,width="60%",align=left,valign=top]
+

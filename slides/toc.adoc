@@ -114,6 +114,9 @@ A closer look at protocols
 * Misc
 ** FRAG, COMPRESS, STOMP
 
+* Steps to arrive at an optimal configuration
+** Decision tree
+
 
 Admin
 -----
