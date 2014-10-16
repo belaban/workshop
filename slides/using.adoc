@@ -1,0 +1,33 @@
+
+
+Using JGroups
+=============
+author: Bela Ban belaban@yahoo.com
+
+Overview, API and configuration of the most common protocols.
+
+What is it ?
+------------
+* Clustering library (only *a single JAR* (~2MB))
+* Provides
+** Reliable _one-to-many_ or _one-to-one_ communication
+** Can use _IP multicasting_ or TCP
+* Customizable _protocol stack_
+** Users can add, remove, replace, enhance, or even write their own protocols
+
+* Ships protocols for
+** Network communication (transport)
+** Membership discovery
+** Failure detection
+** Lossless and ordered transmission
+** Network split handling and subsequent merging
+** Notification when nodes join or leave the cluster (membership)
+** Flow control
+** Fragmentation
+** Compression, encryption, authentication
+
+* Building blocks
+** Method invocation across a cluster
+** Distributed caches, counters, locks
+
+
