@@ -31,7 +31,64 @@ What is it ?
 ** Distributed caches, counters, locks
 
 
-Architecture
-------------
+Architecture I
+--------------
 image::../images/arch.png["Architecture of JGroups,width="60%",align=left,valign=top]
+
+
+Architecture II
+---------------
+* Users deal mainly with the _channel_ (`JChannel`)
+* The protocol stack is setup according to an XML config file
+* A sent message passes the stack _top-down_
+* A received message is passed up through the stack _bottom-up_
+
+
+Common classes
+--------------
+* `Address`
+** Identifies a node (=member) in a cluster
+** Can be used as destination to send a message to a node
+** A node's address can be retrieved from the channel: `JChannel.getAddress()`
+
+* `View`
+** List of addresses, lists all cluster nodes
+** Order is the same in all nodes
+** Example: `A[4] (2) [A, B]`
+*** View was created by (coordinator) A and the current cluster contains A and B
+
+* `Message`
+** This is sent and received by cluster nodes
+** Destination and sender's addresses
+*** Destination == null: send to entire cluster
+** Payload (`byte[]` buffer)
+** Flags
+** Headers (used mainly by protocols to add information, e.g. sequence numbers)
+* Example:
+[source,java]
+----
+Message msg=new Message(null, "hello")      // "hello" is serialized into a byte[] buffer
+                .setFlag(Message.Flag.OOB); // set flag OOB
+channel.send(msg);
+----
+
+ReceiverAdapter
+---------------
+* Callback to receive messages (push-model) and view changes
+* Users typically extend it and override `receive()` and `viewAccepted()`:
+[source,java]
+----
+public void receive(Message) {
+    Address sender=msg.getSrc();
+    String greeting=(String)msg.getObject();
+    System.out.println("received " + greeting + " from " + sender);
+}
+
+public void viewAccepted(View view) {
+    System.out.println("received view " + view);
+}
+----
+
+
+
 
