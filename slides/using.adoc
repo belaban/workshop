@@ -91,4 +91,81 @@ public void viewAccepted(View view) {
 
 
 
+JChannel: overview
+------------------
+* A `JChannel` is used to represent a cluster node
+* Simple API: create, connect, send / receive, disconnect, close
+* Example:
+[source,java]
+----
+// Create a channel, name it "A":
+JChannel ch=new JChannel("/home/bela/udp.xml").name("A");
 
+// Add a receiver to receive messages:
+ch.setReceiver(new ReceiverAdapter() {
+    public void receive(Message msg) {
+        System.out.printf("msg from %s: %s\n", msg.getSrc(), msg.getObject());
+    }
+});
+
+// Join the cluster "demo-cluster":
+ch.connect("demo-cluster");
+
+// Send a messaeg to all nodes (including myself):
+Message msg=new Message(null, "hello world");
+ch.send(msg);
+
+// Disconnect and close the channel:
+ch.close();
+----
+
+
+Creation of a channel
+---------------------
+* There are a number of constructors available:
+[source,java]
+----
+public JChannel(); // creates a default channel (uses udp.xml)
+public JChannel(File properties); // from a file
+public JChannel(Element el); // from a DOM element
+public JChannel(URL url); // from a URL
+public JChannel(String props); // config file on the classpath
+public JChannel(InputStream input); // input stream
+public JChannel(Protocol ... protocols); // list of protocols (programmatic creation)
+public JChannel(Collection<Protocol> protocols); // ditto
+public JChannel(JChannel ch); // from another channel
+----
+
+
+Sample XML configuration file
+-----------------------------
+* _Bottom-up_: `UDP` is the transport protocol, `FRAG2` is the top protocol
+* Attributes configure the protocols, e.g. `mcast_port` in `UDP`
+* Attributes can use variables, e.g. `${jgroups.udp.mcast_port:45588}`
+** System property `-Djgroups.udp.mcast_port=60000` overrides the (default) value of `45588`
+[source,xml]
+----
+<config xmlns="urn:org:jgroups"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd">
+    <UDP mcast_port="${jgroups.udp.mcast_port:45588}" />
+         
+    <PING />
+    <MERGE3 max_interval="30000"
+            min_interval="10000"/>
+    <FD_SOCK/>
+    <FD_ALL/>
+    <VERIFY_SUSPECT timeout="1500"  />
+    <pbcast.NAKACK2 xmit_interval="500"
+                    use_mcast_xmit="false"/>
+    <UNICAST3 xmit_interval="500"
+              conn_expiry_timeout="0" />
+    <pbcast.STABLE desired_avg_gossip="50000"
+                   max_bytes="4M"/>
+    <pbcast.GMS print_local_addr="true" join_timeout="2000"
+                view_bundling="true"/>
+    <UFC max_credits="2M" min_threshold="0.4"/>
+    <MFC max_credits="2M" min_threshold="0.4"/>
+    <FRAG2 frag_size="60K"  />
+</config>
+----
