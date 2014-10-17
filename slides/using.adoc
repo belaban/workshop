@@ -137,6 +137,7 @@ public JChannel(JChannel ch); // from another channel
 ----
 
 
+
 Sample XML configuration file
 -----------------------------
 * _Bottom-up_: `UDP` is the transport protocol, `FRAG2` is the top protocol
@@ -169,3 +170,53 @@ Sample XML configuration file
     <FRAG2 frag_size="60K"  />
 </config>
 ----
+
+
+Programmatic creation
+---------------------
+* A channel can also be created without any XML config file, ie. programmatically:
+[source,java]
+----
+Protocol[] prot_stack={
+          new UDP().setValue("bind_addr", InetAddress.getByName("127.0.0.1")),
+          new PING(),
+          new MERGE3(),
+          new FD_SOCK(),
+          new FD_ALL(),
+          new VERIFY_SUSPECT(),
+          new BARRIER(),
+          new NAKACK2(),
+          new UNICAST3(),
+          new STABLE(),
+          new GMS(),
+          new UFC(),
+          new MFC(),
+          new FRAG2()}; // <1>
+JChannel ch=new JChannel(prot_stack) // <2>
+            .name("A"); // <3>
+----
+<1> First, an array of protocols is created.
+<2> Next, the `JChannel` constructor which accepts the protocols array is called
+<3> Finally, the channel is given a logical name ("A")
+
+
+
+Joining a cluster
+-----------------
+* When a client wants to join a cluster, it _connects_ to a channel giving the name of the cluster to be joined:
+[source,java]
+----
+public void connect(String cluster) throws Exception;
+----
+
+* The cluster name is the name of the cluster to be joined
+* All channels that call `connect()` with the same name form a cluster
+* Messages sent on any channel in the cluster will be received by all members (including the one who sent it)
+
+NOTE: Local delivery can be turned off using `setDiscardOwnMessages(true)`.
+            
+* The `connect()` method returns as soon as the cluster has been joined successfully
+* If the channel is closed, an exception will be thrown
+* If there are no other members, then a new cluster is created and the member joins it as first member. 
+* The first member of a cluster becomes its _coordinator_.
+** A coordinator is in charge of installing new views whenever the membership changes
