@@ -4,7 +4,7 @@ Using JGroups
 =============
 author: Bela Ban belaban@yahoo.com
 
-Overview, API and configuration of the most common protocols.
+Overview and API
 
 What is it ?
 ------------
