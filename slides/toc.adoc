@@ -52,6 +52,7 @@ Advanced
 ** Message bundling and message batching
 
 * Message flags (OOB, DONT_BUNDLE, NO_FC etc)
+* Sending messages synchronously (RSVP)
 * Generating custom addresses
 * Control over view generation (pinning down a coordinator)
 * Fork channels: light weight channels over the same protocol stack
