@@ -65,7 +65,7 @@ Advanced
 ** Writing your own protocol
 
 
-* RELAY2: bridging geopgraphically separated data centers
+* RELAY2: bridging geographically separated data centers
 
 * Tuning
 ** UDP/TCP buffer sizes

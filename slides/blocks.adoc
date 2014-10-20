@@ -1,0 +1,13 @@
+
+Building blocks
+===============
+author: Bela Ban belaban@yahoo.com
+
+Abstractions (to be used over a channel) such as clustered method
+invocations, replicated hashmaps, distributed counters and locks.
+
+
+
+Method invocations across a cluster
+-----------------------------------
+ddd
