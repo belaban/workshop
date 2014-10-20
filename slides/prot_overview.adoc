@@ -9,7 +9,7 @@ what are the attributes that most commonly need to be changed.
 
 Transport protocols
 -------------------
-*A _transport protocol_ refers to the protocol at the bottom of the protocol stack which is
+* A _transport protocol_ refers to the protocol at the bottom of the protocol stack which is
 responsible for sending messages to and receiving messages from the network. There are a
 number of transport protocols in JGroups. They are discussed in the following sections.
 * A typical protocol stack configuration using UDP is:

@@ -10,4 +10,55 @@ invocations, replicated hashmaps, distributed counters and locks.
 
 Method invocations across a cluster
 -----------------------------------
-ddd
+* Class `RpcDispatcher` (name derived from **R**emote **P**rocedure **C**alls) provides the capability of invoking
+methods in a single node (unicast invocation), or in all nodes of a cluster (multicast invocation)
+* Invocations can be _synchronous_ (blocking) or _non-synchronous_ (non-blocking)
+* Any Java method can be invoked
+* With multicast invocations, a `RspList<T>` object is returned:
+[source,java]
+----
+public class RspList<T> implements Map<Address,Rsp<T>> {... }
+----
+
+* `RspList` is a map of `Rsp<T>` objects associated with their senders; there's 1 entry for each cluster node:
+[source,java]
+----
+for(Rsp<Integer> rsp: rsps) {
+    if(rsp.hasException()) {
+        log.warn("exception for %s: %s", rsp.getSender(), rsp.getException());
+        continue;
+    }
+    if(rsp.wasSuspected()) {
+        System.out.printf("%s was suspected:\n", rsp.getSender());
+        continue;
+    }
+    if(!rsp.wasReceived()) {
+        System.out.printf("no rsp from %s (timeout)\n", rsp.getSender());
+        continue;
+    }
+    System.out.printf("result for %s: %d\n", rsp.getSender(), rsp.getValue());
+}
+----
+
+
+Rsp<T>
+------
+* A response is of type `Rsp<T>`:
+[source,java]
+----
+public class Rsp<T> {
+    public T         getValue() {...}
+    public boolean   hasException() {...}
+    public Throwable getException() {...}
+    public Address   getSender() {...}
+    public boolean   wasReceived() {...}
+    public boolean   wasSuspected() {...}
+}
+----
+
+* Method `getValue()` returns the value, or `null` if no value was received (or the method returned `void`)
+* If `hasException()` is true, `getException()` will return a non-null `Throwable`
+* Method `getSender()` returns the sender of this specific response
+* Method `wasReceived()` returns true if the call completed successfully (even if it is a `void` method)
+* Method `wasSuspected()` returns true if the member was suspected while waiting for its response
+
