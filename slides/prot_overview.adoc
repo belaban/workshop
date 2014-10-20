@@ -161,18 +161,45 @@ mcast_port:: The port to be used for multicasts.
 
 
 
-PING
-----
-
-
 TCPPING
 -------
+initial_hosts:: A list of _all_ members in a cluster, e.g. `192.168.1.1[7800],192.168.1.2[7800],192.168.1.3[7800]`
 
-FD, FD_ALL, FD_SOCK
--------------------
-                    
+FD
+--
+All members form a logical circle, where each member pings the member to its right for liveness. Example: in a
+cluster `{A,B,C}`, A pings B, B pings C and C pings A.
+
+timeout:: The interval (ms) at which heartbeats are sent to the neighbor to the right.
+
+max_tries:: The max number of missed heartbeats for a node to get suspected. So if `timeout=3000` and
+`max_tries=3`, then it will take 9 seconds for A to suspect B if A didn't receive any heartbeats (or messages)
+from B in that time frame.
+
+msg_counts_as_heartbeat:: If heartbeats are missed, but messages are received from B, B won't get suspected by
+A (if true).
+
+
+
+FD_ALL
+------
+Every node multicasts heartbeats at a given `interval`. Every node collect heartbeats from all other nodes and
+sets a timestamp for P when a heartbeat from P has been received. Every `timeout_check_interval` the timestamps
+are checked if they are expired, and expired members are suspected. 
+
+timeout:: Max time (in ms) after which a node is suspected if the associated timestamp hasn't been reset.
+
+interval:: The interval (in ms) at which a node multicasts heartbeats
+
+timeout_check_interval:: The interval (in ms) at which timestamps are check for expiry
+
+msg_counts_as_heartbeat:: A message from P resets P's timestamp (if true)
+
+
 
 GMS
 ---
+
+join_timeout:: The max time (in ms) to try joining a cluster. If it elapses, a new attempt is started.
 
 
