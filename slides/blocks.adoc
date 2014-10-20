@@ -62,3 +62,92 @@ public class Rsp<T> {
 * Method `wasReceived()` returns true if the call completed successfully (even if it is a `void` method)
 * Method `wasSuspected()` returns true if the member was suspected while waiting for its response
 
+
+
+RequestOptions
+--------------
+* Every method invocation can be parameterized with an instance of `RequestOptions`. We can define
+** Response mode: this determines whether the call is blocking and - if yes - how long it should block. The modes are:
+  `GET_ALL`:: Block until responses from all members (minus the suspected ones) have been received.
+  `GET_NONE`:: Wait for none. This makes the call non-blocking
+  `GET_FIRST`:: Block until the first response (from anyone) has been received
+  `GET_MAJORITY`:: Block until a majority of members have responded
+** Timeout: max time (ms) to block. If the call hasn't completed after the timeout elapsed, a TimeoutException will be thrown.
+   A timeout of 0 means to wait forever. Ignored if the call is non-blocking (mode=`GET_NONE`)
+** Response filter: an `RspFilter` allows for filtering of responses and user-defined termination of
+  a call. For example, if we expect responses from 10 members, but can return after having
+  received 3 non-null responses, a `RspFilter` could be used. 
+** Flags: the various flags to be passed to the message (re advanced section)
+** Exclusion list: here we can pass a list of members (addresses) that should be excluded. For example,
+  if the view is `{A,B,C,D,E}`, and we set the exclusion list to A,C then the caller will wait for
+  responses from everyone except A and C. Also, every recipient that's in the exclusion list
+  will discard the message.
+
+
+
+
+RpcDispatcher API
+-----------------
+
+[source,java]
+----
+public <T> RspList<T>
+       callRemoteMethods(Collection<Address> dests,
+                         String method_name, Object[] args, Class[] types,
+                         RequestOptions options) throws Exception;
+public <T> RspList<T>
+       callRemoteMethods(Collection<Address> dests, MethodCall method_call,
+                         RequestOptions options) throws Exception;
+
+public <T> T callRemoteMethod(Address dest,
+                              String method_name, Object[] args, Class[] types,
+                              RequestOptions options) throws Exception;
+public <T> T callRemoteMethod(Address dest, MethodCall call,
+                              RequestOptions options) throws Exception;
+----
+
+* The `callRemoteMethods()` (multicast) methods are invoked with a list of target
+addresses. If null, the method will be invoked in all cluster nodes. Each call takes
+the target members to invoke it on (`null` means invoke on all nodes), a method and a `RequestOptions` object.
+
+** The method can be given as (1) the method name, (2) the arguments and (3) the argument types, or a
+MethodCall (containing a `java.lang.reflect.Method` and argument) can be given instead.
+
+* A `RspList` or a future to a RspList is returned.
+
+* The `callRemoteMethod()` (unicast) methods take almost the same parameters, except
+that there is only one destination address instead of a list.
+
+* The `callRemoteMethod()` calls return the actual result (or type T), or throws an
+exception if the method threw an exception on the target member.
+
+* Reflection is used to find the correct method in the target node according to the method name and
+number and types of supplied arguments. There is a runtime exception if a method cannot be resolved.
+
+
+
+RpcDispatcher example
+---------------------
+[source,java]
+----
+public int print(int number) throws Exception {return number * 2;}  // <1>
+
+RequestOptions opts=new RequestOptions(ResponseMode.GET_ALL, 5000); // <2>
+JChannel channel=new JChannel();
+RpcDispatcher disp=new RpcDispatcher(channel, this);   // <3>
+channel.connect("RpcDispatcherTestGroup");
+for(int i=0; i < 10; i++) {
+    RspList rsp_list=disp.callRemoteMethods(null,      // <4>
+                                            "print",
+                                            new Object[]{i},
+                                            new Class[]{int.class},
+                                            opts);
+    System.out.println("Responses: " + rsp_list);
+}
+----
+<1> Define public method `print()`
+<2> Define a `RequestOptions` object with mode=synchronous and a timeout of 5 seconds
+<3> Create an `RpcDispatcher` over the channel, `this` means all methods to be invoked are in the same class
+<4> Invoke the call on all cluster nodes (`null`). The method name is `"print"`, the actual argument is an array of one
+element (`i`), and the formal parameters are defined with an array of class information. Finally, the RequestOptions instance
+previously created is passed to the call.
