@@ -238,7 +238,7 @@ int num=future.get(); // <2>
 
 Asynchronous invocation in RpcDispatcher
 ----------------------------------------
-* By default, a method invoked in an RpcDispatcher is dispatched into application code
+* A method invoked in an RpcDispatcher is dispatched to application code
   by calling method handle from RequestHandler:
 
 [source,java]
@@ -269,7 +269,7 @@ public interface AsyncRequestHandler extends RequestHandler {
 }
 ----
 
-* Extending `RequestHandler`, interface `AsyncRequestHandler` adds an additional method taking a request message
+* Extending `RequestHandler`, `AsyncRequestHandler` adds an additional method taking a request message
   and a `Response` object. The request message contains the same information as before (e.g. a method call plus
   args). The `Response` argument is used to send a reply (if needed) at a later time, when processing is done.
         

@@ -397,3 +397,6 @@ public void close();
  the channel essentially only lingers around until it is garbage collected by the Java runtime system.
             
 
+Interactive demo
+----------------
+* Create a simple chat application

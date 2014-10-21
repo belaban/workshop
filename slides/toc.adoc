@@ -39,7 +39,7 @@ Building blocks
 * Distributed caches
 * Distributed locks
 * Distributed atomic counters
-
+* Distributed task execution
 
 
 
@@ -76,6 +76,11 @@ Advanced
 ** Byteman: installing rules into a running JVM (and removing them again)
 *** A look at a unit test _black-box style_
 
+* Simulation
+** Network partitions with DISCARD
+** Message drops
+** Duplicate messages
+** Reordering of messages
 
 * Strategies for handling network partitions
 ** Primary partition, merging data
@@ -122,15 +127,17 @@ Admin
 -----
 * Discuss the provided default stacks (UDP, TCP, perhaps EC2)
 * If TCP is used: which protocols can be removed, same with UDP
+
 * Most important config changes, e.g.
 ** Timeouts in discovery protocol
 ** Listing all nodes in TCPPING
 ** Thread pool configuration (min/max threads, queues)
+
 * Diagnostics
 ** Logging
 ** JMX and jconsole
 ** probe.sh
-*** Getting and setting properties, invoking methods, changing the log level
+*** Getting and setting properties, invoking methods, changing the log level at runtime
 
 * Most common pain points
 ** Members don't find each other (bind_addr, IPv4)
@@ -143,4 +150,13 @@ JGroups and JDG
 * Thread pool configuration, back pressure into JGroups
 ** Missing heartbeats caused by exhausted thread pools and false suspicions 
 * High concurrent access to the same key set --> possible use of total order
+
+
+Demos (to be run by attendees)
+------------------------------
+* Chat
+* ReplCache
+* Distributed lock
+* Distributed counter
+* Distributed task execution
 
