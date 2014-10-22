@@ -271,8 +271,56 @@ ReplicatedHashMap
 ** Otherwise, the call returns immediately and the updates are sent asynchronously
 
 
-ReplicatedHashMap
------------------
+ReplicatedHashMap: API
+----------------------
+
+[source,java]
+----
+public class ReplicatedHashMap<K, V> implements ConcurrentMap<K,V> {
+    public interface Notification<K, V> {   // <1>
+        void entrySet(K key, V value);
+        void entryRemoved(K key);
+        void viewChange(View view, List<Address> joined, List<Address> left);
+        void contentsSet(Map<K,V> new_entries);
+        void contentsCleared();
+    }
+    public         ReplicatedHashMap(Channel channel) {..}       // <2>
+    public void    setBlockingUpdates(boolean blocking_updates); // <3>
+    public void    setTimeout(long timeout);                     // <4>
+    public void    start(long state_timeout) throws Exception;   // <5>
+    public void    stop();                                       // <6>
+    public void    addNotifier(Notification n);                  // <7>
+ // get(), put(), putIfAbsent(), remove() etc from ConcurrentHashMap // <8>
+----
+<1> Notification interface; can be used to register for certain events, e.g. when a key/value pair has been added
+<2> Creates a new instance over an existing channel
+<3> Sets the updates to be blocking or non-blocking
+<4> Sets the timeout (ms); ignored if non-blocking
+<5> Starts the cache: this fetches the state from an existing member
+<6> Stops the cache: this stops the underlying channel and leaves the cluster
+<7> Registers a listener for `Notification` callbacks
+<8> The get and update methods are derived from `ConcurrentMap`; refer to it for details
+
+
+ReplicatedHashMap: sample code
+------------------------------
+
+[source,java]
+----
+JChannel channel=new JChannel(props); // <1>
+channel.connect("rhm-cluster");
+ReplicatedHashMap<String,Integer> map=new ReplicatedHashMap<String,Integer>(channel); // <2>
+map.start(); // <3>
+----
+<1> Creates a new `JChannel`. Note that the configuration needs to include a state transfer protocol (e.g. `STATE`), or
+    else the channel creation would fail with an exception
+<2> Creates a new ReplicatedHashMap over an existing (and connected) channel
+<3> Fetches the state from an existing member (not done if this is the first member). If the state transfer fails,
+    e.g. with a timeout, or there s no state transfer protocol configured, an exception will be thrown
+
+
+ReplicatedHashMap: demo
+-----------------------
 * Demo: `repl-hashmap.sh`
 
 
