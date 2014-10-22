@@ -55,8 +55,8 @@ Advanced
 ** Regular, OOB and internal thread pools
 ** Customization (replacing thread pool, thread and socket factories)
 ** Message bundling and message batching
-
 * Message flags (OOB, DONT_BUNDLE, NO_FC etc)
+* Asynchronous invocation API
 * Sending messages synchronously (RSVP)
 * Generating custom addresses
 * Control over view generation (pinning down a coordinator)
