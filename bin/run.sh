@@ -7,9 +7,9 @@
 #BIND_ADDR=match-interface:en.*
 #BIND_ADDR=link_local
 
+################# CHANGE THIS ##############################
 BIND_ADDR=match-address:192.168.1.*
-
-
+############################################################
 
 
 

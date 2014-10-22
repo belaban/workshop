@@ -1,19 +1,24 @@
 @echo off
 
-REM ====================== Script to start JGroups programs ==============================
-REM Usage: jgroups.bat demos.Draw -props c:\udp.xml
+rem Configurable properties:
 
-REM set the value of JG to the root directory in which JGroups is located
+rem bind address, set the network interface to use for clustering traffic
+rem set BIND_ADDR=192.168.1.5
+rem set BIND_ADDR=match-interface:en.*
+rem set BIND_ADDR=link_local
+
+set BIND_ADDR=match-address:192.168.1.*
+
+
 set JG=.
 set LIB=%JG%
 
-set CP=%JG%\classes\;%JG%\conf\;%LIB%\jgroups-all.jar\;%LIB%\log4j.jar\;%JG%\keystore
+set CP=%JG%\classes\;%JG%\conf\;%LIB%\*
 
-set VMFLAGS=-Xmx500M -Xms500M -XX:NewRatio=1 -XX:+AggressiveHeap -verbose:gc -XX:+DisableExplicitGC -XX:ThreadStackSize=32 -XX:CompileThreshold=100
+set VMFLAGS=-Xmx500M -Xms500M
 
-rem LOG="-Dorg.apache.commons.logging.Log=org.apache.commons.logging.impl.Jdk14Logger -Djava.util.logging.config.file=c:\logging.properties"
-set LOG=-Dlog4j.configuration=file:c:\log4j.properties
+set LOG=-Dlog4j.configurationFile=conf\log4j2.xml
 
-set FLAGS=-Djava.net.preferIPv4Stack=true -Djgroups.bind_addr=192.168.1.5 -Djgroups.tcpping.initial_hosts=127.0.0.1[7800]
+set FLAGS=-Djava.net.preferIPv4Stack=true -Djgroups.bind_addr=%BIND_ADDR%
 
-java -Ddisable_canonicalization=false -classpath %CP% %LOG% %VMFLAGS% %FLAGS% -Dcom.sun.management.jmxremote -Dresolve.dns=false %*
+java -classpath %CP% %LOG% %VMFLAGS% %FLAGS% -Dcom.sun.management.jmxremote -Dresolve.dns=false %*

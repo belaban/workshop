@@ -1,6 +1,7 @@
 package org.task;
 
 import org.jgroups.*;
+import org.jgroups.jmx.JmxConfigurator;
 import org.jgroups.util.Promise;
 import org.jgroups.util.Streamable;
 import org.jgroups.util.Util;
@@ -20,8 +21,8 @@ import java.util.concurrent.Executors;
  * @author Bela Ban
  */
 public class Server extends ReceiverAdapter implements Master, Slave {
-    private String  props="udp.xml";
-    private Channel ch;
+    protected String   props="config.xml";
+    protected JChannel ch;
 
     /** Maps task IDs to Tasks */
     private final ConcurrentMap<ClusterID,Entry> tasks=new ConcurrentHashMap<ClusterID,Entry>();
@@ -41,11 +42,13 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     public void start(String name) throws Exception {
         ch=new JChannel(props).name(name);
         ch.setReceiver(this);
-        ch.connect("dzone-demo");
+        ch.connect("task-cluster");
+        JmxConfigurator.registerChannel(ch, Util.getMBeanServer(), "jgroups", ch.getClusterName(), true);
     }
 
-    public void stop() {
+    public void stop() throws Exception {
         thread_pool.shutdown();
+        JmxConfigurator.unregisterChannel(ch, Util.getMBeanServer(), "jgroups", ch.getClusterName());
         ch.close();
     }
 
@@ -246,7 +249,12 @@ public class Server extends ReceiverAdapter implements Master, Slave {
                     break;
             }
         }
-        server.stop();
+        try {
+            server.stop();
+        }
+        catch(Exception e) {
+            System.err.println("Caught exception stopping server: " + e);
+        }
     }
 
     private static void _submit(Task task, Server server) {

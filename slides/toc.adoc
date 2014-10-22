@@ -7,6 +7,11 @@ author: Bela Ban belaban@yahoo.com
 Modules for a JGroups workshop. The different modules should be able to be
 combined into a custom workshop.
 
+Requirements:
+
+* JDK (7 or higher) installed
+* IDE installed. I used IntelliJ, but eclipse works, too
+** Lab imported into IDE
 
 
 Overview, architecture, API, protocols
@@ -92,14 +97,14 @@ A closer look at protocols
 ** PING, TCPPING
 
 * Merging
-** MERGE2, MERGE3
+** MERGE3
 ** Strategies to handle split brain scenarios
 
 * Failure detection
-** FD, FD_ALL, FD_SOCK
+** FD, FD_ALL, FD_SOCK, FD_HOST
 
 * Reliable message transmission and ordering
-** NAKACK, UNICAST, SEQUENCER, RSVP
+** NAKACK2, UNICAST3, SEQUENCER, RSVP
 
 * Message stability
 ** STABLE
@@ -111,10 +116,10 @@ A closer look at protocols
 ** MFC, UFC
 
 * State transfer
-** STATE_TRANSFER, STATE, STATE_SOCK
+** STATE, STATE_SOCK
 
 * Security
-** AUTH and ENCRYPT
+** AUTH, ENCRYPT, (SASL)
 
 * Misc
 ** FRAG, COMPRESS, STOMP
@@ -143,6 +148,7 @@ Admin
 ** Members don't find each other (bind_addr, IPv4)
 ** Switch configuration (IGMP snooping)
 ** Firewalls
+* Multicast routing (mcast)
 
 
 JGroups and JDG
