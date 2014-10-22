@@ -3,13 +3,25 @@ Building blocks
 ===============
 author: Bela Ban belaban@yahoo.com
 
-Abstractions (to be used over a channel) such as clustered method
-invocations, replicated hashmaps, distributed counters and locks.
+Abstractions (to be used over a channel) such as
+
+* method invocations (RPCs) across a cluster
+* replicated and distributed hashmaps
+* distributed counters
+* distributed locks and
+* task execution across cluster nodes
 
 
 
 Method invocations across a cluster
 -----------------------------------
+
+In this section we'll look at ways to invoke methods in cluster nodes, in blocking or non-blocking fashion
+
+'''
+
+RpcDispatcher
+-------------
 * Class `RpcDispatcher` (name derived from **R**emote **P**rocedure **C**alls) provides the capability of invoking
 methods in a single node (unicast invocation), or in all nodes of a cluster (multicast invocation)
 * Invocations can be _synchronous_ (blocking) or _non-synchronous_ (non-blocking)
@@ -237,3 +249,32 @@ int num=future.get(); // <2>
 <2> The `get()` blocks until the result is available
 
 
+
+Distributed caching
+-------------------
+In this section we'll look at replicating or distributing data across a cluster. _Replication_ means that all nodes
+have all the data, whereas _distribution_ means that only selected nodes store a given piece of information.
+
+'''
+
+
+ReplicatedHashMap
+-----------------
+* A key/value store implementing `java.util.concurrent.ConcurrentMap`
+* `ReplicatedHashMap` uses _full replication_; any data added to an instance will be replicated to all other
+  instances in the cluster
+** Removing a key will remove it in all cluster instances
+** Gets are always local and don't involve network round trips
+* A new instance needs to acquire the state from an existing node (the coordinator)
+* A cache can be configured to use blocking or non-blocking updates and - if blocking - define a max timeout to block
+** When blocking mode is used, the caller blocks until the update has been acked by all cluster instances
+** Otherwise, the call returns immediately and the updates are sent asynchronously
+
+
+ReplicatedHashMap
+-----------------
+* Demo: `repl-hashmap.sh`
+
+
+ReplCache
+---------
