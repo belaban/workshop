@@ -1,4 +1,4 @@
-package org.taskdistribution;
+package org.task;
 
 import java.io.Serializable;
 

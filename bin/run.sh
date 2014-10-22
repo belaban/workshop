@@ -1,33 +1,38 @@
-# Author: Bela Ban
-
 #!/bin/bash
 
-JG=${JG-$HOME/JGroups}
+### Configurable properties:
 
-LIB=$JG/lib
+## bind address, set the network interface to use for clustering traffic
+#BIND_ADDR=192.168.1.5
+#BIND_ADDR=match-interface:en.*
+#BIND_ADDR=link_local
 
-CP=$JG/classes:$JG/conf
+BIND_ADDR=match-address:192.168.1.*
 
-# If this is a bin dist, JARs are in the $JG directory.
-if [ ! -d $LIB ]; then
-    LIB=$JG
+
+
+
+
+
+LIB=`dirname $0`/../lib
+CLASSES=`dirname $0`/../classes
+CONF=`dirname $0`/../conf
+
+CP=$CLASSES:$CONF:$LIB/*
+
+if [ -f $CONF/log4j.properties ]; then
+    LOG="-Dlog4j.configuration=file:$CONF/log4j.properties"
 fi;
 
-CP=$CP:$LIB/*
-
-if [ -f $HOME/log4j.properties ]; then
-    LOG="-Dlog4j.configuration=file:$HOME/log4j.properties"
+if [ -f $CONF/log4j2.xml ]; then
+    LOG="$LOG -Dlog4j.configurationFile=$CONF/log4j2.xml"
 fi;
 
-if [ -f $HOME/log4j2.xml ]; then
-    LOG="$LOG -Dlog4j.configurationFile=$HOME/log4j2.xml"
+if [ -f $CONF/logging.properties ]; then
+    LOG="$LOG -Djava.util.logging.config.file=$CONF/logging.properties"
 fi;
 
-if [ -f $HOME/logging.properties ]; then
-    LOG="$LOG -Djava.util.logging.config.file=$HOME/logging.properties"
-fi;
-
-JG_FLAGS="-Djgroups.bind_addr=$IP_ADDR -Djboss.tcpping.initial_hosts=$IP_ADDR[7800]"
+JG_FLAGS="-Djgroups.bind_addr=${BIND_ADDR}"
 JG_FLAGS="$JG_FLAGS -Djava.net.preferIPv4Stack=true"
 FLAGS="-server -Xmx600M -Xms600M"
 FLAGS="$FLAGS -XX:CompileThreshold=10000 -XX:ThreadStackSize=64K -XX:SurvivorRatio=8"
@@ -43,11 +48,6 @@ JMX="-Dcom.sun.management.jmxremote"
 
 #EXPERIMENTAL="$EXPERIMENTAL -XX:+DoEscapeAnalysis -XX:+EliminateLocks -XX:+UseBiasedLocking"
 EXPERIMENTAL="$EXPERIMENTAL -XX:+EliminateLocks -XX:+UseBiasedLocking"
-
-#EXPERIMENTAL="$EXPERIMENTAL -XX:+AggressiveOpts -XX:+DoEscapeAnalysis -XX:+EliminateLocks -XX:+UseBiasedLocking -XX:+UseCompressedOops"
-#EXPERIMENTAL="$EXPERIMENTAL -XX:+UnlockExperimentalVMOptions -XX:+UseG1GC"
-
-#java -Xrunhprof:cpu=samples,monitor=y,interval=5,lineno=y,thread=y -classpath $CP $LOG $JG_FLAGS $FLAGS $EXPERIMENTAL $JMX  $*
 
 #DEBUG="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5000"
 #JMC="-XX:+UnlockCommercialFeatures -XX:+FlightRecorder"

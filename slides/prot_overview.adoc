@@ -131,9 +131,9 @@ Transport protocols (UDP, TCP)
 bind_addr:: Determines the network interface to bind to, e.g. `bind_addr=192.168.1.5`. The following values
 are also recognized:
 * `global`: picks a global IP address if available. If not, falls back to a `site-local` IP address
-* `site-local`: picks a site local (non routable) IP address, e.g. from the +192.168.0.0+ or +10.0.0.0+ address range.
-* `link-local`: picks a link-local IP address, from +169.254.1.0+ through +169.254.254.255+.
-* `non-loopback`: picks _any_ non loopback address.
+* `site_local`: picks a site local (non routable) IP address, e.g. from the +192.168.0.0+ or +10.0.0.0+ address range.
+* `link_local`: picks a link-local IP address, from +169.254.1.0+ through +169.254.254.255+.
+* `non_loopback`: picks _any_ non loopback address.
 * `loopback`: picks a loopback address, e.g. +127.0.0.1+.
 * `match-interface`: picks an address which matches a pattern against the interface name,
                   e.g. +match-interface:eth.\*+

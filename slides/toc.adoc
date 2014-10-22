@@ -72,7 +72,7 @@ Advanced
 ** Multicasting and flow control (802.3)
 
 * Debugging 
-** What breakpoints can do
+** What breakpoints can do (FD, FD_ALL)
 ** Byteman: installing rules into a running JVM (and removing them again)
 *** A look at a unit test _black-box style_
 

@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 
 
-<project name="TaskDistribution" default="compile" basedir="." xmlns:ivy="antlib:org.apache.ivy.ant">
+<project name="workshop" default="compile" basedir="." xmlns:ivy="antlib:org.apache.ivy.ant">
     <description>
-        Ant/ivy based build.xml file for TaskDistribution. Needs ant to run
+        Ant/ivy based build.xml file for the workshop. Needs ant to run
     </description>
 
     <property name="version"          value="1.0"/>
@@ -16,7 +16,7 @@
     <property name="javadoc.dir"      value="${dist.dir}/javadoc"/>
     <property name="conf.dir"         value="${root.dir}/conf"/>
     <property name="bin.dir"          value="${root.dir}/bin"/>
-    <property name="javadoc.packages" value="org.taskdistribution.*"/>
+    <property name="javadoc.packages" value="org.task.*"/>
     <property name="timestamp"        value=".timestamp"/>
     <property name="maven.executable" value="mvn"/>
     <property name="ivy.version"      value="2.3.0" />
@@ -64,7 +64,7 @@
 
     <target name="retrieve" depends="check-jars-exist,get-ivy,define-ivy-task" unless="jars.exist"
             description="Retrieves all dependent libs defined in ivy.xml unless already present">
-        <ivy:retrieve type="jar,bundle" transitive="false"/>
+        <ivy:retrieve type="jar,bundle,source" transitive="false"/>
     </target>
 
     <target name="define-ivy-task">
@@ -88,7 +88,7 @@
                deprecation="off"
                optimize="off"
                listfiles="false"
-               includes="org/taskdistribution/**">
+               includes="org/task/**">
             <src path="${src.dir}"/>
         </javac>
     </target>
@@ -107,7 +107,7 @@
         <xmlproperty file="${ant.file}" collapseAttributes="true"/>
         <property name="-savemanifest" value="${conf.dir}/MANIFEST.MF"/>
         <property name="-output" value="${conf.dir}"/>
-        <jar destfile="${dist.dir}/taskdistribution-${version}.jar"
+        <jar destfile="${dist.dir}/task-${version}.jar"
              basedir="${compile.dir}"
              manifest="${conf.dir}/MANIFEST.MF"
              includes="org/jgroups/**">

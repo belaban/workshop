@@ -1,4 +1,4 @@
-package org.taskdistribution;
+package org.task;
 
 import org.jgroups.Address;
 import org.jgroups.util.Streamable;
