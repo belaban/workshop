@@ -326,3 +326,70 @@ ReplicatedHashMap: demo
 
 ReplCache
 ---------
+* A key/value store using _partial replication_: a given key/value pair is not stored on _all_ nodes, but only on
+  _selected_ cluster nodes
+** The number of times a key is stored is configured via a _replication count_.
+** When the cluster view changes, keys are rebalanced if needed, to maintain the replication count for that key
+* A put(K,V) will store K on replication count nodes
+** The nodes on which K is stored are computed using a _consistent hash function_.
+*** This function tries to minimize rebalancing on a view change.
+* A get(K) on a node which doesn't store K is redirected to the primary owner of K
+* A new instance doesn't do state transfer (like RHM above), but rebalancing might assign it some keys
+
+
+ReplCache: API
+--------------
+
+[source,java]
+----
+public class ReplCache<K,V> {
+    public interface HashFunction<K> {      // <1>
+        List<Address> hash(K key, short repl_count);
+    }
+
+    public ReplCache(String props, String cluster_name);        // <2>
+    public void setDefaultReplicationCount(short repl_count);   // <3>
+    public void setHashFunction(HashFunction<K> hash_function); // <4>
+    public void start() throws Exception;                       // <5>
+    public void stop();                                         // <6>
+    public void put(K k, V v, short repl_count, long timeout, boolean sync); // <7>
+    public V    get(K key);                                     // <8>
+    public void remove(K key, boolean synchronous);             // <9>
+}
+----
+<1> Interface which defines the consistent hash function to be used.
+<2> Creates a new instance, creating a channel first.
+<3> Sets a default replication count. Used when not explicitly passed to update methods
+<4> Sets the consistent hash function. There's a default if not set.
+<5> Joins the cluster. This causes rebalancing if there are existing cluster members.
+<6> Leaves the cluster. This causes rebalancing if there are existing cluster members.
+<7> Adds data to the cache. If synchronous, `timeout` (ms) defines how long the caller is willing to block
+<8> Returns a value for a given key K. If K is not local, this may result in a network round trip to the primary owner.
+<9> Removes a key from all nodes which store it.
+
+
+ReplCache: sample code
+----------------------
+
+[source,java]
+----
+ReplCache<String,String> cache=new ReplCache<String,String>(props, cluster_name);
+cache.setCallTimeout(rpc_timeout);
+cache.start();
+----
+
+
+ReplCache: demo
+---------------
+* Demo: repl-cache.sh
+
+
+
+Difference between ReplicatedHashMap and ReplCache
+--------------------------------------------------
+* For large clusters or large data, RHM won't scale (adat-wise), as each node stores data from all other nodes
+   -> use ReplCache
+* When the cluser is small or the data set is small -> use RHM (all gets are local)
+* RHM requires state transfer; ReplCache requires rebalancing
+
+
