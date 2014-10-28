@@ -481,3 +481,59 @@ LockService demo
 ----------------
 * Demo: `lock.sh`
 * E.g.: `lock.sh -props /home/myhome/lock.xml -name A`
+
+
+
+Distributed counters
+--------------------
+
+Cluster wide atomic counters.
+
+'''
+
+CounterService
+--------------
+* Obtains named cluster wide atomic counters:
+
+[source,java]
+----
+public class CounterService {
+    public CounterService(JChannel ch); // <1>
+    public Counter getOrCreateCounter(String name, long initial_value); // <2>
+    public void deleteCounter(String name); // <3>
+}
+
+----
+<1> Creates a `CounterService` instance over an existing channel
+<2> Returns an existing counter, or creates a new one if none exists
+<3> Deletes a counter instance (on the coordinator)
+
+
+Counter
+-------
+* Get and set a named counter to a value
+* Atomic compare-and-set and incr/decr operations
+
+[source,java]
+----
+public interface Counter {
+    public long get();                                      // <1>
+    public void set(long new_value);                        // <2>
+    public boolean compareAndSet(long expect, long update); // <3>
+    public long incrementAndGet();                          // <4>
+    public long decrementAndGet();                          // <5>
+    public long addAndGet(long delta);                      // <6>
+}
+----
+<1> Gets the current value of the counter
+<2> Sets the counter to a new value
+<3> Atomically updates the counter using a CAS operation
+<4> Atomically increments the counter and returns the new value
+<5> Atomically decrements the counter and returns the new value
+<6> Atomically adds the given value to the current value
+
+
+CounterServiceDemo
+------------------
+* `counter.sh` / `counter.bat`
+
