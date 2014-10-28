@@ -393,3 +393,91 @@ Difference between ReplicatedHashMap and ReplCache
 * RHM requires state transfer; ReplCache requires rebalancing
 
 
+
+
+Distributed locks
+-----------------
+
+Nodes can acquire cluster-wide locks.
+
+'''
+
+
+Cluster wide locks
+------------------
+* Locks that can be accessed by any cluster node
+* A lock is identified by a name
+** All nodes accessing a lock with the same name will block on the same lock
+* Locks implement `java.util.concurrent.lock.Lock`
+** The same semantics are provided
+*** The owner of a lock is always a thread in a node
+*** Different threads in the same node will compete for locks
+*** This can be turned off: lock owners can be entire nodes
+**** All threads in the same node will then not block on the same lock
+* Conditions are supported, too
+
+
+LockService
+-----------
+* `LockService` provides methods to get cluster wide locks:
+
+[source,java]
+----
+public LockService(JChannel ch);       // <1>
+public Lock getLock(String lock_name); // <2>
+----
+<1> Create a `LockService` instance on top of an existing channel. The channel needs to contain `CENTRAL_LOCK`
+<2> Get a lock with a given name
+
+* Sample code to obtain a lock:
+
+[source,java]
+----
+JChannel ch=new JChannel(props);
+LockService lock_service=new LockService(ch);
+ch.connect("lock-cluster");
+Lock lock=lock_service.getLock("mylock"); // <1>
+lock.lock();                              // <2>
+try {
+    // access a resource protected by the lock
+}
+finally {
+    lock.unlock();                        // <3>
+}
+----
+<1> Use the lock service to obtain a named lock
+<2> Acquire the lock
+<3> Release the lock
+
+
+CENTRAL_LOCK
+------------
+* Protocol implementing the distributed locking functionality
+** Needs to be at the top of the stack
+* Locks are managed by the _coordinator_
+* All lock requests (lock(), unlock()) are sent to the coordinator
+** The coordinator keeps track of locks and their state (locked / unlocked / lock owner)
+** This state can be replicated to another node (`num_backups`)
+* Property `use_thread_id_for_lock_owner` determines the lock owner
+** `true`: threads in the same node accessing the same lock block each other
+** `false`: threads in the same node accessing the same lock don't block each other
+* Config sample:
+
+[source,xml]
+----
+<config>
+    <UDP />
+    ...
+    <pbcast.GMS print_local_addr="true" join_timeout="3000"
+                view_bundling="true"/>
+    <MFC max_credits="2M" min_threshold="0.4"/>
+    <FRAG2 frag_size="60K"  />
+    <CENTRAL_LOCK num_backups="1"/>
+</config>
+----
+
+
+LockService demo
+----------------
+* Demo: `lock.sh`
+* E.g.: `lock.sh -props /home/myhome/lock.xml -name A`
