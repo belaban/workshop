@@ -88,60 +88,9 @@
                deprecation="off"
                optimize="off"
                listfiles="false"
-               includes="org/task/**,org/misc/**">
+               includes="org/task/**,org/misc/**,org/lab/**">
             <src path="${src.dir}"/>
         </javac>
-    </target>
-
-
-    <target name="jar"
-            description="Compiles and creates JARs in ./dist"
-            depends="jgroups.jar">
-    </target>
-
-
-    <target name="jgroups.jar"
-            description="Creates the jgroups.jar (includes everything)"
-            depends="clean,compile">
-        <mkdir dir="${dist.dir}"/>
-        <xmlproperty file="${ant.file}" collapseAttributes="true"/>
-        <property name="-savemanifest" value="${conf.dir}/MANIFEST.MF"/>
-        <property name="-output" value="${conf.dir}"/>
-        <jar destfile="${dist.dir}/task-${version}.jar"
-             basedir="${compile.dir}"
-             manifest="${conf.dir}/MANIFEST.MF"
-             includes="org/jgroups/**">
-            <fileset dir="${conf.dir}" includes="*.dtd, *.xml, jg-messages*.properties" excludes="*-service.xml"/>
-            <fileset dir="${root.dir}">
-                <include name="README*"/>
-            </fileset>
-        </jar>
-    </target>
-
-
-
-    <!-- generate java doc -->
-    <target name="javadoc"
-            depends="prepare,check-javadoc" unless="javadoc.exists"
-            description="Creates Javadoc documentation in ./dist/javadoc">
-         <mkdir dir="${javadoc.dir}"/>
-        <javadoc packagenames="${javadoc.packages}"
-                 sourcepath="${src.dir}"
-                 destdir="${javadoc.dir}"
-                 classpathref="jg.classpath"
-                 author="true"
-                 version="true"
-                 use="true"
-                 bottom="Copyright &#169; 1998-2014 Bela Ban / Red Hat. All Rights Reserved."
-                 useexternalfile="yes"
-                 doctitle="TaskDistribution">
-            <!-- The tag option for Javadoc is available in Java 1.4 or later. -->
-            <tag name="todo" description="To do:"/>
-        </javadoc>
-    </target>
-
-    <target name="check-javadoc" description="Checks whether the ./dist/javadoc dir exists">
-        <available file="${javadoc.dir}" type="dir" property="javadoc.exists"/>
     </target>
 
 

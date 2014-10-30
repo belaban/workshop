@@ -34,6 +34,9 @@ Overview, architecture, API, protocols
 GMS, UFC/MFC, FRAG, STATE_TRANSFER
 ** What are the configuration options ?
 
+include::./using.adoc[Overview]
+
+include::./prot_overview.adoc[Protocol overview]
 
 
 Building blocks
@@ -45,6 +48,8 @@ Building blocks
 * Distributed locks
 * Distributed atomic counters
 * Distributed task execution
+
+include::./blocks.adoc["Building blocks"]
 
 
 
