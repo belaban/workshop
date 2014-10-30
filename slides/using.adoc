@@ -31,17 +31,15 @@ What is it ?
 ** Distributed caches, counters, locks
 
 
-Architecture I
---------------
-image::../images/arch.png["Architecture of JGroups",width="60%",align=left,valign=top]
 
-
-Architecture II
----------------
+Architecture
+------------
 * Users deal mainly with the _channel_ (`JChannel`)
 * The protocol stack is setup according to an XML config file
 * A sent message passes the stack _top-down_
 * A received message is passed up through the stack _bottom-up_
+
+image::../images/arch.png["Architecture of JGroups",width="60%",align=left,valign=top]
 
 
 Common classes
@@ -65,6 +63,7 @@ Common classes
 ** Flags
 ** Headers (used mainly by protocols to add information, e.g. sequence numbers)
 * Example:
+
 [source,java]
 ----
 Message msg=new Message(null, "hello")      // "hello" is serialized into a byte[] buffer
@@ -76,6 +75,7 @@ ReceiverAdapter
 ---------------
 * Callback to receive messages (push-model) and view changes
 * Users typically extend it and override `receive()` and `viewAccepted()`:
+
 [source,java]
 ----
 public void receive(Message) {
@@ -96,6 +96,7 @@ JChannel: overview
 * A `JChannel` is used to represent a cluster node
 * Simple API: create, connect, send / receive, disconnect, close
 * Example:
+
 [source,java]
 ----
 // Create a channel, name it "A":
@@ -123,6 +124,7 @@ ch.close();
 Creation of a channel
 ---------------------
 * There are a number of constructors available:
+
 [source,java]
 ----
 public JChannel(); // creates a default channel (uses udp.xml)
@@ -144,6 +146,7 @@ Sample XML configuration file
 * Attributes configure the protocols, e.g. `mcast_port` in `UDP`
 * Attributes can use variables, e.g. `${jgroups.udp.mcast_port:45588}`
 ** System property `-Djgroups.udp.mcast_port=60000` overrides the (default) value of `45588`
+
 [source,xml]
 ----
 <config xmlns="urn:org:jgroups"
@@ -175,6 +178,7 @@ Sample XML configuration file
 Programmatic creation
 ---------------------
 * A channel can also be created without any XML config file, ie. programmatically:
+
 [source,java]
 ----
 Protocol[] prot_stack={
@@ -200,10 +204,22 @@ JChannel ch=new JChannel(prot_stack) // <2>
 <3> Finally, the channel is given a logical name ("A")
 
 
+Time for some interactivity !
+-----------------------------
+* Start a Groovy shell:
+** `cd workshop/bin`
+** `./groovy-shell.sh` (or `groovy-shell.bat`)
+* Create a channel:
+----
+  groovy:000> ch=new JChannel("config.xml").name("A");
+  ===> org.jgroups.JChannel@609640d5
+----
+
 
 Joining a cluster
 -----------------
 * When a client wants to join a cluster, it _connects_ to a channel giving the name of the cluster to be joined:
+
 [source,java]
 ----
 public void connect(String cluster_name) throws Exception;
@@ -217,6 +233,10 @@ public void connect(String cluster_name) throws Exception;
 ** The first member of a cluster becomes its _coordinator_.
 ** A coordinator is in charge of installing new views whenever the membership changes
 * A node can join only one cluster at a time
+----
+  groovy:000> ch.connect("demo");
+----
+
 
 
 Utility methods of JChannel
@@ -247,6 +267,7 @@ image::../images/jconsole.png["jconsole",width="60%"]
 Sending messages
 ----------------
 * JChannel has a number of `send()` methods:
+
 [source,java]
 ----
 public void send(Message msg) throws Exception; // <1>
@@ -261,11 +282,15 @@ of the cluster (including itself).
 <3> The payload is defined directly
 <4> Same as above, but allows for definition of length and offset of the payload into a buffer
 
+----
+  groovy:000> ch.send(null, "hello world");
+----
 
 
 Receiving messages
 ------------------
 * Method `receive()` in ReceiverAdapter (or Receiver) can be overridden to receive messages:
+
 [source,java]
 ----
 public void receive(Message msg);
@@ -288,6 +313,10 @@ ch.setReceiver(new ReceiverAdapter() {
 ch.connect("MyCluster");
 ----
 
+----
+  groovy:000> ch.setReceiver(new SampleReceiver());
+----
+
 
 
 Receiving view changes
@@ -307,7 +336,8 @@ Getting the group's state
 across the cluster to all nodes, which then update their local state
 * State can be anything, e.g. a hashmap that stores servlet session data
 * A newly joined member may want to retrieve the state of the cluster before starting work. This is done
-with `getState()`:        
+with `getState()`:
+
 [source,java]
 ----
 public void getState(Address target, long timeout) throws Exception;
@@ -318,6 +348,7 @@ public void getState(Address target, long timeout) throws Exception;
 ** A timeout of 0 waits until the entire state has been transferred.
 * To participate in state transfer, both state provider and state requester have to override the
 following methods in `ReceiverAdapter`:
+
 [source,java]
 ----
 public void getState(OutputStream output) throws Exception;
@@ -347,6 +378,7 @@ following sequence of callbacks happens:
 State transfer sample code
 --------------------------
 * The following code fragment shows how a group member participates in state transfers:
+
 [source,java]
 ----
 public void getState(OutputStream output) throws Exception {
@@ -384,6 +416,7 @@ This can either be `STATE_TRANSFER`, `STATE`, or `STATE_SOCK`.
 Leaving a cluster
 -----------------
 * Leaving a cluster is done using the `disconnect()` method:
+
 [source,java]
 ----
 public void disconnect();
@@ -401,6 +434,7 @@ Destroying a channel
 --------------------
 * To destroy a channel instance (destroy the associated protocol stack, and release all resources),
 method `close()` is used:
+
 [source,java]
 ----
 public void close();
