@@ -28,7 +28,6 @@ set FLAGS="-server -Xmx600M -Xms600M"
 set FLAGS="%FLAGS% -XX:CompileThreshold=10000 -XX:ThreadStackSize=64K -XX:SurvivorRatio=8"
 set FLAGS="%FLAGS% -XX:TargetSurvivorRatio=90 -XX:MaxTenuringThreshold=15"
 set FLAGS="%FLAGS% -Xshare:off"
-set GC="-XX:+UseParNewGC -XX:+UseConcMarkSweepGC"
 set JMX="-Dcom.sun.management.jmxremote"
 
 java -cp %CP% %DEBUG% %LOG% %GC% %JG_FLAGS% %FLAGS% %JMX%  %*
