@@ -88,7 +88,7 @@
                deprecation="off"
                optimize="off"
                listfiles="false"
-               includes="org/task/**">
+               includes="org/task/**,org/misc/**">
             <src path="${src.dir}"/>
         </javac>
     </target>

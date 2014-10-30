@@ -508,6 +508,8 @@ public class CounterService {
 <2> Returns an existing counter, or creates a new one if none exists
 <3> Deletes a counter instance (on the coordinator)
 
+NOTE: `CounterService` requires `COUNTER` to be somewhere near the top of the stack
+
 
 Counter
 -------
@@ -536,4 +538,29 @@ public interface Counter {
 CounterServiceDemo
 ------------------
 * `counter.sh` / `counter.bat`
+* Config:
+
+[source,xml]
+----
+<config>
+    <UDP />
+    ...
+    <pbcast.GMS print_local_addr="true" join_timeout="3000"
+                view_bundling="true"/>
+    <MFC max_credits="2M" min_threshold="0.4"/>
+    <FRAG2 frag_size="60K"  />
+    <CENTRAL_LOCK num_backups="1"/>
+    <COUNTER num_backups="1"/>
+</config>
+----
+
+
+Distributed task execution
+--------------------------
+
+Execution of tasks on different nodes in the cluster.
+
+'''
+
+
 
