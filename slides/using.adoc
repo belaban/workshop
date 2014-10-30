@@ -33,7 +33,7 @@ What is it ?
 
 Architecture I
 --------------
-image::../images/arch.png["Architecture of JGroups,width="60%",align=left,valign=top]
+image::../images/arch.png["Architecture of JGroups",width="60%",align=left,valign=top]
 
 
 Architecture II
@@ -226,6 +226,22 @@ Utility methods of JChannel
 * Getting the current view of a node: `getView()`
 * Getting the logical name of a node: `getName()`
 * Misc: `isOpen()`, `isConnected()`, `isClosed()`
+
+
+Registering a channel with JMX
+------------------------------
+* A channel can expose its operations and attributes via JMX:
+
+[source,java]
+----
+JChannel ch=...
+ch.connect("cluster");
+Util.registerChannel((JChannel)ch, "jgroups");
+----
+
+* Attributes and operations can be accessed with a JMX client, e.g. `jconsole`:
+
+image::../images/jconsole.png["jconsole",width="60%"]
 
 
 Sending messages
