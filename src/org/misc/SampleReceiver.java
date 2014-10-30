@@ -11,12 +11,10 @@ import org.jgroups.View;
 public class SampleReceiver extends ReceiverAdapter {
 
     public void receive(Message msg) {
-        System.out.println("received from " + msg.src() + ": " + msg.getObject());
+        System.out.println("-- received from " + msg.src() + ": " + msg.getObject());
     }
 
     public void viewAccepted(View view) {
-        System.out.println("view = " + view);
+        System.out.println("-- view = " + view);
     }
-
-
 }

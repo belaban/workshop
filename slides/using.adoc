@@ -6,15 +6,31 @@ author: Bela Ban belaban@yahoo.com
 
 Overview and API
 
+
+
 What is it ?
 ------------
-* Clustering library (only *a single JAR* (~2MB))
-* Provides
+* Clustering library (only *a single 2MB JAR*) to write clustered applications
+** Communication in a cluster
+** Chat
+** Replicated or distributed state (session state in application servers)
+** Task distribution
+** Presence
+** Pub/sub
+* Processes (nodes) on different hosts form a cluster and send each other messages
 ** Reliable _one-to-many_ or _one-to-one_ communication
-** Can use _IP multicasting_ or TCP
-* Customizable _protocol stack_
-** Users can add, remove, replace, enhance, or even write their own protocols
+* Nodes get notifications when others join or leave (or crash)
+* Runs on Android, too
 
+
+
+JGroups has 3 parts
+-------------------
+. JChannel
+* A _cluster node endpoint_. Like a socket
+
+. Protocol stack
+* Users can add, remove, replace, enhance, or even write their own protocols
 * Ships protocols for
 ** Network communication (transport)
 ** Membership discovery
@@ -25,10 +41,12 @@ What is it ?
 ** Flow control
 ** Fragmentation
 ** Compression, encryption, authentication
+* Stack can be adapted to every environment
 
-* Building blocks
+. Building blocks
+* Used over a channel
 ** Method invocation across a cluster
-** Distributed caches, counters, locks
+** Distributed caches, counters, locks, task execution
 
 
 
@@ -91,8 +109,8 @@ public void viewAccepted(View view) {
 
 
 
-JChannel: overview
-------------------
+JChannel
+--------
 * A `JChannel` is used to represent a cluster node
 * Simple API: create, connect, send / receive, disconnect, close
 * Example:
@@ -208,7 +226,7 @@ Time for some interactivity !
 -----------------------------
 * Start a Groovy shell:
 ** `cd workshop/bin`
-** `./groovy-shell.sh` (or `groovy-shell.bat`)
+** `./groovy-shell.sh` (or `groovy-shell.bat`) or `groovy-console.sh` (`groovy-console.bat`)
 * Create a channel:
 ----
   groovy:000> ch=new JChannel("config.xml").name("A");
@@ -428,6 +446,10 @@ a leave request to the current coordinator. The latter will subsequently remove 
 from the view and install a new view in all remaining members.
 * After a successful disconnect, the channel will be in the unconnected state, and may subsequently be
 reconnected.
+
+----
+  groovy:000> ch.disconnect();
+----
             
 
 Destroying a channel
@@ -445,8 +467,13 @@ public void close();
  (most throw an exception when invoked on a closed channel). In this state, a channel instance is not
  considered used any longer by an application and -- when the reference to the instance is reset --
  the channel essentially only lingers around until it is garbage collected by the Java runtime system.
+
+----
+  groovy:000> ch.close();
+----
             
 
-Interactive demo
-----------------
+Writing a chat application in 10 lines of code
+----------------------------------------------
 * Create a simple chat application
+* Read a line of input: `String line=Util.readLine(System.in);`
