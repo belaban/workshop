@@ -8,6 +8,6 @@ The slides are written in asciidoc; the HTML can be generated with
 
 Requirements
 ------------
-* Java 7 or higher
-* Ant
-* IDE (if doing the labs)
+* Java 7 or higher (run the demos, labs)
+* Ant (labs)
+* IDE (labs)

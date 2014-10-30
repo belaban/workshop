@@ -1,5 +1,7 @@
 package org.lab;
 
+import org.jgroups.util.Util;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -8,23 +10,9 @@ public class StockServer {
     private final Map<String,Double> stocks=new HashMap<String,Double>();
 
 
-    public void _setStock(String name, double value) {
-        synchronized(stocks) {
-            stocks.put(name,value);
-            System.out.printf("-- set %s to %s\n",name,value);
-        }
-    }
-
-    public void _removeStock(String name) {
-        synchronized(stocks) {
-            stocks.remove(name);
-            System.out.printf("-- removed %s\n",name);
-        }
-    }
-
     private void start() throws Exception {
         while(true) {
-            int c=input();
+            int c=Util.keyPress("[1] Show stocks [2] Get quote [3] Set quote [4] Remove quote [x] Exit");
             try {
                 switch(c) {
                     case '1':
@@ -82,18 +70,7 @@ public class StockServer {
     }
 
 
-    private static int input() {
-        int c=0;
-        try {
-            System.out.println("[1] Show stocks [2] Get quote [3] Set quote [4] Remove quote [x] Exit");
-            System.out.flush();
-            c=System.in.read();
-            System.in.skip(System.in.available());
-        }
-        catch(IOException e) {
-        }
-        return c;
-    }
+
 
      private static String readString(String s) throws IOException {
          int c;

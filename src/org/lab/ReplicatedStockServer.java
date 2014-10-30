@@ -15,9 +15,10 @@ import java.util.Map;
 public class ReplicatedStockServer extends ReceiverAdapter {
     private final Map<String,Double> stocks=new HashMap<String,Double>();
     private JChannel                 channel;
-    private RpcDispatcher            disp;
+    private RpcDispatcher            disp; // to invoke RPCs
 
 
+    /** Assigns a value to a stock */
     public void _setStock(String name, double value) {
         synchronized(stocks) {
             stocks.put(name,value);
@@ -25,6 +26,7 @@ public class ReplicatedStockServer extends ReceiverAdapter {
         }
     }
 
+    /** Removes a stock from the hashmap */
     public void _removeStock(String name) {
         synchronized(stocks) {
             stocks.remove(name);
@@ -37,9 +39,9 @@ public class ReplicatedStockServer extends ReceiverAdapter {
         disp=new RpcDispatcher(channel, this, this, this);
         channel.connect("stocks");
         disp.start();
-        channel.getState(null, 30000);
+        channel.getState(null, 30000); // fetches the state from the coordinator
         while(true) {
-            int c=input();
+            int c=Util.keyPress("[1] Show stocks [2] Get quote [3] Set quote [4] Remove quote [x] Exit");
             try {
                 switch(c) {
                     case '1':
@@ -127,43 +129,30 @@ public class ReplicatedStockServer extends ReceiverAdapter {
     }
 
 
-    private static int input() {
-        int c=0;
-        try {
-            System.out.println("[1] Show stocks [2] Get quote [3] Set quote [4] Remove quote [x] Exit");
-            System.out.flush();
+    private static String readString(String s) throws IOException {
+        int c;
+        boolean looping=true;
+        StringBuilder sb=new StringBuilder();
+        System.out.print(s + ": ");
+        System.out.flush();
+        System.in.skip(System.in.available());
+
+        while(looping) {
             c=System.in.read();
-            System.in.skip(System.in.available());
+            switch(c) {
+                case -1:
+                case '\n':
+                case 13:
+                    looping=false;
+                    break;
+                default:
+                    sb.append((char)c);
+                    break;
+            }
         }
-        catch(IOException e) {
-        }
-        return c;
+
+        return sb.toString();
     }
-
-     private static String readString(String s) throws IOException {
-         int c;
-         boolean looping=true;
-         StringBuilder sb=new StringBuilder();
-         System.out.print(s + ": ");
-         System.out.flush();
-         System.in.skip(System.in.available());
-
-         while(looping) {
-             c=System.in.read();
-             switch(c) {
-                 case -1:
-                 case '\n':
-                 case 13:
-                     looping=false;
-                     break;
-                 default:
-                     sb.append((char)c);
-                     break;
-             }
-         }
-
-         return sb.toString();
-     }
 
 
     public static void main(String[] args) throws Exception {
