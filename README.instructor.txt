@@ -12,6 +12,7 @@ Before doing this, src/org/lab/ChatDemo.java and ReplicatedStockServer.java shou
 
 To run a solution (e.g. ChatDemo), ./bin/run.sh org.lab.ChatDemo <args> can be used.
 
-It is best to always use ./conf/config.xml as configuration. This file is on the classpath (with run.sh | run.bat) and
+It is best to always use ./conf/config.xml as configuration. This ./conf dir is on the classpath and config.xml
 should be modified if needed.
 
+The ./bin dir contains various scripts to run labs and demos.

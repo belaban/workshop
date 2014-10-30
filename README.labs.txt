@@ -13,6 +13,7 @@ To run a demo (e.g. ChatDemo): bin/run.sh org.lab.ChatDemo <args>.
 
 
 
+
 ChatDemo
 --------
 This demo reads a line of input from stdin and sends it to all cluster nodes. Use Util.readLine(System.in) to read input.
@@ -22,6 +23,10 @@ The chat should print when new members join the cluster, or members leave or cra
 It should also print received chat messages to stdout.
 
 The configuration file to be used should be config.xml (which is on the classpath, in ./conf/config.xml).
+
+A chat node can be run with: bin/run.sh org.lab.ChatDemo -props config.xml -name <name>
+
+
 
 
 ReplicatedStockServer
@@ -46,7 +51,14 @@ A node has an event loop which looks like this:
 
 We'll create a JChannel, then an RpcDispatcher over it, and finally call JChannel.connect(clustername).
 The, JChannel.getState() needs to be called, to transfer state (the contents of the local hashmap) to the newly
-joined node.
+joined node. This looks roughly as follows:
+ channel=new JChannel("config.xml);
+ disp=new RpcDispatcher(channel, this, this, this);
+ channel.connect("stocks");
+ disp.start();
+ channel.getState(null, 30000); // fetches the state from the coordinator
 
 Methods getState() and setState() of ReceiverAdapter need to be overwritten to implement the state transfer. Also,
 pbcast.STATE needs to be on the stack (config.xml already contains it).
+
+The server can be run with bin/run.sh org.lab.ReplicatedStockServer -props config.xml.
