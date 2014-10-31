@@ -18,7 +18,7 @@ set LIB=..\lib
 set CLASSES=..\classes
 set CONF=..\conf
 
-set CP=%CLASSES%:%CONF%:%LIB%\*
+set CP=%CLASSES%;%CONF%;%LIB%\*
 set LOG=-Dlog4j.configurationFile=%CONF%/log4j2.xml
 
 
