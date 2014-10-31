@@ -57,7 +57,7 @@ Architecture
 * A sent message passes the stack _top-down_
 * A received message is passed up through the stack _bottom-up_
 
-image::../images/arch.png["Architecture of JGroups",width="60%",align=left,valign=top]
+image::../images/arch.png[Architecture of JGroups,width="60%",align=left,valign=top]
 
 
 Common classes
@@ -280,7 +280,7 @@ Util.registerChannel((JChannel)ch, "jgroups");
 
 * Attributes and operations can be accessed with a JMX client, e.g. `jconsole`:
 
-image::../images/jconsole.png["jconsole",width="60%"]
+image::../images/jconsole.png[jconsole,width="60%"]
 
 
 Sending messages
@@ -474,7 +474,14 @@ public void close();
 ----
             
 
-Writing a chat application in 10 lines of code
-----------------------------------------------
-* Create a simple chat application
-* Read a line of input: `String line=Util.readLine(System.in);`
+Writing a simple chat application in 10 lines of code
+-----------------------------------------------------
+. Create a channel
+. Register a ReceiverAdapter with it
+.. Method `receive()` prints the received chat message
+.. Method `viewAccepted()` prints the view
+. Connect the channel
+. In a loop
+.. Read a line from stdin (`Util.readLine(System.in)`) and
+.. Send a message to all cluster nodes
+
