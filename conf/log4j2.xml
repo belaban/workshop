@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <appenders>
-        <Console name="STDOUT" target="SYSTEM_OUT" follow="true">
+        <!-- follow=true doesn't work on Windows with jline/jansi -->
+        <Console name="STDOUT" target="SYSTEM_OUT" follow="false">
             <!--PatternLayout pattern="%-7d{HH:mm:ss,SSS} [%p] %c: %m%n"/-->
             <PatternLayout pattern="%r [%p] %c{1}: %m%n"/> 
         </Console>
