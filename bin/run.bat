@@ -19,7 +19,7 @@ set CLASSES=..\classes
 set CONF=..\conf
 
 set CP=%CLASSES%;%CONF%;%LIB%\*
-set LOG=-Dlog4j.configurationFile=%CONF%/log4j2.xml
+set LOG=-Dlog4j.configurationFile=%CONF%\log4j2.xml
 
 
 set JG_FLAGS=-Djgroups.bind_addr=%BIND_ADDR% -Djgroups.udp.mcast_addr=%MCAST_ADDR%
