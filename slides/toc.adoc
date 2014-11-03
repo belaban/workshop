@@ -56,15 +56,21 @@ include::./blocks.adoc["Building blocks"]
 
 Advanced
 --------
+* Message flags (OOB, DONT_BUNDLE, NO_FC etc)
+
 * The transport
 ** Regular, OOB and internal thread pools
 ** Customization (replacing thread pool, thread and socket factories)
-** Message bundling and message batching
-* Message flags (OOB, DONT_BUNDLE, NO_FC etc)
+
+* Message bundling and message batching
+
 * Asynchronous invocation API
+
 * Sending messages synchronously (RSVP)
+
 * Generating custom addresses
 * Control over view generation (pinning down a coordinator)
+
 * Fork channels: light weight channels over the same protocol stack
 
 
@@ -94,6 +100,10 @@ Advanced
 
 * Strategies for handling network partitions
 ** Primary partition, merging data
+
+include::./advanced.adoc["Advanced"]
+
+
 
 
 A closer look at protocols

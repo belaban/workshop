@@ -5,6 +5,109 @@ author: Bela Ban belaban@yahoo.com
 
 
 
+
+Message flags
+-------------
+* Message flags are used to override default behavior provided by the protocols in a stack
+* Examples:
+** Mark a message as OOB (out-of-band) to deliver multiple messages from the same sender concurrently
+** Skip the flow control protocols
+* The advantage of tagging messages is that we don't need to change the configuration, but instead
+  can override it on a per-message basis.
+
+* API:
+
+[source,java]
+----
+public Message setFlag(Flag ... flags);
+----
+
+* Example:
+
+[source,java]
+----
+Message msg=new Message(null, "hello").setFlag(Message.Flag.OOB).name("A");
+----
+
+
+Provided message flags
+----------------------
+Message.OOB:: Marks a message as _out-of-band_. OOB messages don't not provide any ordering guarantees,
+              although they're are reliable (no loss) and are delivered only once.
+
+Message.DONT_BUNDLE:: Causes the transport not to bundle the message, but to send it immediately.
+
+Message.NO_FC:: Bypasses any flow control protocols.
+
+Message.NO_RELIABILITY:: Bypasses reliable protocols; makes the message unreliable. An unreliable message has no
+                         ordering constraints, may get dropped or delivered multiple times.
+
+Message.NO_TOTAL_ORDER:: If we use a total order configuration with `SEQUENCER`, then we
+                         can bypass `SEQUENCER` (if we don't need total order for a given message) by tagging the message
+                         with `NO_TOTAL_ORDER`.
+
+Message.RSVP:: When this flag is set, a message send will block until the receiver (unicast) or receivers
+               (multicast) have acked reception of the message, or until a timeout occurs.
+
+Message.DONT_LOOPBACK:: When set, a message is multicast, but not looped back up the stack.
+                        Useful when a sender doesn't want to receive its own multicast. +
+                        Note that this is a _transient flag_, so `Message.isTransientFlagSet()` has
+                        to be used instead of `Message.isFlagSet()`
+
+
+
+OOB messages
+------------
+* Regular messages are ordered as follows
+** Messages from the same sender are delivered FIFO: one-by-one
+** Messages from different senders are delivered in parallel
+*** When P sends P1 -> P2 -> P3, P1 is delivered first, then P2, then P3
+*** P3 has to wait until both P1 and P2 have been processed
+* However, _OOB messages_ completely ignore any ordering constraints the stack might have
+** A message marked as OOB is processed by the OOB thread pool, not the regular thread pool (see below)
+** When P sends P1 -> P2 -> P3, then all 3 messages are delivered randomly (but only once !)
+*** Whether all 3 messages are really delivered in parallel also depends on the config of the OOB thread pool
+
+
+
+
+
+The transport
+-------------
+* Bottom most protocol in the stack
+* Serializes messages and sends them as UDP datagram packets, or sends them over a TCP connection
+* Receives packets and de-serializes them into messages, which are then passed up the stack
+* 4 thread pools for handling of incoming messages
+. Regular thread pool
+. OOB thread pool
+. Internal thread pool
+. Timer thread pool
+* All thread pools can be configured (e.g. min/max threads)
+* The thread pools can be replaced with custom thread pools
+* The thread factories can also be replaced
+* The transport also manages all sockets (UDP or TCP)
+
+
+The transport
+-------------
+image::../images/Transport.png[The transport,width="60%",align=left,valign=top]
+* UDP: 1 receiver thread for unicast datagram packets, 1 thread for multicast packets
+* TCP: 1 thread per connection model; ie. in a 100 node cluster, we have 99 connection receiver threads in a node
+** In 4.0, NIO.2 will be used to manage all TCP connections with a configurable pool of threads
+* A receiver thread receives a network packet and - depending on the type - passes it to the right thread pool
+** The pool performs
+*** Version checking (drops packets with different version)
+*** Deserializes the buffer into a `Message`
+*** Passes the message (or message batch) up through the protocol stack all the way to the channel
+
+
+
+Message batching
+----------------
+* TBD
+
+
+
 Asynchronous invocation API
 ---------------------------
 * A method invoked in an RpcDispatcher is dispatched to application code
