@@ -236,6 +236,114 @@ Message batching on the receiver
 ** The destination and sender addresses are sent *only once rather than N times*
 
 
+Sending messages synchronously (RSVP)
+-------------------------------------
+* While JGroups guarantees that a message will eventually be delivered at all non-faulty members,
+  sometimes this might take a while
+** We don't know when a message has been delivered at all nodes
+* This can be changed by setting flag `Message.RSVP` in a message
+** The send blocks until all members have acknowledged reception (or delivery) of the message
+   (excluding members which crashed or left meanwhile).
+* If we send an `RSVP` tagged message, then - when `send()` returns - we're guaranteed that all messages
+  sent _before_ will have been delivered at all members as well
+** If P sends messages 1-10, and marks 10 as `RSVP`, then, upon `JChannel.send()` returning,
+   P knows that all members received messages 1-10 from P.
+
+NOTE: Since RSVP'ing a message is costly, and might block the sender for a while, it should be
+used sparingly. For example, when completing a unit of work (ie. member P sending N messages), and
+P needs to know that all messages were received by everyone, before sending other messages.
+
+
+Configuration and use
+---------------------
+* To use RSVP, 2 things have to be done:
+* First, the `RSVP` protocol has to be in the config, somewhere above the reliable transmission
+  protocols such as `NAKACK` or `UNICAST(2)`, e.g.:
+
+[source,xml]
+----
+<config>
+    <UDP/>
+    <pbcast.NAKACK2 />
+    <UNICAST3 />
+    ...
+    <RSVP />
+</config>
+----
+
+* Secondly, the message we want to get ack'ed must be marked as `RSVP`:
+
+[source,java]
+----
+Message msg=new Message(null, "hello world").setFlag(Message.RSVP);
+ch.send(msg);
+----
+
+* Method `send()` returns as soon as it has received acks from all current members
+** If there are 4 members A, B, C and D, and A has received acks from itself, B and C,
+   but D's ack is missing and D crashes before the timeout kicks in, then this will
+   nevertheless make `send()` return, as if D had actually sent an ack.
+* If the `timeout` property is greater than 0, and we don't receive all acks within
+  `timeout` milliseconds, a `TimeoutException` will be thrown (if `RSVP.throw_exception_on_timeout` is true)
+** The application can choose to catch this (runtime) exception and do something with it, e.g. retry.
+
+
+Non blocking RSVP
+-----------------
+* Sometimes a sender wants a given message to be resent until it has been received, or a timeout occurs, but doesn't
+  want to block. As an example, `RpcDispatcher.callRemoteMethodsWithFuture()` needs to return immediately, even
+  if the results aren't available yet.
+** If the call options contain flag `RSVP`, then the future would only be returned once all responses have been
+   received. This is clearly undesirable behavior.
+* To solve this, flag `RSVP_NB` (non-blocking) can be used. This has the same behavior as `RSVP`, but the caller is not
+  blocked by the RSVP protocol. When a timeout occurs, a warning message will be logged, but since the caller doesn't
+  block, the call won't throw an exception.
+
+
+
+Generating custom addresses
+---------------------------
+* Address generation is pluggable: an application can define what kind of
+  addresses it uses. The default address type is `UUID`, and since some protocols use UUID, it is
+  recommended to provide custom classes as _subclasses of UUID_.
+* This can be used to pass additional data around with an address, for example information
+  about the location of the node to which the address is assigned
+* To use custom addresses, an implementation of `org.jgroups.stack.AddressGenerator`
+  has to be written:
+
+[source,java]
+----
+public interface AddressGenerator {
+    Address generateAddress();
+}
+----
+
+* For any class `CustomAddress`, it will need to get registered with `ClassConfigurator` in
+  order to marshal it correctly:
+
+[source,java]
+----
+class CustomAddress extends UUID {
+    static {
+        ClassConfigurator.add((short)8900, CustomAddress.class);
+    }
+}
+----
+
+NOTE: The ID should be chosen such that it doesn't collide with any IDs defined in
+      `jg-magic-map.xml`.
+
+* Set the address generator in `JChannel: setAddressGenerator(AddressGenerator)`. This has to
+  be done _before_ the channel is connected.
+
+
+
+
+Controlling view generation
+---------------------------
+
+
+
 
 Asynchronous invocation API
 ---------------------------
