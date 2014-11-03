@@ -88,6 +88,23 @@ The transport
 * The transport also manages all sockets (UDP or TCP)
 
 
+Available transports
+--------------------
+* Currently `UDP` and `TCP`
+* UDP uses _IP multicasting_
+** A message to N cluster nodes is sent *once*, as a datagram packet to a multicast (class D) address
+*** Class D addresses: `224.0.0.1` - `239.255.255.255` (`224.0.0.x` reserved for host / router pings)
+** The switch copies the packet to all ports which have multicast group members
+** This can be turned off by setting `ip_mcast` to `false` in `UDP`
+* TCP uses N-1 TCP connections; 1 connection per destination
+** A message to N cluster nodes is sent *N-1 times*
+*** This generates a lot of traffic
+*** 1 thread per connection
+* Recommendation: don't use TCP for large clusters, or clusters with a lot of traffic
+** But: I've run a 1000 node TCP cluster on Google Compute Engine... :-)
+*** http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html
+
+
 The transport
 -------------
 image::../images/Transport.png[The transport,width="60%",align=left,valign=top]
@@ -190,7 +207,33 @@ handle all other regular messages and add them to the retransmission tables. Thi
 
 Message batching
 ----------------
-* TBD
+* For historic reasons, message _bundling_ is used on the sender, _batching_ on the receiver
+** Let's use the term _batching_ only
+* When sending many smaller messages, it is better to queue them and send them as a _message batch_
+** Payload / header ratio is better (e.g. payload of 5, header of 30 !)
+* Simple sender algorithm:
+----
+LOOP(while there are messages pending for destination D):
+    - If the message batch size for D is < max bundle size: add the message to the batch
+    - Else: send the batch, create a new batch for D and add the message
+ENDLOOP
+- Send batch if size > 0
+----
+* This collects many messages into a batch until the `max_bundle_size` has been reached, but sends individual messages
+  immediately
+* E.g. message P1-5 are sent at time T1, and P6 at time T20: this create a batch for P1-5 and a single message for P6
+* Message batching can be overridden with flag `DONT_BUNDLE`
+
+
+Message batching on the receiver
+--------------------------------
+* On the receiver, we create instances of `MessageBatch` for batches (one for each destination) and pass the batches
+  up rather than the individual messages
+* Advantages:
+** Multiple messages can be processed in one go
+** Locks are acquired once for a batch (say of 10) rather than 10 times -> less context switching
+** `NAKACK` / `UNICAST`: add N messages into the retransmission table *in one step* rather than *N steps*
+** The destination and sender addresses are sent *only once rather than N times*
 
 
 
