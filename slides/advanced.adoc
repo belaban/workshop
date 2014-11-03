@@ -101,6 +101,92 @@ image::../images/Transport.png[The transport,width="60%",align=left,valign=top]
 *** Passes the message (or message batch) up through the protocol stack all the way to the channel
 
 
+Thread pools
+------------
+Regular:: Handles regular messages (non-OOB, non-internal)
+
+OOB:: Handles OOB messages
+
+Internal:: Handles `INTERNAL` messages. Reserved for use by JGroups. Needed to deliver some important messages by
+           JGroups protocols (e.g. heartbeats in failure detection), without potentially blocking on user messages.
+
+Timer:: Used to execute tasks (periodic or one-time), e.g. retransmission, expiry of connection pools, stability etc
+
+
+Configuration of thread pools
+-----------------------------
+* All pools need to implement `java.util.concurrent.Executor` and the default implementations use
+  `java.util.concurrent.ThreadPoolExecutor`
+* The configuration of a thread pool is done with properties of the form <pool_name>.<attr>,
+  e.g. `oob_thread_pool.min_threads`. The pool names are `thread_pool` (regular), `oob_thread_pool`, `internal` and
+  `timer`
+* The following attributes are used:
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Function
+|enabled | If false, the thread pool is not enabled: when a message is received, it is passed up the stack by the receiver thread
+| min_threads | The min number of threads
+| max_threads | The max number of threads
+| keep_alive_time | Time (ms) after which an idle thread should be returned to the pool
+| queue_enabled | Whether or not a thread pool should have a queue enabled
+| queue_max_size | The max size of a queue (if enabled)
+| rejection_policy | The rejection policy. One of `run`, `discard`, `discardoldest` or `abort`
+|====
+
+
+Thread pool behavior
+--------------------
+* Semantics are the same as for `ThreadPoolExecutor`: on submission of a task:
+* If we have fewer than `min_threads` -> create an additional thread
+* Else:
+** If a queue is enabled and not full -> queue the task
+** Else create an additional thread if we're below `max_threads`
+* If the queue is full (or disabled) or we've reached `max_threads` and all threads are busy -> consult the rejection policy
+
+run:: Pass the message up on the receiver's thread. If there's a risk that the thread might block, or take a long time,
+      this hampers the ability of the receiver to quickly remove packets and might thus lead to queue overflow
+      (or a 0 TCP write window, _blocking the sender_)
+discard:: Discard the message. JGroups retransmission will later retransmit the message, but dropping a message is
+          good as it tells the sender to slow down a bit (via the flow control protocols)
+abort:: same as discard, but throw an exception
+discardoldest:: Discards the oldest message first
+
+
+Thread pool use
+---------------
+* An OOB message uses 1 thread which passes it all the way up to the channel and to the application (see Transport)
+** If the application sends another message (or invokes an RPC) _on the same thread_, that incoming thread can be
+   busy for quite a while
+* A regular message is passed up to the reliable protocol (either NAKACK for mcasts or UNICAST for unicasts)
+** The message is then added to a table
+** If there's no other thread busy removing messages from the table -> Set a CAS and
+   remove as many messages as possible and pass them up
+** Else return (thread is ready to process other messages)
+** Most threads will only add their message (or message batch) to the table and return
+
+
+
+
+
+Recommended configs
+-------------------
+
+[width="90%",cols="2,10",frame="topbot",options="header"]
+|====
+| Pool | Recommendation
+| OOB | No queue -> OOB messages are executed on a thread or dropped. +
+Set `min_size` to the number of cluster nodes, `max_size` should be higher than the max number of OOB messages received
+at any given time
+|Regular| Queue is enabled and quite large, to handle message peaks. +
+Set `min_size` to the number of cluster nodes plus a few more (D), `max_size` to a slightly higher value. +
+In a cluster of N, we never have more than N threads passing messages up, so we need D additional threads to
+handle all other regular messages and add them to the retransmission tables. This is quick so D can be small.
+|Internal| Leave the default config (min=2,max=4), don't touch
+| Timer | Defaults (min=2,max=4,small queue) should be sufficient
+|====
+
+
 
 Message batching
 ----------------
