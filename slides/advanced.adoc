@@ -556,3 +556,161 @@ Use of the asynchronous invocation API
    session, and processes those by the same thread, to provide ordering of updates to the same session.
 *** This would speed up overall processing, as updates to a web session 1 on A don't have to wait until all
     updates to an unrelated web session 2 on A have been processed.
+
+
+
+Fork channels
+-------------
+* A fork channel is a light-weight channel, forked off of a main channel (`JChannel`)
+** Used as a private communication channel for a subsystem
+** Additional protocols can be attached to a fork channel
+** A fork channel only lives as long as the main channel lives
+** Subclass of `JChannel`; but some methods are not supported (e.g. state transfer)
+* Can be created declaratively (at main channel creation time) or dynamically using the programmatic API
+* Use cases for fork channels:
+** No need to configure a separate channel; use of an existing `JChannel` (e.g. grabbed
+  from Infinispan or WildFly) for private communication
+** If we cannot for some reason modify the main stack's configuration, we can create a fork channel and
+   a corresponding fork stack and add the protocols we need to that fork stack. Example:
+*** An application needs a fork stack with `COUNTER` (a distributed atomic counter) on top
+*** To do so, it can create a fork stack with `COUNTER` and a fork channel connecting to that stack, and it will now
+    have distributed atomic counter functionality on its fork stack, not available in the main stack
+
+
+
+
+Architecture of fork channels
+-----------------------------
+
+image::../images/ForkArchitecture.png[Fork channels,width="60%"]
+
+* In the example, a main channel and 5 fork channels (in the same JVM) are shown
+
+* The brown stack to the left is the main stack and it has the main channel connected to it
+** _The `FORK` protocol needs to be present in the main stack, or else fork stacks can not be created_
+** It has 2 fork stacks: `"counter"` and `"lock"`
+
+* The blue stack in the middle is a fork-stack with fork stack ID `"counter"`
+** It adds protocol `COUNTER` to the protocols provided by the main stack
+** Therefore a message passing down through fork stack `"counter"` will pass through protocols `COUNTER` -> `FORK` ->
+   `MFC` -> `GMS`
+
+
+
+Architecture of fork channels
+-----------------------------
+* Fork channels have an ID, e.g. `"fork-ch1"`
+* The combination of fork stack ID and fork channel ID is used to demultiplex incoming messages
+* If fork channel 2 sends a message, it'll pass through `COUNTER` and into `FORK`
+** `FORK` adds a header to the message, containing `fork channel ID="fork-ch2"` and `fork stack ID="counter"`
+** Then the message passes down the main stack, through `MFC`, `GMS` and so on
+* When the message is received, it passes up the reverse order: `GMS` -> `MFC` -> `FORK`
+** If there is no header, `FORK` passes the message up the main stack, where it passes through `FRAG2` and ends up
+   in the main channel
+** If a header is present, the fork stack ID is used to find the correct fork-stack (`"counter"`).
+** The message then passes through `COUNTER`
+** Finally, the fork channel ID (`"fork-ch2"`) is used to find the right fork channel and the message is passed to it
+* Fork channels sharing the same fork stack also share state
+** For example, fork channels `fork-ch1` and `fork-ch2` share `COUNTER`, which means they will see each other's
+   increments and decrements of the same counter
+** If fork stack `"lock"` also had a `COUNTER` protocol, and `fork-ch1` anf `fork-ch4` accessed a counter with
+   the same name, they would still not see each other's changes, as they'd have 2 different `COUNTER` protocols.
+
+
+FORK configuration
+------------------
+
+[source,xml]
+----
+<FORK config="/home/bela/fork-stacks.xml" />
+----
+
+* `FORK` refers to an external file to configure its fork stacks:
+
+[source,xml]
+----
+<fork-stacks xmlns="fork-stacks">
+    <fork-stack id="counter">
+        <config>
+            <COUNTER bypass_bundling="true"/>
+        </config>
+    </fork-stack>
+
+    <fork-stack id="lock">
+         <config>
+             <CENTRAL_LOCK num_backups="2"/>
+             <STATS/>
+         </config>
+    </fork-stack>
+
+</fork-stacks>
+----
+
+* File `fork-stacks.xml` defines 2 fork stacks: `"counter"` and `"lock"`
+
+* Element `<config>` is a regular JGroups configuration
+** For example, fork stack `"lock"` creates a stack with 'CENTRAL_LOCK` and `STATS`
+
+* When `FORK` is initialized, it will create the 2 fork stacks
+* Fork channels can pick one of the 2 existing fork stacks to be created over,
+  or they can dynamically create new fork stacks
+
+
+Creation of fork channels
+-------------------------
+* A fork channel is created by instantiating a new `ForkChannel` object:
+
+[source,java]
+----
+JChannel main_ch, fork_ch;                            // <1>
+fork_ch=new ForkChannel(main_ch, "lock", "fork-ch4",  // <2>
+                        new CENTRAL_LOCK(), new STATS());
+fork_ch.connect("bla");                               // <3>
+main_ch.connect("cluster");
+----
+<1> This is the main channel. Its stack may or may not contain `FORK`, but for this example, we
+    assume it is present.
+<2> The fork channel is created. It is passed the main channel, the fork stack ID (`"lock"`) and the
+    fork channel ID (`"fork-ch4"`), plus a list of already created protocols (`CENTRAL_LOCK` and `STATS`). If
+    `FORK` already contains a fork stack with ID=`"lock"`, the existing fork stack will be used, or else a new
+    one will be created with protocols `CENTRAL_LOCK` and `STATS`. Then a new fork channel with ID=`"fork-ch4"` will
+    be added to the top of fork stack `"lock"`. An exception will be thrown if a fork channel with the same ID
+    already exists.
+<3> The `ForkChannel` now calls `connect()`, but the cluster name is ignored as fork channels have the same
+    cluster name as they main channel the reference. The local address, name, view and state are also the same.
+    This means, that even though `connect()` was called, the fork channel is not yet connected. As soon as the
+    main channel is connected, the fork channel will be connected, too.
+
+* The lifetime of a fork channel is always dominated by the main channel: if the main channel is closed, all
+  fork channels atttached to it are in closed state, too, and trying to send a message will throw an exception.
+
+
+Dynamically inserting a FORK protocol
+-------------------------------------
+* The example above showed the simplified constructor, which requires the `FORK` protocol to be present in the
+  stack. There's another constructor which allows for FORK to be created dynamically if not present:
+
+[source,java]
+----
+public ForkChannel(final Channel main_channel,
+                   String fork_stack_id, String fork_channel_id,
+                   boolean create_fork_if_absent,
+                   int position,
+                   Class<? extends Protocol> neighbor,
+                   Protocol ... protocols) throws Exception;
+----
+
+* In addition to passing the main channel, the fork stack and channel IDs and the list of protocols, this
+  constructor also allows a user to create `FORK` in the main stack if not present. To do so,
+  `create_fork_if_absent` has to be set to true (else an exception is thrown if `FORK` is not found), and the
+  neighbor protocol (e.g. `FRAG2.class`) has to be defined, plus the position (`ProtocolStack.ABOVE/BELOW`)
+  relative to the neighbor protocol has to be defined as well.
+
+* The design of FORK / ForkChannel is discussed in more detail in
+  link:$$https://github.com/belaban/JGroups/blob/master/doc/design/FORK.txt$$[FORK.txt]
+
+
+
+
+
+
