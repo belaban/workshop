@@ -457,7 +457,7 @@ public List<Address> getNewMembership(Collection<Address> current_members,
 Asynchronous invocation API
 ---------------------------
 * A method invoked in an RpcDispatcher is dispatched to application code
-  by calling method handle from RequestHandler:
+  by calling method handle from `RequestHandler`:
 
 [source,java]
 ----
@@ -468,17 +468,21 @@ public interface RequestHandler {
 
 * In the case of RpcDispatcher, the `handle()` method converts the message's contents into a method call,
   invokes the method against the target object and returns the result (or throws an exception). The return value
-  of `handle()` is then sent back to the sender of the message.
+  is then sent back to the sender of the message.
         
 * The invocation is _synchronous_, ie. done on the thread responsible for dispatching this
   particular message from the network up the stack all the way into the application. The thread is therefore
-  _unusable_ for the duration of the method invocation.
+  _busy_ for the duration of the method invocation.
         
-* If the invocation takes a while, e.g. because locks are acquired or the application waits on some I/O, as
-  the current thread is busy, another thread will be used for a different request message. This can quickly
-  lead to the thread pool being exhausted or many messages getting queued if the pool has an associated queue.
+* If the invocation takes a while, e.g. because locks are acquired or the application waits on some I/O,
+  another thread will be used for a different request. This can quickly lead to the thread pool being
+  exhausted or many messages getting queued if the pool has an associated queue.
         
-* Therefore a new way of dispatching messages to the application was devised; the asynchronous invocation API:
+* Therefore a new way of dispatching messages to the application was devised; the asynchronous invocation API
+* A new interface `AsyncRequestHandler` (derived from `RequestHandler`) is introduced
+
+AsyncRequestHandler
+-------------------
 
 [source,java]
 ----
@@ -487,9 +491,9 @@ public interface AsyncRequestHandler extends RequestHandler {
 }
 ----
 
-* Extending `RequestHandler`, `AsyncRequestHandler` adds an additional method taking a request message
-  and a `Response` object. The request message contains the same information as before (e.g. a method call plus
-  args). The `Response` argument is used to send a reply (if needed) at a later time, when processing is done.
+* `AsyncRequestHandler` adds an additional method taking a request message and a `Response` object.
+* The request message contains the same information as before (e.g. a method call plus args)
+* `Response` is used to send a reply at a later time, when processing is done.
         
 [source,java]
 ----
@@ -498,12 +502,12 @@ public interface Response {
 }    
 ----
 
-* Response encapsulates information about the request (e.g. request ID and sender), and has method `reply()` to
-  send a response. The `is_exception` parameter can be set to true if the reply is actually an exception, e.g.
-  that was thrown when `handle()` ran application code.
+* `Response` has information about the request (e.g. request ID and sender), and has method `reply()` to
+  send a response. The `is_exception` parameter should be true if the reply is an exception, e.g.
+  was thrown when `handle()` ran application code.
         
-* The advantage of the new API is that it can, but doesn't have to, be used asynchronously. The default
-  implementation still uses the synchronous invocation style:
+* The advantage of the new API is that it can be used asynchronously. The default
+  implementation uses a synchronous invocation:
 
 [source,java]
 ----
@@ -514,35 +518,41 @@ public void handle(Message request, Response response) throws Exception {
 }
 ----
 
-* Method `handle()` is called, which synchronously calls into application code and returns a result, which is
-  subsequently sent back to the sender of the request message.
+* Method `handle()` synchronously calls into application code and returns a result, which is
+  sent back to the sender of the request.
 
-* However, an application could subclass RpcDispatcher (as done in Infinispan), or it
-could set a custom request handler via `setRequestHandler()`, and implement `handle()` by
-dispatching the processing to a thread from a thread pool. The thread which guided the request message from
-the network up to this point would be therefore immediately released and could be used for other messages.
-The response would be sent whenever the invocation of application code is done, and thus the thread from
-the thread pool would not be blocked on I/O, trying to acquire locks or anything else that blocks in
-application code.
+
+
+Use of the asynchronous invocation API
+---------------------------------------
+* An application can subclass `RpcDispatcher`, or it can set a custom request handler via
+  `setRequestHandler()`, and implement `AsyncRequestHandler.handle()` by
+  dispatching the processing to a thread from a thread pool.
+
+* The thread which guided the request message from the network up to here will therefore immediately
+  be released and can be used to process other messages.
+
+* The response will be sent when the invocation of application code is done, and thus the thread from
+  the thread pool is not blocked on I/O, or trying to acquire locks or anything else that blocks in
+  application code.
         
-* To set the mode which is used, method `asyncDispatching(boolean)` can be used. This can be
+* To set the mode which is used, method `RpcDispatcher.asyncDispatching(boolean)` can be used. This can be
   changed even at runtime, to switch between sync and async invocation style.
 
-* Asynchrounous invocation is typically used in conjunction with an application thread pool. The application
-  knows (JGroups doesn't) which requests can be processed in parallel and which ones can't. For example,
-  all OOB calls could be dispatched directly to the thread pool, as ordering of OOB requests is not important,
-  but regular requests should be added to a queue where they are processed sequentually.
+* Asynchrounous invocation is typically used in conjunction with an _application thread pool_. The application
+  knows (JGroups doesn't) which requests can be processed in parallel and which ones can't.
+** For example, all OOB calls could be dispatched directly to the thread pool, as ordering of OOB requests
+   is not important, but regular requests should be added to a queue where they are processed sequentually.
         
 * The main benefit here is that request dispatching (and ordering) is now under application control
   _if the application wants to do that_. If not, we can still use synchronous invocation.
 
-* A good example where asynchronous invocation makes sense are replicated web sessions. If a cluster node A
-  has 1000 web sessions, then replication of updates across the cluster generates messages from A. Because
-  JGroups delivers messages from the _same_ sender _sequentially_, even
-  updates to unrelated web sessions are delivered in strict order.
-
-* With asynchronous invocation, the application could devise a dispatching strategy which assigns updates to
-  different (unrelated) web sessions to any available thread from the pool, but queues updates to the same
-  session, and processes those by the same thread, to provide ordering of updates to the same session. This
-  would speed up overall processing, as updates to a web session 1 on A don't have to wait until all
-  updates to an unrelated web session 2 on A have been processed.
+* A good example where asynchronous invocation makes sense are replicated web sessions:
+** If a cluster node A has 1000 web sessions, then replication of updates across the cluster generates messages from A.
+** Because JGroups delivers messages from the _same_ sender _sequentially_, even
+   updates to unrelated web sessions are delivered in strict order.
+** With asynchronous invocation, the application could devise a dispatching strategy which assigns updates to
+   different (unrelated) web sessions to any available thread from the pool, but queues updates to the same
+   session, and processes those by the same thread, to provide ordering of updates to the same session.
+*** This would speed up overall processing, as updates to a web session 1 on A don't have to wait until all
+    updates to an unrelated web session 2 on A have been processed.
