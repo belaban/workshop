@@ -615,5 +615,9 @@ Example
 Demo
 ----
 * `task.sh` / `task.bat`
+** Start a few instances
+** Submit a long running job T
+** Identify the host H on which T is executed
+** Kill H -> T should now be executed by some other node
 * Details: link:$$https://github.com/belaban/TaskDistribution$$[https://github.com/belaban/TaskDistribution]
 
