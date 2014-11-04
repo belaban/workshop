@@ -562,5 +562,58 @@ Execution of tasks on different nodes in the cluster.
 
 '''
 
+Goal
+----
+* Oftentimes, tasks need to be executed across a distributed system, reasons are:
+** We don't want to overload a single host
+** If a task is long running and/or requires a lot of CPU/memory, we want to distribute the tasks across a cluster to
+   harness the processing power and memory provided by individual cluster nodes
+* Requirement: jobs / tasks need to be able to be broken into sizable chunks, that can be distributed in parallel
+* If a node processing a task T crashes, T needs to be processed by some other node
+* No single point of failure
 
+
+Design
+------
+* Cluster of nodes, each node can submit tasks (to be executed by some other node in the cluster)
+** Every node is a peer: it can both _submit_ and _handle_ tasks
+** In a real application, clients could connect to _any_ node, e.g. via TCP or RMI, and submit
+  tasks to that node, which would then distribute it to some other node (or handle it itself)
+* When submitting a task, we pick a random integer which is then mapped to the rank of a node in the cluster
+** E.g. using `modulo` or a consistent hash
+* The task is then multicast (EXECUTE) across the cluster
+* Every node adds the task to a hashmap consisting of tasks and their submitters' addresses
+* Every node now compares the rank shipped with the task to its own rank
+** It it doesn't match -> nothing is done
+** Else -> the node needs to process the task. It does so and returns the result to the submitter
+* When the submitter receives the response (RESULT), it multicasts a REMOVE message across the cluster
+** Upon reception of REMOVE(T), every node removes T from its hashmap
+* If a node X crashes (or leaves gracefully), we know which tasks were assigned to it by looking up the tasks
+  in the hashmap, keyed by X
+** All tasks which are still present in the hashmap have not yet been processed and need to be re-executed,
+   this time by a different node
+** This is done by comparing the rank shipped with the task to the node's rank and executing it if a node's
+   own rank matches it
+* If a master M crashes after having submitted a few tasks but not yet having received the results,
+  the slaves remove all tasks submitted by M, because M won't need the results anymore.
+
+Example
+-------
+* The cluster consists of nodes A, B, C and D
+* Clients can access one of them
+* A task submitted for example to B by a client might assign 23 to the task
+* B then multicasts an EXECUTE(23, TASK) message to all nodes in the cluster, and every node adds task #23 to its cache
+* However, the only node processing task #23 is A (to which 23 happens to map to),
+  which then sends the result as a RESULT(23, OBJ) to B
+* B returns the result OBJ to the client and multicasts a REMOVE(23) message to the cluster,
+  which causes all nodes to remove task #23 from their caches.
+* Had A crashed during processing of task #23, some other node would have taken over,
+  processed the result and sent it back to B
+
+
+
+Demo
+----
+* `task.sh` / `task.bat`
+* Details: link:$$https://github.com/belaban/TaskDistribution$$[https://github.com/belaban/TaskDistribution]
 

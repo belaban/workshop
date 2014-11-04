@@ -4,8 +4,7 @@ Workshop outline
 ================
 author: Bela Ban belaban@yahoo.com
 
-Modules for a JGroups workshop. The different modules should be able to be
-combined into a custom workshop.
+Modules for a JGroups workshop. The different modules can be combined into a custom workshop.
 
 Requirements:
 
