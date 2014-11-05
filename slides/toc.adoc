@@ -72,15 +72,16 @@ Advanced
 
 * Fork channels: light weight channels over the same protocol stack
 
+* RELAY2: bridging geographically separated data centers
+
+* Strategies for handling network partitions
+** Primary partition, merging data
 
 * Anatomy of a protocol
 ** Callbacks
 ** Headers
 *** (Efficient) marshalling, magic numbers, protocol IDs and header registration
 ** Writing your own protocol
-
-
-* RELAY2: bridging geographically separated data centers
 
 * Tuning
 ** UDP/TCP buffer sizes
@@ -97,8 +98,7 @@ Advanced
 ** Duplicate messages
 ** Reordering of messages
 
-* Strategies for handling network partitions
-** Primary partition, merging data
+
 
 include::./advanced.adoc["Advanced"]
 
@@ -165,18 +165,10 @@ Admin
 * Multicast routing (mcast)
 
 
-JGroups and JDG
----------------
-* Thread pool configuration, back pressure into JGroups
-** Missing heartbeats caused by exhausted thread pools and false suspicions 
-* High concurrent access to the same key set --> possible use of total order
 
-
-Demos (to be run by attendees)
-------------------------------
-* Chat
-* ReplCache
-* Distributed lock
-* Distributed counter
-* Distributed task execution
-
+Todos
+-----
+* Provide additional labs, e.g. for
+** View generation, custom addresses
+** AIA
+** Transport configuration
