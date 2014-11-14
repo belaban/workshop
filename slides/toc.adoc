@@ -159,10 +159,14 @@ Admin
 *** Getting and setting properties, invoking methods, changing the log level at runtime
 
 * Most common pain points
-** Members don't find each other (bind_addr, IPv4)
+** Members don't find each other
+*** bind_addr
+*** IPv4 versus IPv6
 ** Switch configuration (IGMP snooping)
 ** Firewalls
 * Multicast routing (mcast)
+** bind_addr and mcast_addr
+** Setting multicast routes for different mcast_addrs
 
 
 
