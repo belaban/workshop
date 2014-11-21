@@ -41,9 +41,9 @@ There should be methods _setStock(String name, double val) and _removeStock(Stri
 respectively. These are called via RpcDispatcher.
 
 A node has an event loop which looks like this:
-[1] Show stocks [2] Get quote [3] Set quote [4] Remove quote [x] Exit"
+[1] Show stocks [2] Get quote [3] Set quote [4] Remove quote [x] Exit
 
-[1] displays all stocks in the local hashmap.
+[1] Displays all stocks in the local hashmap.
 [2] Gets a value for a given stock (also local)
 [3] Sets a value for a stock. This triggers an RpcDispatcher.callRemoteMethods() call, which calls _setStock() in all
     cluster nodes. On invocation of _setStock(), each cluster node adds the shipped data into its hashmap.
