@@ -6,6 +6,7 @@
 #BIND_ADDR=192.168.1.5
 #BIND_ADDR=match-interface:en.*
 #BIND_ADDR=site_local
+#BIND_ADDR=127.0.0.1
 
 ################# CHANGE THIS ##############################
 BIND_ADDR=match-address:192.168.1.*

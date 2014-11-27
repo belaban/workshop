@@ -24,7 +24,7 @@ set LOG=-Dlog4j.configurationFile=%CONF%\log4j2.xml
 
 set JG_FLAGS=-Djgroups.bind_addr=%BIND_ADDR% -Djgroups.udp.mcast_addr=%MCAST_ADDR%
 set JG_FLAGS=%JG_FLAGS% -Djava.net.preferIPv4Stack=true
-set FLAGS=-server -Xmx600M -Xms600M
+set FLAGS=-Xmx600M -Xms600M
 set FLAGS=%FLAGS% -XX:CompileThreshold=10000 -XX:ThreadStackSize=64K -XX:SurvivorRatio=8
 set FLAGS=%FLAGS% -XX:TargetSurvivorRatio=90 -XX:MaxTenuringThreshold=15
 set FLAGS=%FLAGS% -Xshare:off

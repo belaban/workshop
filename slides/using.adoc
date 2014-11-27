@@ -96,7 +96,7 @@ ReceiverAdapter
 
 [source,java]
 ----
-public void receive(Message) {
+public void receive(Message msg) {
     Address sender=msg.getSrc();
     String greeting=(String)msg.getObject();
     System.out.println("received " + greeting + " from " + sender);
