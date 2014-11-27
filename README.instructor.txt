@@ -2,6 +2,14 @@
 Instructor notes
 ================
 
+Attendees should have Ant installed.
+
+To create the demos/labs, run `ant`. This will create dirs `lib` and `classes`. Ant will first download all
+required JARs into `lib` and then compile the labs and demos into `classes`.
+
+If no internet connection is available, make sure that the distribution includes the full `lib` directory. Without
+the JARs the demos and labs won't work.
+
 The slides are written in asciidoc and can be rendered via: asciidoc --backend slidy <file>.adoc. As an alternative,
 the reveal.js or deck.js backend can be used, but this currently needs to be installed (google for how-to).
 
