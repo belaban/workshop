@@ -8,7 +8,8 @@ rem set BIND_ADDR=match-interface:en.*
 rem set BIND_ADDR=site_local
 
 rem ############# Change this ##########
-set BIND_ADDR=match-address:192.168.1.*
+rem set BIND_ADDR=match-address:192.168.1.*
+set BIND_ADDR=127.0.0.1
 rem ####################################
 
 set MCAST_ADDR=232.5.5.5
