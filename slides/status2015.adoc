@@ -213,6 +213,7 @@ RAFT consensus in JGroups: jgroups-raft
 === Why
 * Experiment with consensus
 * Possibly use in Infinispan: **C**A**P**
+* JGroups-internal services might benefit, too: distributed counter and locks, sequencer (?)
 ** Sacificing availability for consistency
 * At the other side of C**AP** (eventual consistency)
 ** Sacrificing consistency _temporarily_ for availability
@@ -224,6 +225,7 @@ RAFT consensus in JGroups: jgroups-raft
 * Fixed size cluster (e.g. of 5): `{A,B,C,D,E}`
 * _Leaders_ and _followers_; leaders are elected by majority votes (3) (and highest commit log)
 ** There's always only *a single leader* in a cluster
+** All requests are handled by the leader
 ** Minority partitions (e.g. 2 or less) become unavailable; client requests are rejected
 * Leader `A` receives a client request and appends it to its persistent log
 * `A` then sends a message to followers `B`, `C`, `D` and `E` which append the change to their logs
@@ -231,6 +233,7 @@ RAFT consensus in JGroups: jgroups-raft
   attached _state machine_
 * `A` periodically sends its highest commit ID (also acting as a heartbeat) to all followers, who then commit as well
 * When the followers update their commit index, they also apply the changes to their state machines
+* Similar to `SEQUENCER` (total order), except that it can have multiple coordinators in case of network partitions
 
 
 === Difference to 2PC
