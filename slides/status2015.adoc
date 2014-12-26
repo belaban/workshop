@@ -1,0 +1,99 @@
+
+
+Status JGroups 2013-2015
+========================
+:author:    Bela Ban
+:backend:   slidy
+:max-width: 45em
+:icons:
+
+* Status JGroups 2013-2014
+** 3.5.1, 3.5.2
+* Work planned for 2015 and beyond
+** 4.0
+* Large scale
+** 2000+ nodes
+** Google Compute Engine
+
+
+
+
+
+
+JGroups 3.5.1 and 3.5.2
+-----------------------
+* Backports of selected bug fixes from 3.6 branch
+
+
+
+JGroups 3.6.0
+-------------
+
+UDP: ip_ttl is ignored
+----------------------
+* `ip_ttl` was ignored and always 1
+** Regression in 3.5.0
+* https://issues.jboss.org/browse/JGRP-1880
+
+RELAY2 doesn't work over FORK
+-----------------------------
+* https://issues.jboss.org/browse/JGRP-1865
+
+
+
+JGroups 3.6.1
+-------------
+
+
+Cluster tests on Google Compute Engine
+--------------------------------------
+
+
+
+JGroups 4.0
+-----------
+* API changes
+** Trashing UNICAST, UNICAST2, NAKACK
+* NIO.2
+** Direct buffers
+** Reducing of buffer copying
+** Scattering and gathering
+** Selector model for UDP and TCP ?
+
+
+JGroups workshop
+----------------
+* Internal and public workshop on JGroups
+* Modules for
+** API and use
+** Building blocks (distributed locks, counters etc)
+** Advanced
+** Protocols
+** Admin
+* A la carte mix-and-match, e.g.
+** 3 day workshop with API, Building blocks and Admin, plus 2 days of consulting, on-site
+* Availability: spring 2015
+** To be held 2x in Europe and 2x in the US in 2015
+
+
+Docker
+------
+
+
+
+vert.x clustering plugins
+-------------------------
+* Fabio wrote 2 clustering plugins for vert.x: Infinispan based and JGroups based
+* Goal: to replace Hazelcast, which is shipped by default by vert.x
+* Presentation Fabio
+
+
+RAFT consensus in JGroups
+-------------------------
+
+
+Implementation of etcd
+----------------------
+* Fabio, Ugo
+* Presentation Fabio/Ugo
+* Possibly provide Zookeeper API ?
