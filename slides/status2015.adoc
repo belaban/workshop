@@ -21,19 +21,12 @@ Agenda
 
 
 
-
-JGroups 3.5.1 and 3.5.2
------------------------
-* Backports of selected bug fixes from 3.6 branch
-
-
-
 JGroups 3.6.0
 -------------
 
 === UDP: ip_ttl is ignored
-* `ip_ttl` was ignored and always 1
-* Regression in 3.5.0 because we now use DatagramSocket rather than MulticastSocket to send multicasts
+* `ip_ttl` is ignored (always 1)
+* Regression in 3.5.0 because we now use `DatagramSocket` rather than `MulticastSocket` to send multicasts
 ** Needed because we need the sender's real address (not `232.5.5.5` !) to discard selected traffic
 * https://issues.jboss.org/browse/JGRP-1880
 
@@ -129,6 +122,15 @@ JGroups 3.6.1
 
 Cluster tests on Google Compute Engine
 --------------------------------------
+* Large cluster testing due to a generous donation by Google
+* Introduction: http://belaban.blogspot.ch/2014/04/running-jgroups-on-google-compute-engine.html
+* 1000 JGroups cluster: http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html
+** Record JGroups cluster size: 2286 nodes
+* 500 node JDG cluster: http://belaban.blogspot.ch/2014/07/new-record-for-large-jdg-cluster-500.html
+* Results:
+** `GOOG_PING` was written
+** Numbers for perf tests on large clusters
+** Discovery protocol was improved (static info for cloud based cluster discovery)
 
 
 
@@ -141,6 +143,10 @@ JGroups 4.0
 ** Reducing of buffer copying
 ** Scattering and gathering
 ** Selector model for UDP and TCP ?
+* See status slides for 2014
+* Postponsed until 2015
+** Large disruptive change for JGroups and Infinispan
+** Workshop and RAFT have higher priority
 
 
 JGroups workshop
@@ -157,11 +163,41 @@ JGroups workshop
 ** 3 day workshop with API, Building blocks and Admin, plus 2 days of consulting, on-site
 * Availability: spring 2015
 ** To be held 2x in Europe and 2x in the US in 2015
+* https://github.com/belaban/workshop
 
 
 Docker
 ------
+* Docker image containing JGroups and a few scripts to start demos: https://registry.hub.docker.com/u/belaban/jgroups/
+* Blog: http://belaban.blogspot.ch/2014/10/jgroups-and-docker.html
+* GitHub: https://github.com/belaban/jgroups-docker
+* To run: `docker run -it belaban/jgroups`:
+----
+Welcome to JGroups !
+********************
 
+Please read the README.md file for detailed instructions on how to run
+the demos.
+
+The following demos can be run (run them in multiple containers):
+
+* chat [-name name]
+
+* lock [-name name]
+
+* count [-name name]
+
+
+Questions can be asked on the users or dev mailing lists:
+https://sourceforge.net/p/javagroups/mailman.
+
+Enjoy !
+
+Bela Ban
+
+
+[jgroups@64e1c5a3afa1 ~]$
+----
 
 
 vert.x clustering plugins
@@ -173,6 +209,53 @@ vert.x clustering plugins
 
 RAFT consensus in JGroups: jgroups-raft
 ---------------------------------------
+
+=== Why
+* Experiment with consensus
+* Possibly use in Infinispan: **C**A**P**
+** Sacificing availability for consistency
+* At the other side of C**AP** (eventual consistency)
+** Sacrificing consistency _temporarily_ for availability
+* Implementation of etcd / ZooKeeper interfaces
+
+=== What
+* RAFT is a consensus based algorithm for replicated state machines
+** Consensus used for leader election and committing of changes
+* Fixed size cluster (e.g. of 5): `{A,B,C,D,E}`
+* _Leaders_ and _followers_; leaders are elected by majority votes (3) (and highest commit log)
+** There's always only *a single leader* in a cluster
+** Minority partitions (e.g. 2 or less) become unavailable; client requests are rejected
+* Leader `A` receives a client request and appends it to its persistent log
+* `A` then sends a message to followers `B`, `C`, `D` and `E` which append the change to their logs
+* When A receives an ack from 2 other members (majority == 3), it _commits_ the change and applies it to its
+  attached _state machine_
+* `A` periodically sends its highest commit ID (also acting as a heartbeat) to all followers, who then commit as well
+* When the followers update their commit index, they also apply the changes to their state machines
+
+
+=== Difference to 2PC
+* In 2PC, _all_ TX participants have to ack the prepare
+* In RAFT, only a majority needs to ack
+** Slow members don't slow everybody else down
+* Members which are completely out of sync, or new joiners without a log get sync'ed via snapshot installation
+** Similar to state transfer
+
+
+=== How
+* Implementation of the RAFT consensus algorithm [1] in JGroups
+* Separate project *jgroups_raft* [2], might get merged into JGroups at some point
+* New protocols `ELECTION`, `RAFT` and `CLIENT` (client redirection to the current leader)
+* `StateMachine` interface, demo implementation `ReplicatedStateMachine` and demo `ReplicatedStateMachineDemo`
+* Persistent `Log` interface with impls based on MapDB (JDBM4) and LevelDB (default) (Ugo)
+
+
+
+
+
+=== References
+* [1] http://raftconsensus.github.io/
+* [2] https://github.com/belaban/jgroups-raft
+* [3] https://github.com/belaban/jgroups-raft/tree/master/doc
 
 
 Implementation of etcd over jgroups-raft
