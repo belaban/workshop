@@ -1,20 +1,22 @@
 
 
-Status JGroups 2013-2015
-========================
+Status JGroups 2014
+===================
 :author:    Bela Ban
 :backend:   slidy
 :max-width: 45em
 :icons:
 
-* Status JGroups 2013-2014
-** 3.5.1, 3.5.2
-* Work planned for 2015 and beyond
-** 4.0
-* Large scale
-** 2000+ nodes
-** Google Compute Engine
-
+Agenda
+------
+* 3.6.0, 3.6.1
+* Cluster tests on Google Compute Engine
+* 4.0.0
+* Workshop
+* Docker
+* vert.x plugin
+* jgroups-raft
+* etcd / Zookeeper
 
 
 
@@ -29,20 +31,100 @@ JGroups 3.5.1 and 3.5.2
 JGroups 3.6.0
 -------------
 
-UDP: ip_ttl is ignored
-----------------------
+=== UDP: ip_ttl is ignored
 * `ip_ttl` was ignored and always 1
-** Regression in 3.5.0
+* Regression in 3.5.0 because we now use DatagramSocket rather than MulticastSocket to send multicasts
+** Needed because we need the sender's real address (not `232.5.5.5` !) to discard selected traffic
 * https://issues.jboss.org/browse/JGRP-1880
 
-RELAY2 doesn't work over FORK
------------------------------
+=== RELAY2 doesn't work over FORK
 * https://issues.jboss.org/browse/JGRP-1865
+
+=== mcast
+* Replacement for McastSender/ReceiverTest
+* https://issues.jboss.org/browse/JGRP-1832
+
+=== Docker images for JGroups
+* Discussed later
+* https://issues.jboss.org/browse/JGRP-1840
+
+=== RSVP: option not to block caller
+* RSVP by default blocks the caller until the ack has been received
+* Message flag `RSVP_NB` (Non-Blocking) returns immediately, but keeps resending the beacon
+* Further optimizations (1 beacon for all callers)
+* https://issues.jboss.org/browse/JGRP-1851
+
+
+=== NAKACK2 / UNICAST3: size of retransmit message is not limited
+* When too many messages are retransmitted, the retransmit message itself could become too big and could get dropped
+* Also, asking a sender to retransmit a lot of messages can compound a problem (e.g. GC or network bandwidth issue)
+* Solution:
+** Retransmit only the N oldest messages
+** Use of a bitset for the missing messages
+*** The size of the FixedBitSet is computed as highest-received - highest-deliverable, e.g. 550-499 == 51.
+*** This would create a FixedBitSet with offset=550 and 1 long (can represent 64 seqnos).
+*** The number of messages to ask for retransmission is computed as follows:
+**** TP.max_bundle_size * 8, e.g. 64'000 / 8 * 64 = 512'000.
+**** This means that we can store 8'000 longs in 64'000 bytes, and each long can represent 64 seqnos.
+**** In this case, the max size of the FixedBitSet should therefore be 512'000.
+**** This can be configured (`max_xmit_req_size`)
+* https://issues.jboss.org/browse/JGRP-1868
+
+=== UNICAST3
+* Optimizations and traffic reduction for edge cases
+* https://issues.jboss.org/browse/JGRP-1874
+* https://issues.jboss.org/browse/JGRP-1875
+
+
+=== Bind address 0.0.0.0 throws exception
+* Prevents misconfiguration
+* Caused mostly by running WildFly with `-b 0.0.0.0`
+* https://issues.jboss.org/browse/JGRP-1885
+
+=== CENTRAL_LOCK: make the node the lock owner, not the thread
+* Lock owner is by default a thread, so threads in the same node compete for locks
+* If this is enabled, then threads don't compete for the same locks
+** Lock granularity is on the node level, not thread level
+* Needed by the vert.x JGroups plugin
+* https://issues.jboss.org/browse/JGRP-1886
+
+=== JChannel initialization was synchronized
+* Unneeded when not using a shared transport
+* Slowed down Infinispan unit tests which created many channels in parallel
+* https://issues.jboss.org/browse/JGRP-1887
+
 
 
 
 JGroups 3.6.1
 -------------
+
+=== FD_HOST: reduction of false suspicions
+* FD_HOST is used to detect entire host failures, e.g. when we have multiple nodes running on the same host
+* https://issues.jboss.org/browse/JGRP-1898
+
+
+=== Discovery returned after 16 responses
+* Might lead to split cluster groups on startup and unneeded merging later
+* https://issues.jboss.org/browse/JGRP-1899
+
+
+=== TCPPING: static discovery does not have to list all members anymore
+* Frequently requested feature
+* The coordinator can now send member information to all other members
+* Can be enabled in configuration (`send_cache_on_join`)
+* Can also be triggered via JMX (`sendCacheInformation()`)
+* https://issues.jboss.org/browse/JGRP-1903
+
+
+=== NAKACK2: retransmit the last missing message sooner
+* We don't want to wait for STABLE to kick in
+** STABLE requires consensus from all members to reach stability
+* Can be set with `resend_last_seqno`
+* If enabled, multicasts the highest sent seqno every `xmit_interval` ms
+* Shuts up after `resend_last_seqno_max_times` times when no new messages have been sent
+* https://issues.jboss.org/browse/JGRP-1904
+
 
 
 Cluster tests on Google Compute Engine
@@ -70,6 +152,7 @@ JGroups workshop
 ** Advanced
 ** Protocols
 ** Admin
+** Labs (optional)
 * A la carte mix-and-match, e.g.
 ** 3 day workshop with API, Building blocks and Admin, plus 2 days of consulting, on-site
 * Availability: spring 2015
@@ -88,12 +171,12 @@ vert.x clustering plugins
 * Presentation Fabio
 
 
-RAFT consensus in JGroups
--------------------------
+RAFT consensus in JGroups: jgroups-raft
+---------------------------------------
 
 
-Implementation of etcd
-----------------------
+Implementation of etcd over jgroups-raft
+----------------------------------------
 * Fabio, Ugo
 * Presentation Fabio/Ugo
 * Possibly provide Zookeeper API ?
