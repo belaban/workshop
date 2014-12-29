@@ -250,8 +250,21 @@ RAFT consensus in JGroups: jgroups-raft
 * New protocols `ELECTION`, `RAFT` and `CLIENT` (client redirection to the current leader)
 * `StateMachine` interface, demo implementation `ReplicatedStateMachine` and demo `ReplicatedStateMachineDemo`
 * Persistent `Log` interface with impls based on MapDB (JDBM4) and LevelDB (default) (Ugo)
+* Demo
+
+=== Status
+* Version 0.1 (alpha quality)
+* Includes log appending, log compaction and snapshotting
+* No dynamic view installation yet
+** Static cluster with static majority
+* Can be used to experiment with RAFT consensus
+* OK for etcd development
 
 
+=== Todo list
+* Use JGroups' failure detection and view installation to replace part of the current code (less code)
+* Full unit test coverage
+* Dynamic view installation
 
 
 
