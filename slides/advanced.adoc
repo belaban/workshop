@@ -908,3 +908,98 @@ you'll get a message stating the site is unreachable.
 
 
 
+
+Handling network partitions (split brain)
+-----------------------------------------
+* Cluster: `v4={A,B,C,D,E}` (coord=`A`)
+* Assume a switch to subnet `{D,E}` fails -> network partition between `{A,B,C}` and `{D,E}`
+** `A`, `B` and `C` can ping each other, but not `D` or `E`, and vice versa
+* JGroups detects this and creates 2 subclusters: `v5={A,B,C}` (`A` remains coordinator) and `v5={D,E}` (`D` becomes coord)
+* Clients may be able to access one or both of the partitions (or none)
+* When the partition heals, JGroups will merge the subclusters back into _MergeView_ `v5={A,B,C,D,E}`
+** A MergeView has a list of all subviews (partitions)
+*** We know which members were part of which partition before the split healed
+* However, JGroups won't be able to merge the (possibly divergent) application data
+
+
+Strategies for keeping application data consistent
+--------------------------------------------------
+* CAP: either CP or AP (P can never be forfeited as partitions do happen)
+* CP: consistency & partition handling
+** System may not be available all the time
+* AP: availability & partition handling
+** Consistency not guaranteed all the time
+** Eventual consistency: possibility to see stale data but eventual convergence of data
+
+
+Consistency and partition handling (CP)
+---------------------------------------
+* Only a majority partition is allowed to perform reads and writes
+** The majority partition can also be defined differently as long as the decision is deterministic
+   (only 1 majority partition), e.g.
+*** A given node needs to be present
+*** Access to a given resource (e.g. DB)
+**** Whoever has access to the DB is allowed to write, others shut down or become read-only
+* A minority partition rejects client access (possibly stale reads are allowed)
+* Advantage: no merging of data
+* Disadvantage: system unavailable when no majority
+
+
+Example: primary partition handling
+-----------------------------------
+
+[source,java]
+-----
+static final int majority=3;
+boolean is_primary;
+
+public void viewAccepted(View new_view) {
+    int size=new_view.size();
+    if(is_primary) {
+        if(size < majority) {
+            is_primary=false;
+            // go into read-only mode (or reject all requests)
+        }
+    }
+    else {
+        if(size >= majority) {
+            is_primary=true;
+            // 1. go into read-write mode
+            // 2. overwrite state with state from primary partition
+        }
+    }
+}
+-----
+* A cluster becomes a primary partition as soon as it has `majority` members
+* A read-only, non-primary partition exists when the view size drops below `majority` members
+
+
+
+
+Availability and partition handling (AP)
+----------------------------------------
+* All partitions are allowed to make progress (read-write)
+* Partitions can diverge if the same data is modified in different partitions
+* When the network partition heals, data has to be merged
+* Merge strategies:
+** Timestamps, physical time, logical clocks
+** Member precedence
+** Causal vectors (eventual consistency)
+*** Has to contact application if data collision cannot be resolved automatically
+* Advantage: system is always available and accepts writes
+* Disadvantage: merging data can be hard (and we may have to consult the application)
+
+
+
+
+Writing a protocol
+------------------
+
+
+Debugging
+---------
+
+
+Simulation
+----------
+

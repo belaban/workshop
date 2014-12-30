@@ -83,11 +83,7 @@ Advanced
 *** (Efficient) marshalling, magic numbers, protocol IDs and header registration
 ** Writing your own protocol
 
-* Tuning
-** UDP/TCP buffer sizes
-** Multicasting and flow control (802.3)
-
-* Debugging 
+* Debugging
 ** What breakpoints can do (FD, FD_ALL)
 ** Byteman: installing rules into a running JVM (and removing them again)
 *** A look at a unit test _black-box style_
@@ -151,6 +147,10 @@ Admin
 ** Timeouts in discovery protocol
 ** Listing all nodes in TCPPING
 ** Thread pool configuration (min/max threads, queues)
+
+* Tuning
+** UDP/TCP buffer sizes
+** Multicasting and flow control (802.3)
 
 * Diagnostics
 ** Logging
