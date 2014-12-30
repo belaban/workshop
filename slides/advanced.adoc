@@ -984,7 +984,7 @@ Availability and partition handling (AP)
 * Merge strategies:
 ** Timestamps, physical time, logical clocks
 ** Member precedence
-** Causal vectors (eventual consistency)
+** Causal vectors (_eventual consistency_)
 *** Has to contact application if data collision cannot be resolved automatically
 * Advantage: system is always available and accepts writes
 * Disadvantage: merging data can be hard (and we may have to consult the application)
@@ -994,6 +994,52 @@ Availability and partition handling (AP)
 
 Writing a protocol
 ------------------
+* Let's write a simple protocol which prints the number of bytes for each received message to stdout
+* To do this, we have to extend `Protocol`:
+
+[source,java]
+----
+@MBean(description="A sample protocol printing the number of bytes of all received messages")
+public class PRINT_BYTES extends Protocol {
+    protected static final short ID=2015;
+
+    static {
+        ClassConfigurator.addProtocol(ID, PRINT_BYTES.class);
+    }
+
+    @Property(description="Suppresses printing to stdout if false")
+    protected boolean do_print=true;
+}
+----
+* The `@MBean` annotation makes all attributes and operations available via JMX (see below)
+* Each protocol has a unique ID, which needs to be registered
+** The IDs of all JGroups protocols are defined in `conf/jg-protocol-ids.xml`
+* There's a property `do_print` which can be set via configuration and JMX, e.g. `<PRINT_BYTES do_print="false".../>`
+
+
+Methods to be overridden
+------------------------
+* The table below lists the most important methods to be overridden by a protocol:
+
+.Methods
+[align="left",width="90%",cols="2,10",options="header"]
+|=================
+|Name|Description
+|init()|Called at initialization time, after all properties have been set from the config file
+|start()|Called on `JChannel.connect()`
+|stop()| Called on `JChannel.disconnect()`
+|destroy()| Called when a channel is closed (`JChannel.close()`)
+|down(Event)| Called when an event (e.g. a message) is sent
+|up(Event)| Called when an event (e.g. a message) is received
+|up(MessageBatch) | Called when a message batch is received
+|=================
+
+
+
+
+Exposing attributes and operations via JMX
+------------------------------------------
+* JmxConfiguratror: discuss
 
 
 Debugging
