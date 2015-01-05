@@ -994,7 +994,7 @@ Availability and partition handling (AP)
 
 Writing a protocol
 ------------------
-* Let's write a simple protocol which prints the number of bytes for each received message to stdout
+* Let's write a simple protocol which prints the number of bytes for each sent or received message to stdout
 * To do this, we have to extend `Protocol`:
 
 [source,java]
@@ -1034,6 +1034,102 @@ Methods to be overridden
 |up(MessageBatch) | Called when a message batch is received
 |=================
 
+
+A few facts about protocols
+---------------------------
+* Each protocol has a neighbor above it (`up_prot`) and below it (`down_prot`)
+* _Events_ are passed between protocols
+** An Event has a `type` and `arg` (`Object`)
+*** E.g. `type`=`VIEW_CHANGE` -> `arg` = `View`
+*** `type`=`MSG` -> `arg`=`Message`
+
+
+Example: printing a view change
+-------------------------------
+
+[source,java]
+----
+public Object down(Event evt) { // <1>
+    switch(evt.getType()) {     // <2>
+         case Event.VIEW_CHANGE: // <3>
+             View view=(View)evt.getArg(); // <4>
+             System.out.println("view = " + view);
+             break;
+    }
+    return down_prot.down(evt);
+}
+----
+<1> Intercepting a view change in the down direction
+<2> Switching based on the type of the event
+<3> Handling a view change
+<4> Getting the argument and casting it to a `View`
+
+
+Caveats
+-------
+* GMS sends a `VIEW_CHANGE` up and down
+* If `PRINT_BYTES` is *above* GMS, it won't handle the view change
+** Need to handle `VIEW_CHANGE` in the down and up direction
+
+
+Printing the sent messages
+--------------------------
+* To do this, we need to override `down()`:
+
+[source,java]
+----
+case Event.MSG:
+    if(do_print) { // <1>
+        Message msg=(Message)evt.getArg(); // <2>
+        int num_bytes=msg.getLength();     // <3>
+        if(num_bytes > 0)
+            System.out.printf("-- sending %d bytes\n", num_bytes);
+    }
+    break;
+----
+<1> Only print if `do_print` is true
+<2> Cast the event's argument to `Message`
+<3> `Message.getLength()` returns the number of bytes of the message's payload
+
+
+
+
+Printing the received bytes
+---------------------------
+* We have to override methods `up(Event)` and `up(MessageBatch`
+* `up(Event)` is more or less the same code as `down(Event)`
+* `up(MessageBatch)`:
+
+[source,java]
+----
+public void up(MessageBatch batch) {
+    int total_bytes=0;
+    for(Message msg: batch)
+        total_bytes+=msg.getLength();
+    // alternative: total_bytes=batch.length();
+    System.out.printf("received batch of %d messages: total size is %d bytes\n",
+                      batch.size(), total_bytes);
+    if(!batch.isEmpty())
+        up_prot.up(batch);
+}
+----
+
+
+Run the demo
+------------
+* Add `PRINT_BYTES` to `config.xml`:
+
+[source,xml]
+----
+<UDP mcast_addr="228.5.5.5".../>
+<org.lab.protocols.PRINT_BYTES do_print="true" />
+<PING />
+ ...
+----
+
+* Note that the full classname of `PRINT_BYTES` has to be given
+* Run the demo: `bin/repl-cache.sh`
+* Extra credit: print the headers (`Message.getHeaders()`)
 
 
 
