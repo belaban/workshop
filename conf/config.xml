@@ -43,6 +43,8 @@
          oob_thread_pool.queue_max_size="100"
          oob_thread_pool.rejection_policy="discard"/>
 
+    <!--DISCARD gui="true"/-->
+
     <!--org.lab.protocols.PRINT_BYTES do_print="true" /-->
 
     <PING />

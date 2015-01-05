@@ -1115,8 +1115,8 @@ public void up(MessageBatch batch) {
 ----
 
 
-Run the demo
-------------
+Running the demo
+----------------
 * Add `PRINT_BYTES` to `config.xml`:
 
 [source,xml]
@@ -1129,19 +1129,45 @@ Run the demo
 
 * Note that the full classname of `PRINT_BYTES` has to be given
 * Run the demo: `bin/repl-cache.sh`
-* Extra credit: print the headers (`Message.getHeaders()`)
+* Extra credit
+. Disable and re-enable printing of messages via probe.sh
+. Print the headers (`Message.getHeaders()`)
+. Dynamically remove `PRINT_BYTES` via `probe.sh remove-protocol ...`
 
-
-
-Exposing attributes and operations via JMX
-------------------------------------------
-* JmxConfiguratror: discuss
 
 
 Debugging
 ---------
+* Failure detection protocols depending on heartbeats should be disabled
+* Otherwise, stopping member P in a breakpoint for more than the failure detection timeout would
+  suspect and exclude P
+** Disable FD_ALL, FD
+** FD_SOCK is fine
+* Byteman
+** Adding behavior to a running JVM via dynamic byte code rewriting
+** Even to a JVM that was started _without a byteman agent_ (with `bminstall`)
+** Dynamically install byteman rules (`bmsubmit`), e.g. to print the bytes of sent / received messages
+** Byteman rules can be removed at runtime -> no overhead
+** Can be used even in production
+
 
 
 Simulation
 ----------
+* JGroups ships with a number of protocols for simulation of
+** Message drops: `DISCARD`
+** Network partitions: `DISCARD` (demo)
+** Duplicate messages: `DUPL`
+** High latency: `DELAY`
+** Message reordering: `SHUFFLE`
+* These are used in unit tests to test correctness of protocols
+** Example: `DuplicateTest`
+
+
+
+
+
+
+
+
 

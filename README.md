@@ -9,5 +9,5 @@ The slides are written in asciidoc; the HTML can be generated with
 Requirements
 ------------
 * Java 7 or higher (run the demos, labs)
-* Ant (labs)
-* IDE (labs)
+* Ant
+* IDE -> source JGroups into your IDE 
