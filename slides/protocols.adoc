@@ -1,0 +1,82 @@
+
+Protocols in JGroups
+====================
+
+Transport protocols
+-------------------
+* Bottom-most protocol in a stack
+* Interacts with the network
+* Main tasks
+. Serialization and sending of messages to other nodes
+. Deserialization of network buffers into messages and passing those up the stack
+* Most of the resources of a node (sockets, thread pools) are located in the transport protocol
+* Available transports:
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Implementation
+| UDP | Sends datagram packets (to single destination) or multicast packets (to all cluster nodes). Requires IP multicasting to be enabled.
+| TCP | Uses TCP sockets. A message sent to the entire cluster (N nodes) is sent N-1 times. 1 thread per connection.
+| TCP_NIO | Same as TCP, but uses NIO.2: thread pool to handle _all_ connections. Currently not supported. Will get revamped in 4.0
+| TUNNEL | Talks to external process (GossipRouter) to send/receive messages. Can be used to connect nodes behind firewalls.
+| SHARED_LOOPBACK| Dummy transport to connect members running inside the same process. Used for unit testing
+|====
+* Ref: http://www.jgroups.org/manual/index.html#Transport
+
+
+
+Discovery
+---------
+* Discovers the initial membership
+* Used to find out who the _existing coordinator_ is (to send a `JOIN` request to it)
+* Implementations:
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Implementation
+| PING | Sends discovery request as multicast (requiring `UDP` as transport)
+| TCPPING | Defines a static list of nodes (IP addresses and ports) to contact, e.g. `initial_hosts=A[7800],B[7800],C[7800]`
+| MPING | Uses its own multicast socket (`MulticastSocket`) to multicast discovery requests. Used when the transport
+          doesn't support multicasting, e.g. `TCP`
+| TCPGOSSIP | Contacts one or more external processes (`GossipRouter`) to find the initial membership for a given
+              cluster. Each node registers with the GossipRouter(s) on startup.
+| JDBC_PING | Uses a database to store the membership for a given cluster. Each members adds its own information at startup.
+| FILE_PING | Uses the file system to store membership information. On startup, each members writes its own information
+              to the (shared) file system
+| S3_PING, GOOGLE_PING| Uses a cloud store for membership information. More impls include , AWS_PING,SWIFT_PING,RACKSPACE_PING,
+                        Kubernetes, Zookeeper etc
+|SHARED_LOOPBACK_PING| Requires `SHARED_LOOPBACK` as transport, delegates all discovery requests to the transport
+|====
+
+* Ref: http://www.jgroups.org/manual/index.html#DiscoveryProtocols
+
+
+
+Merging
+--------
+* When failure detection splits a cluster into multiple subclusters, e.g. `A15={A,B,C}` and `D15={D,E}`, merging tries to
+  merge the subclusters back into a single cluster:
+** The _subcluster coordinators_ `A` and `D` periodically send out merge messages
+*** `A` sends `{coord=A,addr=192.166.1.5:50500,view=A15,cluster="demo"}`
+*** `D` sends `{coord=D,addr=192.168.1.6:60500,view=D15,cluster="demo"}`
+** When `A` or `D` encounter a message from another node claiming to be coordinator for the same cluster, they
+   engage in a protocol to
+*** Exchange information about their respective subclusters
+*** Agree on a _merge leader_ who
+**** Generates a `MergeView` (`A16={A,B,C,D,E}`)
+**** Has all subcluster coordinators install the MergeView
+**** All subcluster coordinators except one (e.g. `A`) step down
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Implementation
+| MERGE3 | Uses the algorithm described avove
+|====
+
+* Ref: http://www.jgroups.org/manual/index.html#_merging_after_a_network_partition
+
+
+
+
+Failure detection
+-----------------

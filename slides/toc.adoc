@@ -108,7 +108,6 @@ A closer look at protocols
 
 * Merging
 ** MERGE3
-** Strategies to handle split brain scenarios
 
 * Failure detection
 ** FD, FD_ALL, FD_SOCK, FD_HOST
@@ -168,6 +167,7 @@ Admin
 ** bind_addr and mcast_addr
 ** Setting multicast routes for different mcast_addrs
 
+include::./admin.adoc["Admin"]
 
 
 Todos
