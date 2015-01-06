@@ -36,15 +36,15 @@ Discovery
 | Name | Implementation
 | PING | Sends discovery request as multicast (requiring `UDP` as transport)
 | TCPPING | Defines a static list of nodes (IP addresses and ports) to contact, e.g. `initial_hosts=A[7800],B[7800],C[7800]`
-| MPING | Uses its own multicast socket (`MulticastSocket`) to multicast discovery requests. Used when the transport
+| MPING | Uses its own multicast socket to multicast discovery requests. Used when the transport
           doesn't support multicasting, e.g. `TCP`
 | TCPGOSSIP | Contacts one or more external processes (`GossipRouter`) to find the initial membership for a given
               cluster. Each node registers with the GossipRouter(s) on startup.
 | JDBC_PING | Uses a database to store the membership for a given cluster. Each members adds its own information at startup.
 | FILE_PING | Uses the file system to store membership information. On startup, each members writes its own information
               to the (shared) file system
-| S3_PING, GOOGLE_PING| Uses a cloud store for membership information. More impls include , AWS_PING,SWIFT_PING,RACKSPACE_PING,
-                        Kubernetes, Zookeeper etc
+| S3_PING, GOOGLE_PING| Uses a cloud store for membership information. More impls include AWS_PING, SWIFT_PING,
+                        RACKSPACE_PING, Kubernetes, Zookeeper etc
 |SHARED_LOOPBACK_PING| Requires `SHARED_LOOPBACK` as transport, delegates all discovery requests to the transport
 |====
 
@@ -66,6 +66,7 @@ Merging
 **** Generates a `MergeView` (`A16={A,B,C,D,E}`)
 **** Has all subcluster coordinators install the MergeView
 **** All subcluster coordinators except one (e.g. `A`) step down
+* The merging itself is done by `GMS`; the merge protocol only notifies `GMS` that a merge is needed
 
 [width="90%",cols="2,10", frame="topbot",options="header"]
 |====
@@ -80,3 +81,95 @@ Merging
 
 Failure detection
 -----------------
+* Failure detection checks for crashed or unresponsive members and _suspects them_
+** It _doesn't remove suspected members_ (that's the task of `GMS`)
+* Noe that members which leave _gracefully_ (e.g. via `JChannel.disconnect()`) are never handled by failure detection
+* Implementations:
+
+[width="90%",cols="2,15", frame="topbot",options="header"]
+|====
+| Name | Implementation
+| FD_ALL | Every node periodically multicasts heartbeats. Each member maintains a table of members and timestamps and
+           resets the timestamp for P on reception of a heartbeat or message from P. +
+           If a member's timestamp exceeds a threshold, a suspect(P) message is sent to the coordinator, which tells
+           `GMS` to handle the suspicion. +
+           `GMS` then removes P and installs a new view excluding P. `FD_ALL` works best with `UDP` as transport as
+           heartbeats are multicast.
+| FD_SOCK | Members of a cluster form a logical ring, with each member creating a TCP connection to the member to its
+            right. E.g. in `{A,B,C}`, `A` -> `B` -> `C` -> `A`. +
+            When `C` crashes, `B` will get notified that the TCP
+            connection to `C` was closed and send a `suspect(C)` to the coordinator (`A`), who then excludes `C` from the view.
+| FD | Same as `FD_SOCK` but instead of a TCP connection, heartbeat messages are sent to the neighbor to the right. If
+       a timeout elapsed without getting a response or traffic from the neighbor, a suspect message is sent to the coordinator.
+| FD_HOST| To detect the crash or freeze of entire hosts and all of the cluster members running on them. It is not
+           meant to be used in isolation, as it doesn’t detect crashed members on the local host, but in conjunction
+           with other failure detection protocols, such as `FD_ALL` or `FD_SOCK`. +
+           Can be used when we have multiple cluster members running on a physical box. For example, if we have members
+           `{A,B,C,D}` running on host 1 and `{M,N,O,P}` running on host 2, and host 1 is powered down, then `A`, `B`,
+           `C` and `D` are suspected and removed from the cluster together, typically in one view change. +
+            By default, `FD_HOST` uses `InetAddress.isReachable()` to perform liveness checking of other hosts, but if
+            property `cmd` is set, then any script or command can be used. `FD_HOST` will launch the command and pass
+            the IP address ot the host to be checked as argument. Example: `cmd="ping -c 3"`.
+
+|====
+
+* Ref: http://www.jgroups.org/manual/index.html#FailureDetection
+
+
+
+
+Reliable transmission and ordering
+----------------------------------
+* A sender S assigns monotonically increasing sequence numbers (seqnos) to messages
+* Receiver R receives messages from P and delivers them (up the stack) in seqno order
+* Negative acks: the receiver only asks a sender to retransmit a message if a gap has been detected, e.g. `S5` -> `S6`
+  -> `S8`: here, message `7` from `S` is missing so `R` asks `S` to resend message `7`.
+* Positive acks: the sender continues to periodically retransmit a message `M` until the receiver `R` has acked
+  `M`, or `R` left the cluster
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Implementation
+| NAKACK2 | For sending messages reliably and in (sender) order to all cluster nodes. Uses negative acks.
+| UNICAST3 | For sending unicast (point-to-point) ordered messages. Uses a mixture of negative and positive acking.
+|====
+* Ref: http://www.jgroups.org/manual/index.html#ReliableMessageTransmission
+
+
+
+Message stability
+-----------------
+* Only applicable to one-to-many (= multicast) messages (`NAKACK2`)
+* When multicasting messages with `NAKACK2`, receivers store all messages in order to deliver them in order, and
+  to possibly resend messages to members missing them
+* However, keeping messages around indefinitely increases the heap used and eventually members run out of memory
+* `STABLE` is an agreement protocol which runs periodically (or based on received bytes) and removes messages which
+  have been seen by everyone
+* E.g if we have members `{A,B,C}` and receive
+** From `A`: `{A:15,B:25,C:3`
+** From `B`: `{A:14,B:29,C:5`
+** From `C`: `{A:15,B:27,C:5`
+** Then the minimum vector is `{A:14,B:25,C:3`.
+*** All members can now remove messages `14` and lower from `A`, `25` and lower from `B` and `3` and lower from `C`
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Implementation
+| STABLE | Implements the above algorithm
+|====
+* Ref: http://www.jgroups.org/manual/index.html#STABLE
+
+
+
+Group membership
+----------------
+* Handles new member joining, existing members leaving or crashing (suspicions) and merging
+* Adds new members to the view, removes left or suspected members from the view and installs a new view
+* Also handles merge events sent by a merge protocol
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Implementation
+| GMS | Implements the functionality discussed above
+|====
+* Ref: http://www.jgroups.org/manual/index.html#GMS
