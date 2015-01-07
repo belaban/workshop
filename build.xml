@@ -65,6 +65,17 @@
     <target name="retrieve" depends="check-jars-exist,get-ivy,define-ivy-task" unless="jars.exist"
             description="Retrieves all dependent libs defined in ivy.xml unless already present">
         <ivy:retrieve type="jar,bundle,source" transitive="false"/>
+
+        <!-- Move byteman-x.y.z.jar to byteman.jar (needed by -javaagent:byteman.jar in byteman tests) -->
+        <move todir="${lib.dir}">
+            <fileset dir="${lib.dir}">
+                <include name="byteman-*.jar"/>
+                <exclude name="byteman-bmunit-*.jar"/>
+                <exclude name="byteman-install-*.jar"/>
+                <exclude name="byteman-submit-*.jar"/>
+            </fileset>
+            <globmapper from="byteman*.jar" to="byteman.jar"/>
+        </move>
     </target>
 
     <target name="define-ivy-task">

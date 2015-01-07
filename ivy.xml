@@ -10,5 +10,8 @@
         <dependency org="org.fusesource.jansi"     name="jansi"       rev="1.11"/>
         <dependency org="commons-cli"              name="commons-cli" rev="1.2"/>
         <dependency org="jline"                    name="jline"       rev="2.11"/>
+        <dependency org="org.jboss.byteman"        name="byteman"         rev="2.+"/>
+        <dependency org="org.jboss.byteman"        name="byteman-install" rev="2.+"/>
+        <dependency org="org.jboss.byteman"        name="byteman-submit"  rev="2.+"/>
     </dependencies>
 </ivy-module>

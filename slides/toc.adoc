@@ -11,10 +11,11 @@ Requirements:
 * JDK (7 or higher) installed
 * IDE installed. I used IntelliJ, but eclipse works, too
 ** Lab imported into IDE
+** JGroups source code imported into IDE
 
 
-Overview, architecture, API, protocols
---------------------------------------
+Day 1: Overview, architecture, API, protocols
+---------------------------------------------
 * Overview of JGroups
 ** What is it, what is it *not*, use cases
 * Architecture
@@ -38,8 +39,8 @@ include::./using.adoc[Overview]
 include::./prot_overview.adoc[Protocol overview]
 
 
-Building blocks
----------------
+Day 2: Building blocks
+----------------------
 * RpcDispatcher / MessageDispatcher
 ** Asynchronous invocation API
 ** Working with futures
@@ -53,8 +54,8 @@ include::./blocks.adoc["Building blocks"]
 
 
 
-Advanced
---------
+Day 3-4: Advanced
+------------------
 * Message flags (OOB, DONT_BUNDLE, NO_FC etc)
 
 * The transport
@@ -101,8 +102,8 @@ include::./advanced.adoc["Advanced"]
 
 
 
-A closer look at protocols
---------------------------
+Day 5: A closer look at protocols
+----------------------------------
 * Discovery
 ** PING, TCPPING
 
@@ -137,8 +138,8 @@ A closer look at protocols
 ** Decision tree
 
 
-Admin
------
+Day 5: Admin
+------------
 * Discuss the provided default stacks (UDP, TCP, perhaps EC2)
 * If TCP is used: which protocols can be removed, same with UDP
 
@@ -176,3 +177,5 @@ Todos
 ** View generation, custom addresses
 ** AIA
 ** Transport configuration
+* Writing a protocol
+* Byteman demo

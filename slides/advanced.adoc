@@ -1143,12 +1143,7 @@ Debugging
   suspect and exclude P
 ** Disable FD_ALL, FD
 ** FD_SOCK is fine
-* Byteman
-** Adding behavior to a running JVM via dynamic byte code rewriting
-** Even to a JVM that was started _without a byteman agent_ (with `bminstall`)
-** Dynamically install byteman rules (`bmsubmit`), e.g. to print the bytes of sent / received messages
-** Byteman rules can be removed at runtime -> no overhead
-** Can be used even in production
+
 
 
 
@@ -1165,6 +1160,43 @@ Simulation
 
 
 
+
+Byteman
+-------
+** Adding behavior to a running JVM via dynamic byte code rewriting
+** Even to a JVM that was started _without a byteman agent_ (with `bminstall`)
+** Dynamically install byteman rules (`bmsubmit`), e.g. to print the bytes of sent / received messages
+** Byteman rules can be removed at runtime -> no overhead
+** Can be used even in production
+
+
+
+
+Byteman demo
+------------
+* Make sure `JAVA_HOME` is set or copy `tools.jar` from the JDK to `workshop/lib`
+* Run a ChatDemo, e.g. `./run.sh org.lab.ChatDemo -name A -props config.xml`
+* Find out the Java process ID:
+----
+[mac] /Users/bela$ jps -l
+70246 sun.tools.jps.Jps
+70235 org.lab.ChatDemo
+----
+* Install the byteman agent: `./bm-install.sh 70235`
+* Install the test rule: `./bm-submit.sh ../conf/byteman.btm`
+* See that the rule is installed: `./bm-submit -l`
+* Observe all events sent by the transport are printed
+----
+hello
+--> MSG, arg=[dst: <null>, src: A (1 headers), size=6 bytes] (headers=NAKACK2: [MSG, seqno=1])
+> [A]: hello
+world
+--> MSG, arg=[dst: <null>, src: A (1 headers), size=6 bytes] (headers=NAKACK2: [MSG, seqno=2])
+> [A]: world
+--> GET_PHYSICAL_ADDRESS, arg=A
+--> MSG, arg=[dst: <null>, src: <null> (1 headers), size=0 bytes, flags=INTERNAL, transient_flags=DONT_LOOPBACK] (headers=MERGE3: INFO: view_id=[A|0], logical_name=A, physical_addr=127.0.0.1:63360)
+----
+* Uninstall the rule: `./bm-submit -u`
 
 
 

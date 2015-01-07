@@ -1,0 +1,9 @@
+
+
+RULE down
+CLASS ^org.jgroups.protocols.TP
+METHOD down
+AT ENTRY
+IF TRUE
+   DO System.out.println("--> " + $1);
+ENDRULE
