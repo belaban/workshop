@@ -80,11 +80,11 @@
 
     <target name="get-deckjs" depends="check-deckjs-exists"
             description="Downloads deck.js and creates a symbolic link to it" unless="deckjs.exists">
-        <echo message="downloading ${deck.js}"/>
+        <echo message="downloading ${deck.js} to ${deck.js.dir}"/>
         <exec executable="${git.executable}" dir="${basedir}/../">
             <arg line="clone ${deck.js.url}"/>
         </exec>
-        <symlink link="${deck.js}" resource="${deck.js.dir}" overwrite="false"/>
+        <symlink link="${basedir}/${deck.js}" resource="${deck.js.dir}" overwrite="false" failonerror="false"/>
     </target>
 
 
@@ -139,6 +139,7 @@
 
     <target name="slides" description="Generates the slides using asciidoctor"
             depends="get-asciidoc-backends,get-deckjs">
+        <symlink link="${basedir}/${deck.js}" resource="${deck.js.dir}" overwrite="false" failonerror="false"/>
         <run-asciidoc dir="${basedir}/slides" input="admin.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="advanced.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="blocks.adoc"/>
@@ -166,6 +167,7 @@
 
     <target name="clean-all" depends="clean" description="Also removes lib">
         <delete dir="${lib.dir}" failonerror="false"/>
+        <symlink action="delete" link="${basedir}/${deck.js}"/>
     </target>
 
 
