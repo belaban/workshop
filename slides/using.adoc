@@ -1,10 +1,18 @@
 
 
-Using JGroups
-=============
-author: Bela Ban belaban@yahoo.com
+Using JGroups: overview and API
+===============================
+:author: Bela Ban belaban@yahoo.com
+:backend: deckjs
+:deckjs_transition: fade
+:navigation:
+:deckjs_theme: web-2.0
+:deckjs_transition: fade
+:goto:
+:menu:
+:toc:
+:status:
 
-Overview and API
 
 
 

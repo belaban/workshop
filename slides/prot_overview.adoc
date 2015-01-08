@@ -1,10 +1,19 @@
 
-Overview of the most commonly used protocols
-============================================
-author: Bela Ban belaban@yahoo.com
+Overview of the most common protocols
+=====================================
+:author: Bela Ban belaban@yahoo.com
+:backend: deckjs
+:deckjs_transition: fade
+:navigation:
+:deckjs_theme: web-2.0
+:deckjs_transition: fade
+:goto:
+:menu:
+:toc:
+:status:
 
-Overview of the most common protocols. What does each protocol do and
-what are the attributes that most commonly need to be changed.
+// Overview of the most common protocols. What does each protocol do and
+// what are the attributes that most commonly need to be changed.
 
 
 Transport protocols
@@ -12,7 +21,11 @@ Transport protocols
 * A _transport protocol_ refers to the protocol at the bottom of the protocol stack which is
 responsible for sending messages to and receiving messages from the network. There are a
 number of transport protocols in JGroups. They are discussed in the following sections.
-* A typical protocol stack configuration using UDP is:
+* A typical protocol stack configuration using UDP is shown next
+
+
+udp.xml
+-------
 
 [source,xml]
 ----
@@ -26,14 +39,11 @@ number of transport protocols in JGroups. They are discussed in the following se
          ucast_send_buf_size="640K"
          mcast_recv_buf_size="25M"
          mcast_send_buf_size="640K"
-         loopback="true"
-         discard_incompatible_packets="true"
          max_bundle_size="64K"
          max_bundle_timeout="30"
          ip_ttl="${jgroups.udp.ip_ttl:2}"
          enable_diagnostics="true"
 
-         thread_pool.enabled="true"
          thread_pool.min_threads="2"
          thread_pool.max_threads="8"
          thread_pool.keep_alive_time="5000"
@@ -41,17 +51,13 @@ number of transport protocols in JGroups. They are discussed in the following se
          thread_pool.queue_max_size="10000"
          thread_pool.rejection_policy="discard"
 
-         oob_thread_pool.enabled="true"
          oob_thread_pool.min_threads="1"
          oob_thread_pool.max_threads="8"
          oob_thread_pool.keep_alive_time="5000"
-         oob_thread_pool.queue_enabled="false"
-         oob_thread_pool.rejection_policy="Run"/>
+         oob_thread_pool.rejection_policy="discard"/>
 
-    <PING timeout="2000"
-            num_initial_members="3"/>
-    <MERGE3 max_interval="30000"
-            min_interval="10000"/>
+    <PING timeout="2000" num_initial_members="3"/>
+    <MERGE3 max_interval="30000" min_interval="10000"/>
     <FD_SOCK/>
     <FD_ALL/>
     <VERIFY_SUSPECT timeout="1500"  />
@@ -71,56 +77,49 @@ number of transport protocols in JGroups. They are discussed in the following se
     <FRAG2 frag_size="60K"  />
     <pbcast.STATE_TRANSFER />
 </config>
-        
 ----
 
-In a nutshell the properties of the protocols are:
-    
 
-UDP:: This is the transport protocol. It uses IP multicasting to send messages to the entire cluster,
+Protocols
+---------
+
+UDP:: Transport protocol using IP multicasting to send messages to the entire cluster,
       or individual nodes. Other transports include `TCP` and `TUNNEL`.
                     
 
-PING:: This is the discovery protocol. It uses IP multicast (by default) to find initial members.
-       Once found, the current coordinator can be determined and a unicast JOIN request will be sent
-       to it in order to join the cluster.
+PING:: Discovery protocol. It uses IP multicast (by default) to find initial members.
+       Once found, the current coordinator can be determined and a JOIN request is sent
+       to join the cluster.
                     
-
 MERGE3:: Will merge sub-clusters back into one cluster, kicks in after a network partition healed.
 
 FD_SOCK:: Failure detection based on sockets (in a ring form between members). Generates notification
           if a member fails
-                    
 
-FD / FD_ALL:: Failure detection based on heartbeat are-you-alive messages. Generates notification
-              if a member fails
+FD / FD_ALL:: Failure detection based on heartbeats. Generates notifications if a member fails
 
-VERIFY_SUSPECT:: Double-checks whether a suspected member is really dead,
-                 otherwise the suspicion generated from protocol below is discarded
+VERIFY_SUSPECT:: Double-checks whether a suspected member is dead,
+                 otherwise the suspicion generated from the protocol below is discarded
 
-BARRIER:: Needed to transfer state; this will block messages that modify the shared state until a
+BARRIER:: Needed to transfer state; blocks messages that modify the shared state until a
           digest has been taken, then unblocks all threads. _Not needed if no state transfer protocol is present._
                     
+pbcast.NAKACK2:: Ensures (a) message reliability and (b) FIFO order. Reliability guarantees that a message
+                 will be received. If not, the receiver(s) request retransmission. FIFO guarantees that
+                 all messages from sender P are received in the order in which P sent them
 
-pbcast.NAKACK2:: Ensures (a) message reliability and (b) FIFO. Message reliability guarantees that a message
-                 will be received. If not, the receiver(s) will request retransmission. FIFO guarantees that
-                 all messages from sender P will be received in the order P sent them
+UNICAST3:: Same as NAKACK for unicasts: messages from sender P will not be lost (retransmission if
+           necessary) and will be in FIFO order (conceptually similar to TCP/IP)
 
-UNICAST3:: Same as NAKACK for unicast messages: messages from sender P will not be lost (retransmission if
-           necessary) and will be in FIFO order (conceptually the same as TCP in TCP/IP)
-
-pbcast.STABLE:: Deletes messages that have been seen by all members (distributed message garbage collection)
+pbcast.STABLE:: Deletes messages that have been seen by all members
 
 pbcast.GMS:: Membership protocol. Responsible for joining/leaving members and installing new views.
 
 UFC:: Unicast Flow Control. Provides flow control between 2 members.
-                    
 
 MFC:: Multicast Flow Control. Provides flow control between a sender and all cluster members.
                     
-
-FRAG2:: Fragments large messages into smaller ones and reassembles them back at the receiver side. For both
-        multicast and unicast messages 
+FRAG2:: Fragments large messages into smaller ones and reassembles them at the receiver. For multicast and unicast messages
 
 STATE_TRANSFER:: Ensures that state is correctly transferred from an existing member (usually the
                  coordinator) to a new member.
