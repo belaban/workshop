@@ -6,20 +6,28 @@
         Ant/ivy based build.xml file for the workshop. Needs ant to run
     </description>
 
-    <property name="version"          value="1.0"/>
-    <property name="root.dir"         value="${basedir}"/>
-    <property name="src.dir"          value="${root.dir}/src"/>
-    <property name="compile.dir"      value="${root.dir}/classes"/>
-    <property name="lib.dir"          value="${root.dir}/lib"/>
-    <property name="dist.dir"         value="${root.dir}/dist"/>
-    <property name="tmp.dir"          value="${root.dir}/tmp"/>
-    <property name="javadoc.dir"      value="${dist.dir}/javadoc"/>
-    <property name="conf.dir"         value="${root.dir}/conf"/>
-    <property name="bin.dir"          value="${root.dir}/bin"/>
-    <property name="javadoc.packages" value="org.task.*"/>
-    <property name="timestamp"        value=".timestamp"/>
-    <property name="maven.executable" value="mvn"/>
-    <property name="ivy.version"      value="2.3.0" />
+    <property name="version"               value="1.0"/>
+    <property name="root.dir"              value="${basedir}"/>
+    <property name="src.dir"               value="${root.dir}/src"/>
+    <property name="compile.dir"           value="${root.dir}/classes"/>
+    <property name="lib.dir"               value="${root.dir}/lib"/>
+    <property name="dist.dir"              value="${root.dir}/dist"/>
+    <property name="tmp.dir"               value="${root.dir}/tmp"/>
+    <property name="javadoc.dir"           value="${dist.dir}/javadoc"/>
+    <property name="conf.dir"              value="${root.dir}/conf"/>
+    <property name="bin.dir"               value="${root.dir}/bin"/>
+    <property name="javadoc.packages"      value="org.task.*"/>
+    <property name="timestamp"             value=".timestamp"/>
+    <property name="maven.executable"      value="mvn"/>
+    <property name="git.executable"        value="git"/>
+    <property name="asciidoc.executable"   value="asciidoctor"/>
+    <property name="asciidoc.backends"     value="asciidoctor-backends"/>
+    <property name="asciidoc.backends.dir" value="${basedir}/../${asciidoc.backends}"/>
+    <property name="asciidoc.backends.url" value="git://github.com/asciidoctor/asciidoctor-backends.git"/>
+    <property name="deck.js"               value="deck.js"/>
+    <property name="deck.js.dir"           value="${basedir}/../${deck.js}"/>
+    <property name="deck.js.url"           value="git://github.com/imakewebthings/deck.js.git"/>
+    <property name="ivy.version"           value="2.3.0" />
 
 
     <path id="jg.classpath">
@@ -29,7 +37,6 @@
             <include name="*.jar"/>
         </fileset>
     </path>
-
 
 
     <target name="check-lib-exists">
@@ -53,6 +60,31 @@
                 <fileset dir="${lib.dir}" excludes="ivy*.jar" />
             </path>
         </pathconvert>
+    </target>
+
+    <target name="check-asciidoc-backends-exists" description="Checks if asciidoc_backends dir exists">
+        <available file="${asciidoc.backends.dir}" type="dir" property="asciidoc.backends.exists"/>
+    </target>
+
+    <target name="get-asciidoc-backends" depends="check-asciidoc-backends-exists"
+            description="Downloads asciidoc-backends" unless="asciidoc.backends.exists">
+        <echo message="downloading ${asciidoc.backends}"/>
+        <exec executable="${git.executable}" dir="${basedir}/../">
+            <arg line="clone ${asciidoc.backends.url}"/>
+        </exec>
+    </target>
+
+    <target name="check-deckjs-exists" description="Checks if deck.js dir exists">
+        <available file="${deck.js.dir}" type="dir" property="deckjs.exists"/>
+    </target>
+
+    <target name="get-deckjs" depends="check-deckjs-exists"
+            description="Downloads deck.js and creates a symbolic link to it" unless="deckjs.exists">
+        <echo message="downloading ${deck.js}"/>
+        <exec executable="${git.executable}" dir="${basedir}/../">
+            <arg line="clone ${deck.js.url}"/>
+        </exec>
+        <symlink link="${deck.js}" resource="${deck.js.dir}" overwrite="false"/>
     </target>
 
 
@@ -105,6 +137,16 @@
     </target>
 
 
+    <target name="slides" description="Generates the slides using asciidoctor"
+            depends="get-asciidoc-backends,get-deckjs">
+        <run-asciidoc dir="${basedir}/slides" input="admin.adoc"/>
+        <run-asciidoc dir="${basedir}/slides" input="advanced.adoc"/>
+        <run-asciidoc dir="${basedir}/slides" input="blocks.adoc"/>
+        <run-asciidoc dir="${basedir}/slides" input="prot_overview.adoc"/>
+        <run-asciidoc dir="${basedir}/slides" input="protocols.adoc"/>
+        <run-asciidoc dir="${basedir}/slides" input="using.adoc"/>
+    </target>
+
 
     <target name="clean"
             description="Removes all class files and ./dist">
@@ -116,11 +158,28 @@
             <fileset dir="${root.dir}" defaultexcludes="no">
                 <include name="**/*~"/>
             </fileset>
+            <fileset dir="${basedir}/slides">
+                <include name="*.html"/>
+            </fileset>
         </delete>
     </target>
 
     <target name="clean-all" depends="clean" description="Also removes lib">
         <delete dir="${lib.dir}" failonerror="false"/>
     </target>
+
+
+    <macrodef name="run-asciidoc">
+        <attribute name="dir"/>
+        <attribute name="input"/>
+        <sequential>
+            <mkdir dir="@{dir}/build"/>
+            <echo message="Processing @{input} in @{dir}"/>
+            <exec executable="${asciidoc.executable}" dir="@{dir}">
+                <arg line="-T ${asciidoc.backends.dir}/haml @{input}"/>
+            </exec>
+        </sequential>
+    </macrodef>
+
 
 </project>
