@@ -179,4 +179,3 @@ Todos
 ** Transport configuration
 * Writing a protocol: demo
 * RELAY2 demo
-* Nice deck.js based slides: http://asciidoctor.org/docs/install-and-use-deckjs-backend/
