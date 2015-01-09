@@ -12,6 +12,29 @@ Admin
 :status:
 
 
+
+
+Multicast routing
+-----------------
+
+
+Default stacks shipped
+----------------------
+
+
+Most frequent config changes
+----------------------------
+
+
+Switching from UDP to TCP
+-------------------------
+
+
+Tuning
+------
+
+
+
 Top JGroups problems
 --------------------
 * Mailing lists
@@ -186,5 +209,20 @@ Especially between VLANs. Check the swithc configuration
 
 UDP: time-to-live loo low::
 If `UDP` is used, increase the value of `ip_ttl`. See whether packets are received with wireshark / tcpdump
+
+
+
+
+Logging
+-------
+
+
+JMX
+---
+
+
+
+probe.sh
+--------
 
 
