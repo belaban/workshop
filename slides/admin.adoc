@@ -215,14 +215,284 @@ If `UDP` is used, increase the value of `ip_ttl`. See whether packets are receiv
 
 Logging
 -------
+* JGroups has no runtime dependencies on any logging framework (j.u.l. is used by default)
+* At startup, JGroups looks for log4j2, log4j, j.u.l. (in this order)
+** To force use of JDK logging, even if the log4j(2) JARs are present, `-Djgroups.use.jdk_logger=true` can be used
+* Custom loggers can be used instead of the ones supported by default. To do this, interface
+`CustomLogFactory` has to be implemented:
+
+[source,java]
+----
+public interface CustomLogFactory {
+    Log getLog(Class clazz);
+    Log getLog(String category);
+}
+----
+
+* The implementation needs to return an implementation of `org.jgroups.logging.Log`.
+* To force using the custom log implementation, the fully qualified classname of the custom log
+  factory has to be provided with `-Djgroups.logging.log_factory_class=com.foo.MyCustomLogger`.
+* Ref: http://www.jgroups.org/manual/index.html#Logging
 
 
 JMX
 ---
+* JGroups exposes attributes and operations of the channel and all protocols via JMX
+* Has to be enabled with `-Dcom.sun.management.jmxremote` (or others, ie. remote JMX host:port etc)
+* To expose a channel and its attributes via JMX:
 
+[source,java]
+----
+public static void registerChannel(JChannel channel,String name) {
+    JmxConfigurator.registerChannel(channel,
+                                    Util.getMBeanServer(),
+                                    (name != null? name : "jgroups"),
+                                    channel.getClusterName(),
+                                    true);
+}
+
+// Util.registerChannel((JChannel)channel, channel.getClusterName());
+
+public static void unregisterChannel(Channe channel) {
+    JmxConfigurator.unregisterChannel((JChannel)channel,
+                                      Util.getMBeanServer(),
+                                      channel.getClusterName(());
+}
+----
+* Let's try this out with our ChatDemo
 
 
 probe.sh
 --------
+* Probe is a simple program which sends IP multicasts to a given multicast group and port and prints all responses
+* Functionality
+** Read attributes
+** Write attributes
+** Invoke operations
+** Insert new protocols, remove protocols
+* Probe requests are simple strings that are parsed by cluster nodes
+* Probe responses are strings, too
+* To enable:
+
+[source,xml]
+----
+<UDP enable_diagnostics="true"
+     diagnostics_addr="xxx"
+     diagnostics_port="xxx"
+     ...
+/>
+----
+* Let's run ChatDemo and explore the features of probe
+
+
+Listing all cluster nodes
+-------------------------
+
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh
+
+-- sending probe on /224.0.75.75:7500
+
+#1 (149 bytes):
+local_addr=A [f91dce0b-a753-987d-9d18-a8e8d86950ee]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:52181
+version=3.6.0.Final
+
+#2 (149 bytes):
+local_addr=B [9e413b1d-d2f7-eaac-cb67-8eb94b2ba352]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:58998
+version=3.6.0.Final
+
+
+2 responses (2 matches, 0 non matches)
+[mac] /Users/bela/workshop/bin$
+----
+
+
+Reading attributes from a protocol
+----------------------------------
+* Reading the number of sent and received messages and bytes in `UDP`:
+
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.num_msgs,num_byt
+
+#1 (246 bytes):
+local_addr=A [f91dce0b-a753-987d-9d18-a8e8d86950ee]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:52181
+jmx=UDP={num_msgs_received=36, num_msgs_sent=37, num_bytes_received=2325, num_bytes_sent=2470}
+
+version=3.6.0.Final
+
+
+#2 (246 bytes):
+local_addr=B [9e413b1d-d2f7-eaac-cb67-8eb94b2ba352]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:58998
+jmx=UDP={num_msgs_received=36, num_msgs_sent=36, num_bytes_received=2372, num_bytes_sent=2325}
+
+version=3.6.0.Final
+
+2 responses (2 matches, 0 non matches)
+[mac] /Users/bela/workshop/bin$
+----
+
+
+
+Setting attributes
+------------------
+* Changing the log level of `NAKACK2` to `TRACE`:
+----
+./probe.sh jmx=NAKACK2.level=trace
+----
+* This allows an admin to change the log level temporarily, and reset it back to `WARN` later
+
+
+
+Invoking an operation
+---------------------
+* Dump the retransmit tables in `NAKACK2`:
+
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh op=NAKACK2.printMessages
+
+#1 (254 bytes):
+local_addr=A [f91dce0b-a753-987d-9d18-a8e8d86950ee]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:52181
+NAKACK2.printMessages=A:
+B: [0 | 0 | 0] (0 elements, 0 missing)
+A: [2 | 9 | 9] (0 elements, 0 missing)
+
+#2 (254 bytes):
+local_addr=B [9e413b1d-d2f7-eaac-cb67-8eb94b2ba352]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:58998
+NAKACK2.printMessages=B:
+B: [0 | 0 | 0] (0 elements, 0 missing)
+A: [9 | 9 | 9] (0 elements, 0 missing)
+
+[mac] /Users/bela/workshop/bin$
+----
+
+
+Printing the protocol stacks
+----------------------------
+
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh print-protocols
+
+#1 (140 bytes):
+protocols=UDP
+PING
+MERGE3
+FD_SOCK
+FD_ALL
+NAKACK2
+UNICAST3
+STABLE
+GMS
+UFC
+MFC
+FRAG2
+
+#2 (140 bytes):
+protocols=UDP
+PING
+MERGE3
+FD_SOCK
+FD_ALL
+NAKACK2
+UNICAST3
+STABLE
+GMS
+UFC
+MFC
+FRAG2
+
+[mac] /Users/bela/workshop/bin$
+----
+
+
+Inserting a protocol at runtime
+-------------------------------
+* Insert `PRINT_BYTES` above `UDP`:
+----
+./probe.sh insert-protocol=org.lab.protocols.PRINT_BYTES=above=UDP
+----
+* Remove `PRINT_BYTES`:
+----
+./probe.sh remove-protocol=PRINT_BYTES
+----
+* Works only for stateless protocols
+* Use cases
+** Temporary TRACE logging to see what's going on in a defective system, then disable TRACE again
+** Insert a protocol that extracts relevant information about a cluster, stores this to a file and sends the file to
+   support
+
+
+
+Use of probe when IP multicasting is not available
+--------------------------------------------------
+* `probe.sh -addr <address of any member> <diagnostics port (default: 7500)>`
+** This asks any member for the addresses of _all members_ and then sends the probe request to all members in turn
+* Note that any member can also be queried via simple datagram packets, e.g.:
+----
+[mac] /Users/bela/workshop/bin$ nc -u 192.168.1.3 7500
+uuids
+local_addr=A
+uuids=2 elements:
+B: ca335dc2-f30f-6e11-d13a-b029e3e9e2f1: 192.168.1.3:7801 (300 secs old)
+A: 9dd407ae-577d-68b1-4f1e-6623279bb6ed: 192.168.1.3:7800 (31 secs old)
+
+local_addr=A [9dd407ae-577d-68b1-4f1e-6623279bb6ed]
+cluster=draw
+view=[A|1] (2) [A, B]
+physical_addr=192.168.1.3:7800
+version=3.6.1.Final
+^C
+[mac] /Users/bela/workshop/bin$
+----
+
+* Ref: http://www.jgroups.org/manual/index.html#Probe
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
