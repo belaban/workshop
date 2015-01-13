@@ -16,6 +16,21 @@ Admin
 
 Multicast routing
 -----------------
+* When using `UDP`, IP multicasting is required
+* On some systems, multicast route(s) need to be added to the routing table
+** Otherwise, the default route will be used
+*** Note that some systems don't consult the routing table for IP multicast routing, only for unicast routing
+* MacOS example:
+----
+# Adds a multicast route for 224.0.0.1-231.255.255.254
+sudo route add -net 224.0.0.0/5 127.0.0.1
+
+# Adds a multicast route for 232.0.0.1-239.255.255.254
+sudo route add -net 232.0.0.0/5 192.168.1.3
+----
+** When binding to `127.0.0.1`, `UDP.mcast_addr` should be set to a value between `224.0.0.1` and `231.255.255.254`
+*** `224.0.0.1` - `224.0.0.255` not recommended, can get dropped by switches
+** When binding to `192.168.1.3`, `mcast_addr` should be set to a value between `232.0.0.1` and `239.255.255.254`
 
 
 Default stacks shipped
@@ -30,8 +45,116 @@ Switching from UDP to TCP
 -------------------------
 
 
+
 Tuning
 ------
+* Let's take a (non exhaustive) look at things that can be tuned
+* Ref: https://developer.jboss.org/wiki/PerfTuning
+
+
+Buffers
+-------
+* _Right size_ buffers
+** Too small: packet drops, too big: wasted resources
+** Bandwidth-delay product only works for point-to-point (TCP)
+*** In the worst case, we need to multiply this by the number of senders (oversimplification)
+**** Max traffic we can receive is `max(current_senders * rate, link_bandwidth)`
+* Transport buffers:
+** `UDP`: `mcast_send_buf_size`, `mcast_recv_buf_size`, `ucast_send_buf_size`, `ucast_recv_buf_size`
+*** Linux: these buffer cannot be bigger than `net.core.rmem_max` (recv) or `net.core.wmem_max` (send)
+** `TCP`: `send_buf_size`, `recv_buf_size`
+* NIC input buffers: `/sbin/ifconfig txqueuelen 5000` (Linux)
+
+
+Flow control
+------------
+* Multicast flow control: `MFC`, unicast flow control: `UFC`
+* `UFC` not needed when the transport is `TCP`
+* The more credits (`max_credits`) a sender has, the more data it can send until it blocks
+* A higher `min_threshold` value leads to quicker credit replenishments by the receivers back to the senders
+* However: if `max_credits` and `min_threshold` are too large, then the purpose of flow control is defeated
+** Receivers might still run out of memory as they're getting more messages than they can handle
+* Suggestion: test with load that's slightly higher than expected load, watch memory use over time
+
+
+misc
+-----
+* Transport thread pool buffers / queues / rejection policy
+* UDP versus TCP
+* STABLE (memory accumulation)
+
+
+Ethernet flow control 802.3x
+----------------------------
+* Good for `UDP`, bad for `TCP`
+* Enable: `/sbin/ethtool -A eth0 tx on rx on` (Linux)
+* Enable in switch as well
+* Ref: https://developer.jboss.org/wiki/PerfTuning
+
+
+Interrupt coalescing
+--------------------
+* Collects multiple interrupts and handles them together
+* Less 'context switching'
+* Slightly worse latency
+* Example: `/usr/sbin/ethtool -C eth0 rx-usecs 75`
+
+
+Jumbo frames
+------------
+* Increases the size of a datagram packet's MTU, e.g. from 1500 to 8000
+* If we send large messages, fewer datagrams need to be sent
+** 60'000 byte message: ~40 packets with mtu=1500,  with mtu=8000
+** `UDP`: if 1 datagram packet of a message is lost, we need to retransmit all IP packets
+*** Smaller chance of dropping 1 out of 8 packets than 1 out of 40
+* Excellent for high throughput
+* Needs to be enabled on all hosts and the switch(es)
+
+
+Message bundling / batching
+---------------------------
+* JGroups by default queues smaller messages on the sender until a size threshold has been exceeded, or no more
+  messages are available
+----
+loop
+    while(queue not full and more msgs available)
+        queue next message
+    send message batch
+endloop
+----
+* Sends a single message immediately (low latency)
+* Sends many messages in the time it takes to add them to the queue and exceed the size threshold
+* Queued messages are then sent as one big message
+* Advantage: payload-to-header ratio is better, less overhead per message
+* Batching can be bypassed by marking a message as `DONT_BUNDLE` and `OOB`
+** Only recommended for selected (few) messages
+
+
+Retransmission intervals in NAKACK2 and UNICAST3
+------------------------------------------------
+* Attribute `xmit_interval` defines the interval at which we're checking for missing messages and ask the sender
+  for retransmission (NAKACK2,UNICAST3), or resend messages for which we haven't yet received an ack (UNICAST3)
+* A small interval might lead to multiple redundant retransmission requests/responses
+** This increases traffic and might compound the problem -> even more dropped packets due to buffer overflow
+* If the interval is too high, retransmission may not be able to retransmit all missing messages (see next topic) in one go
+
+
+Maximum size of retransmission requests
+---------------------------------------
+* In `NAKACK2` and `UNICAST3`, if too many messages are missing, a retransmit request message may become too big
+* Only applicable to `UDP`
+* Both protocols therefore only request for retransmission of the oldest N messages, such that the size of the retransmit
+  request doesn't exceed the max datagram packet size
+* The max size of a retransmit request can be configured: `max_xmit_req_size`
+
+
+
+Link bundling
+--------------
+* Logical network interface, but consisting of multiple physical NICs
+* Each physical NIC might use a different network -> multiplies bandwidth
+* Example: IP bonding (Linux)
+
 
 
 
