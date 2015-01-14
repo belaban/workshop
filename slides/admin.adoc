@@ -77,11 +77,42 @@ Flow control
 * Suggestion: test with load that's slightly higher than expected load, watch memory use over time
 
 
-misc
------
-* Transport thread pool buffers / queues / rejection policy
-* UDP versus TCP
-* STABLE (memory accumulation)
+Transport resources
+-------------------
+* Thread pool buffers (regular, OOB, incoming, timer), queues
+* All 4 thread pool use j.u.c.ThreadPoolExecutor with its semantics
+** Create min threads, then fill queue (if enabled), then create up to max threads, then reject
+* Hands off the internal pool (used by JGroups only) !
+* Timer pool should not be changed either, unless we expect a lot of timer tasks, or long running tasks
+* This leaves us with the default and OOB pools
+
+Transport: default thread pool
+------------------------------
+* For regular (sender-FIFO) messages
+* (Conceptual) queues are created for each sender
+* Only 1 thread processes a queue, delivering _1 message at a time_
+* The other messages for the same sender consume threads only to add the messages to the queue, then the thread is
+  put back into the pool
+* Recommendations for peak (receiving messages from N senders concurrently):
+** Set min-threads to N
+** Set max-threads to N+2 (2 spare threads)
+** Enable a small queue to catch traffic peaks
+
+
+
+Transport: OOB thread pool
+--------------------------
+* For OOB messages (no defined delivery order)
+* Each thread take a message (or message batch) and passes it up to the application
+* Many messages from the same sender can be processed concurrently
+* Recommendations:
+** Disable the thread pool queue
+** Set min-threads to the cluster size
+** Set max-threads to the max number of OOB messages expected to be received concurrently
+*** This number can be high because we won't reach it unless we have many concurrent messages
+**** The thread idle time will reduce the active thread size after a while if not all threads > min-threads are used
+* Thread stack size: uses memory, make sure to size this as well
+
 
 
 Ethernet flow control 802.3x
@@ -109,6 +140,18 @@ Jumbo frames
 *** Smaller chance of dropping 1 out of 8 packets than 1 out of 40
 * Excellent for high throughput
 * Needs to be enabled on all hosts and the switch(es)
+
+
+UDP versus TCP
+--------------
+* `UDP` sends 1 multicast packet to the switch, which copies it to all ports with subscribers for the multicast group
+** Cost to send a group message to all cluster members : 1
+* `TCP` sends the message to each member separately
+** Cost: N-1 (where N is the cluster size)
+** If `N-1 * message size` is larger than the link's bandwidth, this is a bottleneck
+* TCP generates more traffic for group messages
+* UDP more scalable in large clusters
+
 
 
 Message bundling / batching
@@ -146,6 +189,15 @@ Maximum size of retransmission requests
 * Both protocols therefore only request for retransmission of the oldest N messages, such that the size of the retransmit
   request doesn't exceed the max datagram packet size
 * The max size of a retransmit request can be configured: `max_xmit_req_size`
+
+
+STABLE
+------
+* Purges messages seen by everyone in `NAKACK2`
+* Low stable interval -> quick purging but more traffic
+* High stable interval -> less traffic but memory accumulation
+* Find the optimal tradeoff based on traffic pattern
+* STABLE rounds can also be triggered manually / programmatically (`STABLE.gc()`)
 
 
 
@@ -311,6 +363,9 @@ that group. Buggy code leads to that information getting dropped and multicast p
 information has been refreshed. +
 Symptoms: multicast groups falls apart every N minutes +
 Solution: upgrade switch firmware
+
+Faulty network card::
+Sometimes a faulty NIC randomly drops packets, or drops sent packets but accepts received packts
 
 
 
