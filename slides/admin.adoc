@@ -33,16 +33,44 @@ sudo route add -net 232.0.0.0/5 192.168.1.3
 ** When binding to `192.168.1.3`, `mcast_addr` should be set to a value between `232.0.0.1` and `239.255.255.254`
 
 
-Default stacks shipped
-----------------------
-
-
-Most frequent config changes
-----------------------------
 
 
 Switching from UDP to TCP
 -------------------------
+* Copy `udp.xml` -> `tcp.xml`
+* Change `UDP` to `TCP`
+* Remove `mcast_send_buf_size`, `mcast_recv_buf_size`, `ip_ttl`, `tos`, `mcast_port`
+* Change `ucast_send_buf_size` -> `send_buf_size`
+* Change `ucast_recv_buf_size` -> `recv_buf_size`
+* Add `bind_port="7800"` (for example) to `TCP`
+* Rename `PING` to `TCPPING`, remove all attributes
+** Add `initial_hosts=A[7800],B[7800],C[7800]` to `TCPPING`
+*** `A` is the `bind_addr` of host A, `B` of host B etc
+*** I'm assuming here that `bind_port` is `7800` everywhere
+* Run a few Draw instances with -props ./tcp.xml
+* Verify that `bind_addr`, `bind_port` and `initial_hosts` are OK:
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=TCP.bind jmx=TCPPING.init
+
+#1 (344 bytes):
+TCP={bind_addr=/192.168.1.3, bind_port=7800}
+cluster=draw
+view=[A|1] (2) [A, B]
+physical_addr=192.168.1.3:7800
+local_addr=A [1253cca8-19e8-068a-b773-5e2d3771f507]
+TCPPING={initial_hosts=[192.168.1.3:7800, 192.168.1.3:7801, 192.168.1.3:7802]}
+
+
+#2 (344 bytes):
+TCP={bind_addr=/192.168.1.3, bind_port=7800}
+cluster=draw
+view=[A|1] (2) [A, B]
+physical_addr=192.168.1.3:7801
+local_addr=B [d77986dd-681c-a7fd-f6b7-bd2800c8b2f9]
+TCPPING={initial_hosts=[192.168.1.3:7800, 192.168.1.3:7801, 192.168.1.3:7802]}
+
+[mac] /Users/bela/workshop/bin$
+----
 
 
 

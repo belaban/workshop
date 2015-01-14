@@ -134,18 +134,13 @@ Day 5: A closer look at protocols
 * Misc
 ** FRAG, COMPRESS, STOMP
 
-* Steps to arrive at an optimal configuration
-** Decision tree
-
 include::./protocols.adoc["Protocols"]
 
 
 Day 5: Admin
 ------------
-* Discuss the provided default stacks (UDP, TCP, perhaps EC2)
-* If TCP is used: which protocols can be removed, same with UDP
 
-* Most important config changes, e.g.
+* Most important config changes from a stock configuration, e.g.
 ** Timeouts in discovery protocol
 ** Listing all nodes in TCPPING
 ** Thread pool configuration (min/max threads, queues)
