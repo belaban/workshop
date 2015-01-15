@@ -492,4 +492,7 @@ Writing a simple chat application in 10 lines of code
 . In a loop
 .. Read a line from stdin (`Util.readLine(System.in)`) and
 .. Send a message to all cluster nodes
-
+. Extra credits
+.. Store the last N messages in memory as state and perform a state transfer on startup
+.. Expose contents and length of state via JMX
+.. Make N configurable via a property "max_history"

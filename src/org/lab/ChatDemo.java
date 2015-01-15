@@ -20,14 +20,6 @@ public class ChatDemo extends ReceiverAdapter {
         System.out.println(line);
     }
 
-    /** Method called from other app, injecting channel */
-    public void start(JChannel ch) throws Exception {
-        channel=ch;
-        channel.setReceiver(this);
-        channel.connect("ChatCluster");
-        eventLoop();
-        channel.close();
-    }
 
     private void start(String props, String name) throws Exception {
         channel=new JChannel(props);
