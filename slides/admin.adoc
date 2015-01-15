@@ -477,6 +477,7 @@ probe.sh
 ** Write attributes
 ** Invoke operations
 ** Insert new protocols, remove protocols
+* Any application can implement a `ProbeHandler` and expose its attributes and operations
 * Probe requests are simple strings that are parsed by cluster nodes
 * Probe responses are strings, too
 * To enable:
