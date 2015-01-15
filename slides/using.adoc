@@ -482,8 +482,8 @@ public void close();
 ----
             
 
-Writing a simple chat application in 10 lines of code
------------------------------------------------------
+Lab ChatDemo: writing a simple chat application
+-----------------------------------------------
 . Create a channel
 . Register a ReceiverAdapter with it
 .. Method `receive()` prints the received chat message

@@ -261,6 +261,13 @@ int num=future.get(); // <2>
 
 
 
+Lab: RpcDispatcher
+------------------
+* Change ChatDemo to invoke an RPC rather than send a JGroups message for each chat message
+* The callback to be invoked should be `onMessage(String message)`
+
+
+
 Distributed caching
 -------------------
 In this section we'll look at replicating or distributing data across a cluster. _Replication_ means that all nodes
