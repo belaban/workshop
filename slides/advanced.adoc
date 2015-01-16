@@ -215,7 +215,7 @@ Recommended configs
 |====
 | Pool | Recommendation
 | OOB | No queue -> OOB messages are executed on a thread or dropped. +
-Set `min_size` to the number of cluster nodes, `max_size` should be higher than the max number of OOB messages received
+Set `min_size` to a small size (more thread are created if needed), `max_size` should be higher than the max number of OOB messages received
 at any given time
 |Regular| Queue is enabled and quite large, to handle message peaks. +
 Set `min_size` to the number of cluster nodes plus a few more (D), `max_size` to a slightly higher value. +
@@ -226,12 +226,117 @@ handle all other regular messages and add them to the retransmission tables. Thi
 |====
 
 
-Lab: advanced
+
+Lab: advanced 1
+---------------
+* Run one instance of `bin/advanced.sh`
+* Press `[1] start`
+* The first RPC takes 1s, the second 2s, then 3s, 4s, 5s.
+* *All subsequent RPCs take 5s. Why ?*
+
+
+Explanation 1
 -------------
-* Run 1 instance of `bin/advanced.sh`
-* Press `[1] start`: the first RPC takes 1s, the second 2s, then 3s, 4s, 5s. All subsequent RPCs take 5s. Why ?
-* All RPCs from A are invoked _sequentially_ (5 different sender threads)
-* That's the semantics of regular messages: all reg messages are delivered in the order in which they were sent
+* `min=2`, `max=8`, large queue: we will always only have 2 threads handling incoming messages
+* 5 threads are invoking _blocking RPCs_: max of 5 incoming requests at any time
+* Thread-1:
+** Takes message A1 and adds it to table-A in `NAKACK2`
+** Nobody's currently delivering messages in table-A, so thread-1 removes A1 from table-A and delivers it -> sleeps 1s in app code
+** When done, thread-2 (below) already added more messages, so thread-1 removes and delivers all other messages in turn
+* Thread-2
+** Takes A2 and adds it to table-A
+** Sees that thread-1 is already delivering messages, so thread-2 returns and takes the next message
+** All other 3 messages are added to table-A by thread-2 _before thread-1 returns_
+
+
+Possible fixes
+--------------
+* Regular messages from the same sender are delivered in the order in which they were sent
+* Message `A5` sent by a sender thread in A has to wait until messages `A1` - `A4` have been delivered: takes 4 * 1s
+* Fix 1: use OOB messages (see below)
+** Press `'o'` to switch to `OOB` RPCs
+** Each message now takes 1s to process
+** However, messages are delievered in random order (no FIFO-per-sender anymore)
+* Fix 2: use the asynchronous invocation API (see below)
+** Reduced thread use in the regular and OOB pools, but more use of the application's thread pool
+
+
+Lab: advanced 2
+---------------
+* Run 3 instances of `bin/advanced.sh`
+* Start all of them
+* *RPCs take more than 5s. Why ?*
+
+Explanation 2
+-------------
+* We only have 2 threads handling 15 incoming messages
+* The 2 processing threads are almost always stuck in `sleep()`
+* The other (13) messages are added to the queue -> which is growing:
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep regular
+UDP={regular_queue_size=23, regular_pool_size_active=2, regular_pool_size=2}
+UDP={regular_queue_size=25, regular_pool_size_active=2, regular_pool_size=2}
+UDP={regular_queue_size=22, regular_pool_size_active=2, regular_pool_size=2}
+----
+* Sender could be starved for processing, e.g. if we have a queue: `A1` -> `A2` -> `B1` -> `A3` -> `A4` -> `B2` -> `C1`:
+** (Thread T1 and T2)
+** Sec 1: `A1` is processed by T1, `A2` is added to table-A by T2, `B1` is processed by T2
+** Sec 2: `A2` is processed by T1, `A3` and `A4` are added to table-A by T2, `B2` is processed by T2
+** Sec 3: `A3` is processed by T1, `C1` is processed by T2
+** Sec 4: `A4` is processed by T1
+* `C1` starts processing after ~ 2 s
+
+
+Possible fixes
+--------------
+* Same as in lab 1
+* Increase `UDP.thread_pool.min_threads` to 4 (in the running system, or the config, but the latter requires a restart):
+----
+probe.sh op=UDP.setThreadPoolMinThreads[4]
+----
+** 3 threads are busy processing `sleep()`
+* 1 thread takes all other incoming messages and adds them to the respective tables
+** Downside: this will increase the tables sizes
+* Resulting queue and pool sizes:
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep UDP
+UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
+UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
+UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
+----
+* The block times are now back to 5s
+
+
+
+Lab: advanced 3
+---------------
+* Run 3 instances of `bin/advanced.sh`
+* Start all of them
+* Press `[o]` to use `OOB` RPCs
+* *RPCs take more then 1s. Why?*
+
+
+Explanation 3
+-------------
+* The OOB thread is configured as follows: `min=1`, `max=8`, no queue
+** Will create up to 8 threads to handle the 15 incoming messages
+** 8 threads are almost always in `sleep()`
+** The other 7 messages are discarded (`rejection_policy="discard"`)
+*** They will get retransmitted
+----
+[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.oob_pool,oob_queue|grep UDP
+UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=8}
+UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
+UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
+----
+
+
+Possible fixes
+--------------
+* Increase `UDP.oob_thread_pool.max_size` to 15:
+----
+probe.sh op=UDP.setOOBThreadPoolMaxThreads[15]
+----
 
 
 

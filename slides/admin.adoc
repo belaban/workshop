@@ -136,7 +136,7 @@ Transport: OOB thread pool
 * Many messages from the same sender can be processed concurrently
 * Recommendations:
 ** Disable the thread pool queue
-** Set min-threads to the cluster size
+** Set min-threads to a small number (more threads will be created if needed)
 ** Set max-threads to the max number of OOB messages expected to be received concurrently
 *** This number can be high because we won't reach it unless we have many concurrent messages
 **** The thread idle time will reduce the active thread size after a while if not all threads > min-threads are used
