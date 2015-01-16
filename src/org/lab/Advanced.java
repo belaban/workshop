@@ -5,11 +5,19 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 import org.jgroups.annotations.ManagedAttribute;
+import org.jgroups.blocks.AsyncRequestHandler;
 import org.jgroups.blocks.RequestOptions;
+import org.jgroups.blocks.Response;
 import org.jgroups.blocks.RpcDispatcher;
 import org.jgroups.jmx.JmxConfigurator;
+import org.jgroups.stack.DiagnosticsHandler;
 import org.jgroups.util.Average;
 import org.jgroups.util.Util;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * RPC demo with slow receivers. Shows how thread pool configuration and AIA can help prevent pool exhaustion
@@ -24,6 +32,7 @@ public class Advanced extends ReceiverAdapter {
     protected Invoker[]         invokers;
     protected Average           avg; // avg invocation times
     protected volatile boolean  running=false;
+    protected ThreadPoolExecutor app_thread_pool=(ThreadPoolExecutor)Executors.newCachedThreadPool();
 
 
     @ManagedAttribute(description="avg invocation time")
@@ -31,14 +40,44 @@ public class Advanced extends ReceiverAdapter {
         return avg != null? avg.getAverage() : 0;
     }
 
-    protected void start(String props, String name) throws Exception {
+    @ManagedAttribute(description="Size of the app thread pool")
+    public int getAppPoolSize() {return app_thread_pool.getPoolSize();}
+
+    @ManagedAttribute(description="Number of active threads in the app thread pool")
+    public int getAppPoolActiveThreads() {return app_thread_pool.getActiveCount();}
+
+
+    protected void start(String props, String name, boolean use_async_request_handler) throws Exception {
         ch=new JChannel(props);
         if(name != null)
             ch.name(name);
         disp=new RpcDispatcher(ch, null, this, this);
+        if(use_async_request_handler) {
+            disp.asyncDispatching(true);
+            disp.setRequestHandler(new MyAsyncHandler(disp));
+        }
         ch.connect("advanced");
         Util.registerChannel(ch, "advanced-cluster");
         JmxConfigurator.register(this, Util.getMBeanServer(), "advanced:obj=advanced-obj");
+
+        ch.getProtocolStack().getTransport().registerProbeHandler(new DiagnosticsHandler.ProbeHandler() {
+            public Map<String,String> handleProbe(String... keys) {
+                Map<String,String> map=new HashMap<>();
+                for(String key: keys) {
+                    if(key.equals("adv")) {
+                        map.put("adv.invocation_avg", String.valueOf(getAvgInvocationTime()));
+                        map.put("adv.app_thread_pool_size", String.valueOf(getAppPoolSize()));
+                        map.put("adv.app_thread_pool_active_count", String.valueOf(getAppPoolActiveThreads()));
+                    }
+                }
+                return map;
+            }
+
+            public String[] supportedKeys() {
+                return new String[]{"adv"};
+            }
+        });
+
         eventLoop();
         Util.close(ch);
     }
@@ -98,6 +137,7 @@ public class Advanced extends ReceiverAdapter {
                     } catch(Exception e) {}
                     break;
                 case 'x':
+                    app_thread_pool.shutdown();
                     return;
             }
         }
@@ -110,6 +150,7 @@ public class Advanced extends ReceiverAdapter {
     public static void main(String[] args) throws Exception {
         String props="config.xml";
         String name=null;
+        boolean use_async_handler=false;
 
         for(int i=0; i < args.length; i++) {
             if(args[i].equals("-props")) {
@@ -120,11 +161,15 @@ public class Advanced extends ReceiverAdapter {
                 name=args[++i];
                 continue;
             }
-            System.out.println("Advanced [-props props] [-name name]");
+            if(args[i].equals("-use_async_handler")) {
+                use_async_handler=true;
+                continue;
+            }
+            System.out.println("Advanced [-props props] [-name name] [-use_async_handler]");
             return;
         }
         Advanced ad=new Advanced();
-        ad.start(props, name);
+        ad.start(props, name, use_async_handler);
     }
 
 
@@ -148,6 +193,35 @@ public class Advanced extends ReceiverAdapter {
                     e.printStackTrace();
                 }
             }
+        }
+    }
+
+
+    protected class MyAsyncHandler implements AsyncRequestHandler {
+        protected final RpcDispatcher d;
+
+        public MyAsyncHandler(RpcDispatcher d) {
+            this.d=d;
+        }
+
+        @Override
+        public void handle(final Message request, final Response response) throws Exception {
+            app_thread_pool.execute(new Runnable() {
+                public void run() {
+                    try {
+                        Object result=d.handle(request);
+                        response.send(result, false);
+                    }
+                    catch(Exception e) {
+                        response.send(e, true);
+                    }
+                }
+            });
+        }
+
+        @Override
+        public Object handle(Message msg) throws Exception {
+            return d.handle(msg);
         }
     }
 }
