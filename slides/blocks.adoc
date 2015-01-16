@@ -407,7 +407,7 @@ Difference between ReplicatedHashMap and ReplCache
 --------------------------------------------------
 * For large clusters or large data, RHM won't scale (adat-wise), as each node stores data from all other nodes
    -> use ReplCache
-* When the cluser is small or the data set is small -> use RHM (all gets are local)
+* When the cluster is small or the data set is small -> use RHM (all gets are local)
 * RHM requires state transfer; ReplCache requires rebalancing
 
 

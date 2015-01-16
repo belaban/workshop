@@ -125,14 +125,14 @@ Transport: default thread pool
 * Recommendations for peak (receiving messages from N senders concurrently):
 ** Set min-threads to N
 ** Set max-threads to N+2 (2 spare threads)
-** Enable a small queue to catch traffic peaks
+** Enable a queue to catch traffic peaks
 
 
 
 Transport: OOB thread pool
 --------------------------
 * For OOB messages (no defined delivery order)
-* Each thread take a message (or message batch) and passes it up to the application
+* Each thread takes a message (or message batch) and passes it up to the application
 * Many messages from the same sender can be processed concurrently
 * Recommendations:
 ** Disable the thread pool queue

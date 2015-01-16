@@ -2,6 +2,8 @@ package org.lab;
 
 import org.jgroups.JChannel;
 import org.jgroups.Message;
+import org.jgroups.ReceiverAdapter;
+import org.jgroups.View;
 import org.jgroups.annotations.ManagedAttribute;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.RpcDispatcher;
@@ -13,12 +15,12 @@ import org.jgroups.util.Util;
  * RPC demo with slow receivers. Shows how thread pool configuration and AIA can help prevent pool exhaustion
  * @author Bela Ban
  */
-public class Advanced {
+public class Advanced extends ReceiverAdapter {
     protected JChannel          ch;
     protected RpcDispatcher     disp;
     protected int               num_threads=5;
     protected boolean           oob=false;
-    protected long              sleep=500; // ms
+    protected long              sleep=1000; // ms
     protected Invoker[]         invokers;
     protected Average           avg; // avg invocation times
     protected volatile boolean  running=false;
@@ -26,14 +28,14 @@ public class Advanced {
 
     @ManagedAttribute(description="avg invocation time")
     public double getAvgInvocationTime() {
-        return avg.getAverage();
+        return avg != null? avg.getAverage() : 0;
     }
 
     protected void start(String props, String name) throws Exception {
         ch=new JChannel(props);
         if(name != null)
             ch.name(name);
-        disp=new RpcDispatcher(ch, null, null, this);
+        disp=new RpcDispatcher(ch, null, this, this);
         ch.connect("advanced");
         Util.registerChannel(ch, "advanced-cluster");
         JmxConfigurator.register(this, Util.getMBeanServer(), "advanced:obj=advanced-obj");
@@ -59,15 +61,18 @@ public class Advanced {
     }
 
     // callback
-    public long currentTime() {
-        long retval=System.currentTimeMillis();
+    public void sleep() {
         Util.sleep(sleep);
-        return retval;
+    }
+
+    @Override
+    public void viewAccepted(View view) {
+        System.out.println("-- view: " + view);
     }
 
     protected void eventLoop() {
         while(true) {
-            int key=Util.keyPress("[1] start (running=" + running + ") [2] stop [3] num_threads (" + num_threads + ") [4] oob (" + oob + ") " +
+            int key=Util.keyPress("[1] start (running=" + running + ") [2] stop [3] num_threads (" + num_threads + ") [o] oob (" + oob + ") " +
                                     "[5] info [6] sleep (" + sleep + ") [x] exit");
             switch(key) {
                 case '1':
@@ -81,7 +86,7 @@ public class Advanced {
                         num_threads=Util.readIntFromStdin("num_threads: ");
                     } catch(Exception e) {}
                     break;
-                case '4':
+                case 'o':
                     oob=!oob;
                     break;
                 case '5':
@@ -132,7 +137,7 @@ public class Advanced {
                     if(oob)
                         opts.setFlags(Message.Flag.OOB);
                     long start=System.currentTimeMillis();
-                    disp.callRemoteMethods(null, "currentTime", null, null, opts);
+                    disp.callRemoteMethods(null, "sleep", null, null, opts);
                     long diff=System.currentTimeMillis() - start;
                     if(diff > 0) {
                         avg.add(diff);

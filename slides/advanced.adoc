@@ -139,6 +139,19 @@ Internal:: Handles `INTERNAL` messages. Reserved for use by JGroups. Needed to d
 Timer:: Used to execute tasks (periodic or one-time), e.g. retransmission, expiry of connection pools, stability etc
 
 
+Regular thread pool
+-------------------
+image::../images/RegularThreadPool.svg[Regular thread pool,width="100%"]
+
+
+
+OOB thread pool
+---------------
+image::../images/OOBThreadPool.svg[OOB thread pool,width="100%"]
+
+
+
+
 Configuration of thread pools
 -----------------------------
 * All pools need to implement `java.util.concurrent.Executor` and the default implementations use
@@ -211,6 +224,15 @@ handle all other regular messages and add them to the retransmission tables. Thi
 |Internal| Leave the default config (min=2,max=4), don't touch
 | Timer | Defaults (min=2,max=4,small queue) should be sufficient
 |====
+
+
+Lab: advanced
+-------------
+* Run 1 instance of `bin/advanced.sh`
+* Press `[1] start`: the first RPC takes 1s, the second 2s, then 3s, 4s, 5s. All subsequent RPCs take 5s. Why ?
+* All RPCs from A are invoked _sequentially_ (5 different sender threads)
+* That's the semantics of regular messages: all reg messages are delivered in the order in which they were sent
+
 
 
 
