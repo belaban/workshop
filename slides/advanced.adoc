@@ -141,13 +141,13 @@ Timer:: Used to execute tasks (periodic or one-time), e.g. retransmission, expir
 
 Regular thread pool
 -------------------
-image::../images/RegularThreadPool.svg[Regular thread pool,width="100%"]
+image::../images/RegularThreadPool.png[Regular thread pool,width="100%"]
 
 
 
 OOB thread pool
 ---------------
-image::../images/OOBThreadPool.svg[OOB thread pool,width="100%"]
+image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
 
 
 
