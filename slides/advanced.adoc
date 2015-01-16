@@ -215,7 +215,7 @@ Recommended configs
 |====
 | Pool | Recommendation
 | OOB | No queue -> OOB messages are executed on a thread or dropped. +
-Set `min_size` to a small size (more thread are created if needed), `max_size` should be higher than the max number of OOB messages received
+Set `min_size` to a small size (more threads are created if needed), `max_size` should be higher than the max number of OOB messages received
 at any given time
 |Regular| Queue is enabled and quite large, to handle message peaks. +
 Set `min_size` to the number of cluster nodes plus a few more (D), `max_size` to a slightly higher value. +
@@ -247,12 +247,13 @@ Explanation 1
 ** Takes A2 and adds it to table-A
 ** Sees that thread-1 is already delivering messages, so thread-2 returns and takes the next message
 ** All other 3 messages are added to table-A by thread-2 _before thread-1 returns_
+* Regular messages from the same sender are delivered in the order in which they were sent
+* Message `A5` sent by a sender thread in A has to wait until messages `A1` - `A4` have been delivered: takes 4 * 1s
+
 
 
 Possible fixes
 --------------
-* Regular messages from the same sender are delivered in the order in which they were sent
-* Message `A5` sent by a sender thread in A has to wait until messages `A1` - `A4` have been delivered: takes 4 * 1s
 * Fix 1: use OOB messages (see below)
 ** Press `'o'` to switch to `OOB` RPCs
 ** Each message now takes 1s to process
@@ -329,6 +330,14 @@ UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=8}
 UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
 UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
 ----
+* Retransmit requests:
+----
+mac] /Users/bela/JGroups$ probe.sh jmx=NAKACK2.xmit_r|grep xmit_r
+NAKACK2={xmit_rsps_sent=11, xmit_reqs_received=11, xmit_rsps_received=7, xmit_reqs_sent=8}
+NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=9, xmit_reqs_sent=10}
+NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=13, xmit_reqs_sent=13}
+----
+
 
 
 Possible fixes
@@ -337,7 +346,7 @@ Possible fixes
 ----
 probe.sh op=UDP.setOOBThreadPoolMaxThreads[15]
 ----
-
+* Now each request takes ~ 1s again
 
 
 
