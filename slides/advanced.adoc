@@ -861,7 +861,7 @@ Relaying between multiple sites
 ** Send a unicast message to the _site master_ of a given site
 ** Send back a response to a sender from a different site
 
-image::../images/RelayArchitecture.svg[RELAY2 architecture,width="70%"]
+image::../images/RelayArchitecture.png[RELAY2 architecture,width="70%"]
 
 
 
