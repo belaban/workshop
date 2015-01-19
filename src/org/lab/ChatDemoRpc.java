@@ -7,6 +7,7 @@ import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.RpcDispatcher;
 import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
+import org.jgroups.util.Util;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -30,6 +31,7 @@ public class ChatDemoRpc extends ReceiverAdapter {
             channel.name(name);
         disp=new RpcDispatcher(channel, null, this, this);
         channel.connect("ChatCluster");
+        Util.registerChannel(channel, "relay");
         eventLoop();
         channel.close();
     }

@@ -598,8 +598,7 @@ class CustomAddress extends UUID {
 }
 ----
 
-NOTE: The ID should be chosen such that it doesn't collide with any IDs defined in
-      `jg-magic-map.xml`.
+NOTE: The ID should be chosen such that it doesn't collide with any IDs defined in `jg-magic-map.xml`.
 
 * Set the address generator in `JChannel: setAddressGenerator(AddressGenerator)`. This has to
   be done _before_ the channel is connected.
