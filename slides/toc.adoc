@@ -139,6 +139,8 @@ Day 5: A closer look at protocols
 include::./protocols.adoc["Protocols"]
 
 
+
+
 Day 5: Admin
 ------------
 
@@ -172,13 +174,3 @@ Day 5: Admin
 ** Setting multicast routes for different mcast_addrs
 
 include::./admin.adoc["Admin"]
-
-
-Todos
------
-* Provide additional labs, e.g. for
-** View generation, custom addresses
-** AIA
-** Transport configuration
-* Writing a protocol: demo
-* RELAY2 demo
