@@ -89,6 +89,6 @@ public class ChatDemoRpc extends ReceiverAdapter {
     }
 
     protected static void help() {
-        System.out.println("ChatDemo [-props XML config] [-name name]");
+        System.out.println("ChatDemoRpc [-props XML config] [-name name]");
     }
 }

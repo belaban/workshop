@@ -1015,6 +1015,12 @@ for(Rsp rsp: rsps.values()) {
 ** If a site is unreachable, a `Rsp` has field `"unreachable"` set
 
 
+Issues with invoking RPCs across different sites
+------------------------------------------------
+* TBD: discuss issues with `dests` not containing all destinations
+
+
+
 
 Configuration
 -------------
