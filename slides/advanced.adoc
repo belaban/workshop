@@ -960,17 +960,17 @@ Relaying of multicasts
 Relaying of unicasts
 --------------------
 * Relaying of unicasts is done transparently
-** However, if we don't have a target address (e.g. as a result of reception of a multicast), there is a special address
-   `SiteMaster(name)` which identifies the site master responsible for relaying of messages
+** If we don't have a dest address (e.g. as a result of reception of a multicast), there is a special address
+   `SiteMaster(name)` which identifies the site master for relaying of messages
 * Class `SiteMaster` is created with the name of a site, e.g. `new SiteMaster("lon")`
-** When a unicast with destination `SiteMaster("lon")` is sent, then we relay the message to the _current_
+** When a unicast with destination `SiteMaster("lon")` is sent, then the message is relayed to the _current_
    site master of `lon`
 ** If the site master changes, messages will get relayed to a different node, which
-   took over the role of the site master from the old (perhaps crashed) site master
+   took over as site master from the old site master
 * Sometimes only certain members of a site should become site masters; e.g. the more powerful boxes
   (as routing needs some additional CPU power), or multi-homed hosts which are connected to the external
   network (over which the sites are connected with each other).
-** To do this, `RELAY2` can generate special addresses which contain the knowledge about whether a member
+** To do this, `RELAY2` can generate special addresses which contain knowledge about whether a member
    should be skipped when selecting a site master from a view, or not
 *** If `can_become_site_master` is set to false in `RELAY2`, then the selection process will skip that member
 *** However, if all members in a given view are marked with `can_become_site_master`==`false`,
@@ -995,7 +995,7 @@ List<Address> dests=new ArrayList<>(view.getMembers());
 dests.add(new SiteMaster("sfo"));
 RspList<Object> rsps;
 rsps=disp.callRemoteMethods(dests, call,
-              new RequestOptions(ResponseMode.GET_ALL, 5000).setAnycasting(true));
+              new RequestOptions(ResponseMode.GET_ALL, 5000));
 for(Rsp rsp: rsps.values()) {
     if(rsp.wasUnreachable())
         System.out.println("<< unreachable: " + rsp.getSender());
