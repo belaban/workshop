@@ -16,6 +16,7 @@
     <property name="javadoc.dir"           value="${dist.dir}/javadoc"/>
     <property name="conf.dir"              value="${root.dir}/conf"/>
     <property name="bin.dir"               value="${root.dir}/bin"/>
+    <property name="slides.dir"            value="${root.dir}/slides"/>
     <property name="javadoc.packages"      value="org.task.*"/>
     <property name="timestamp"             value=".timestamp"/>
     <property name="maven.executable"      value="mvn"/>
@@ -84,7 +85,7 @@
         <exec executable="${git.executable}" dir="${basedir}/../">
             <arg line="clone ${deck.js.url}"/>
         </exec>
-        <symlink link="${basedir}/${deck.js}" resource="${deck.js.dir}" overwrite="false" failonerror="false"/>
+        <symlink link="${slides.dir}/${deck.js}" resource="${deck.js.dir}" overwrite="false" failonerror="false"/>
     </target>
 
 
@@ -139,7 +140,7 @@
 
     <target name="slides" description="Generates the slides using asciidoctor"
             depends="get-asciidoc-backends,get-deckjs">
-        <symlink link="${basedir}/${deck.js}" resource="${deck.js.dir}" overwrite="false" failonerror="false"/>
+        <symlink link="${slides.dir}/${deck.js}" resource="${deck.js.dir}" overwrite="false" failonerror="false"/>
         <run-asciidoc dir="${basedir}/slides" input="admin.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="advanced.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="blocks.adoc"/>
@@ -151,9 +152,11 @@
 
     <target name="clean"
             description="Removes all class files and ./dist">
+        <symlink action="delete" link="${slides.dir}/${deck.js}"/>
         <delete dir="${compile.dir}" failonerror="false"/>
         <delete dir="${dist.dir}" failonerror="false"/>
         <delete dir="${tmp.dir}" failonerror="false"/>
+        <delete dir="${slides.dir}/build/"/>
         <delete file="${conf.dir}/MANIFEST.MF" failonerror="false"/>
         <delete>
             <fileset dir="${root.dir}" defaultexcludes="no">
@@ -167,7 +170,6 @@
 
     <target name="clean-all" depends="clean" description="Also removes lib">
         <delete dir="${lib.dir}" failonerror="false"/>
-        <symlink action="delete" link="${basedir}/${deck.js}"/>
     </target>
 
 
