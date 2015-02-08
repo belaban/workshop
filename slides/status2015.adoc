@@ -125,8 +125,11 @@ Cluster tests on Google Compute Engine
 * Large cluster testing due to a generous donation by Google
 * Introduction: http://belaban.blogspot.ch/2014/04/running-jgroups-on-google-compute-engine.html
 * 1000 JGroups cluster: http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html
+** Perf test: UPerf
+** Roughly *3'800 reqs/sec/node* (20'000 reqs/node, 20% writes, 80% reads, 25 sender threads/node, 1k requests)
 ** Record JGroups cluster size: 2286 nodes
 * 500 node JDG cluster: http://belaban.blogspot.ch/2014/07/new-record-for-large-jdg-cluster-500.html
+** 2'300 reqs/sec/node
 * Results:
 ** `GOOG_PING` was written
 ** Numbers for perf tests on large clusters
