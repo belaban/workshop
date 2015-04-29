@@ -87,7 +87,7 @@ Buffers
 ** Too small: packet drops, too big: wasted resources
 ** Bandwidth-delay product only works for point-to-point (TCP)
 *** In the worst case, we need to multiply this by the number of senders (oversimplification)
-**** Max traffic we can receive is `max(current_senders * rate, link_bandwidth)`
+**** Max traffic we can receive is `min(current_senders * rate, link_bandwidth)`
 * Transport buffers:
 ** `UDP`: `mcast_send_buf_size`, `mcast_recv_buf_size`, `ucast_send_buf_size`, `ucast_recv_buf_size`
 *** Linux: these buffer cannot be bigger than `net.core.rmem_max` (recv) or `net.core.wmem_max` (send)
