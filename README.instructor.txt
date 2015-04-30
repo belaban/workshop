@@ -10,8 +10,7 @@ required JARs into `lib` and then compile the labs and demos into `classes`.
 If no internet connection is available, make sure that the distribution includes the full `lib` directory. Without
 the JARs, the demos and labs won't work.
 
-The slides are written in asciidoc and can be rendered via: asciidoc --backend slidy <file>.adoc. As an alternative,
-the reveal.js or deck.js backend can be used, but this currently needs to be installed (google for how-to).
+The slides are written in asciidoc. To render them in HTML (in the slides directory), execute `ant slides`.
 
 Java (7+) and ant are required to prepare the distribution. Running 'ant' in the main dir (workshop) will
 download ivy and other required libs into ./lib and compile the local code into ./classes.
@@ -24,3 +23,11 @@ It is best to always use ./conf/config.xml as configuration. This ./conf dir is 
 should be modified if needed.
 
 The ./bin dir contains various scripts to run labs and demos.
+
+
+Distribution
+------------
+
+After generating the slides ('ant slides') and downloading the libs and compiling the demo classes ('ant'),
+zip up the entire 'workshop' directory (minus a few files that need to be removed above) into workshop.zip, which
+can be delivered to the attendees.

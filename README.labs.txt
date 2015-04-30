@@ -5,7 +5,7 @@ There are 2 labs: a chat and a replicated hashmap.
 
 Both labs should be created under src/org/lab, e.g. src/org/lab/ChatDemo.java.
 
-To work on a demo, it is recommended to use an IDE. The sources are in ./lib, e.g. ./lib/jgroups-3.6.0.Final-sources.jar.
+To work on a demo, it is recommended to use an IDE. The sources are in ./lib, e.g. ./lib/jgroups-x.y.z.Final-sources.jar.
 
 To compile, simply run 'ant' in the root directory (workshop).
 
