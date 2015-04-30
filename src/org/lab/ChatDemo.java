@@ -64,7 +64,7 @@ public class ChatDemo extends ReceiverAdapter {
 
 
     public static void main(String[] args) throws Exception {
-        String  props="udp.xml";
+        String  props="config.xml";
         String  name=null;
         boolean send_replies=true;
 
