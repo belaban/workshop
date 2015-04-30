@@ -115,7 +115,7 @@ include::./advanced.adoc["Advanced"]
 
 
 
-Day 5: A closer look at protocols
+Day 4: A closer look at protocols
 ----------------------------------
 * Discovery
 ** PING, TCPPING

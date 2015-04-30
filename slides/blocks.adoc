@@ -14,13 +14,13 @@ Building blocks
 
 
 
-Abstractions (to be used over a channel)
-----------------------------------------
-* method invocations (RPCs) across a cluster
-* replicated and distributed hashmaps
-* distributed counters
-* distributed locks and
-* task execution across cluster nodes
+Abstractions (over a channel)
+-----------------------------
+* Method invocations (RPCs) across a cluster
+* Replicated and distributed hashmaps
+* Distributed counters
+* Distributed locks and
+* Task execution across cluster nodes
 
 
 
@@ -43,7 +43,7 @@ methods in a single node (unicast invocation), or in all nodes of a cluster (mul
 public class RspList<T> implements Map<Address,Rsp<T>> {... }
 ----
 
-* `RspList` is a map of `Rsp<T>` objects associated with their senders; there's 1 entry for each cluster node:
+* `RspList` is a map of `Rsp<T>` objects associated with their senders; there's one entry for each cluster node:
 
 [source,java]
 ----
@@ -99,10 +99,10 @@ RequestOptions
   `GET_MAJORITY`:: Block until a majority of members have responded
 ** Timeout: max time (ms) to block. If the call hasn't completed after the timeout elapsed, a TimeoutException will be thrown.
    A timeout of 0 means to wait forever. Ignored if the call is non-blocking (mode=`GET_NONE`)
-** Response filter: an `RspFilter` allows for filtering of responses and user-defined termination of
+** Response filter: a `RspFilter` allows for filtering of responses and user-defined termination of
   a call. For example, if we expect responses from 10 members, but can return after having
   received 3 non-null responses, a `RspFilter` could be used. 
-** Flags: the various flags to be passed to the message (re advanced section)
+** Flags: the various flags to be passed to the message (see advanced section)
 ** Exclusion list: here we can pass a list of members (addresses) that should be excluded. For example,
   if the view is `{A,B,C,D,E}`, and we set the exclusion list to A,C then the caller will wait for
   responses from everyone except A and C. Also, every recipient that's in the exclusion list
@@ -132,11 +132,9 @@ public <T> T callRemoteMethod(Address dest, MethodCall call,
 ----
 
 * The `callRemoteMethods()` (multicast) methods are invoked with a list of target
-addresses. If null, the method will be invoked in all cluster nodes. Each call takes
-the target members to invoke it on (`null` means invoke on all nodes), a method and a `RequestOptions` object.
-
+addresses. If null, the method will be invoked in all cluster nodes
 ** The method can be given as (1) the method name, (2) the arguments and (3) the argument types, or a
-MethodCall (containing a `java.lang.reflect.Method` and argument) can be given instead.
+`MethodCall` (containing a `java.lang.reflect.Method` and argument) can be given instead.
 
 * A `RspList` is returned.
 
@@ -182,7 +180,7 @@ previously created is passed to the call.
 
 Response filters
 ----------------
-* Response filters allow application code to drop responses, or to return from a blocking call before ak responses
+* Response filters allow application code to drop responses, or to return from a blocking call before all responses
   have been received.
 * The `RspFilter` interface looks as follows:
           
@@ -241,11 +239,11 @@ Asynchronous calls with futures
 [source,java]
 ----
 public NotifyingFuture<RspList>
-       callRemoteMethodsWithFuture(Collection<Address> dests, MethodCall method_call,
-                                   RequestOptions options) throws Exception;
+       callRemoteMethodsWithFuture(Collection<Address> dests, MethodCall call,
+                                   RequestOptions opts) throws Exception;
 public <T> NotifyingFuture<T>
        callRemoteMethodWithFuture(Address dest, MethodCall call,
-                                  RequestOptions options) throws Exception;
+                                  RequestOptions opts) throws Exception;
 ----
 
 * A `NotifyingFuture` extends `java.util.concurrent.Future`, with its regular methods such as `isDone()`,
@@ -270,6 +268,9 @@ Lab: RpcDispatcher
 ----
 bin/run.sh org.lab.ChatDemoRpc -props config.xml -name A
 ----
+* Extra credit: use async RPCs with futures
+
+
 
 
 Distributed caching
@@ -298,7 +299,7 @@ ReplicatedHashMap: API
 
 [source,java]
 ----
-public class ReplicatedHashMap<K, V> implements ConcurrentMap<K,V> {
+public class ReplicatedHashMap<K, V> implements ReplicatedMap<K,V> {
     public interface Notification<K, V> {   // <1>
         void entrySet(K key, V value);
         void entryRemoved(K key);
@@ -329,13 +330,14 @@ ReplicatedHashMap: sample code
 
 [source,java]
 ----
+ReplicatedHashMap<String,Integer> map;
 JChannel channel=new JChannel(props); // <1>
 channel.connect("rhm-cluster");
-ReplicatedHashMap<String,Integer> map=new ReplicatedHashMap<String,Integer>(channel); // <2>
+map=new ReplicatedHashMap<>(channel); // <2>
 map.start(); // <3>
 ----
 <1> Creates a new `JChannel`. Note that the configuration needs to include a state transfer protocol (e.g. `STATE`), or
-    else the channel creation would fail with an exception
+    else the channel creation will fail with an exception
 <2> Creates a new ReplicatedHashMap over an existing (and connected) channel
 <3> Fetches the state from an existing member (not done if this is the first member). If the state transfer fails,
     e.g. with a timeout, or there s no state transfer protocol configured, an exception will be thrown
@@ -395,7 +397,7 @@ ReplCache: sample code
 
 [source,java]
 ----
-ReplCache<String,String> cache=new ReplCache<String,String>(props, cluster_name);
+ReplCache<String,String> cache=new ReplCache<>(props, cluster_name);
 cache.setCallTimeout(rpc_timeout);
 cache.start();
 ----
@@ -409,11 +411,13 @@ ReplCache: demo
 
 Difference between ReplicatedHashMap and ReplCache
 --------------------------------------------------
-* For large clusters or large data, RHM won't scale (adat-wise), as each node stores data from all other nodes
+* For large clusters or large data, RHM won't scale (data-wise), as each node stores data from all other nodes
    -> use ReplCache
 * When the cluster is small or the data set is small -> use RHM (all gets are local)
 * RHM requires state transfer; ReplCache requires rebalancing
-
+* Example: 5 node cluster, we need to store 10 items of 50MB each in the cluster
+* RHM: each node stores 500MB, independent of cluster size
+* ReplCache (repl_count=2): each node stores 2 * 10 * 50 / 5 = ~200MB on average (depends on the hashing function)
 
 
 
@@ -506,6 +510,24 @@ LockService demo
 
 
 
+Distributed locks and network partitions
+----------------------------------------
+* If we have `{A,B,C,D,E}` all locks are managed by `A`
+* Let's assume we have a network split ('split brain'): `{A,B}` and `{C,D,E}`
+* `A` continues managing the locks, but now `C` becomes lock coordinator for the second partition
+-> The same lock can now be held by a member of `{A,B}` and by a member of `{C,D,E}` !
+* Strategies to handle this:
+** Define a static membership majority (e.g. 3) and become read-only (release all locks and don't acquire new ones)
+   when the membership drops below 3
+** Handle MergeViews: release and re-acquire all currently held locks
+** Use a consensus based system, e.g. jgroups-raft: https://github.com/belaban/jgroups-raft
+*** Becomes unavailable when membership drops below a given majority
+*** Locks can only get acquired and released by majority agreement
+*** Persistent logs allow newly elected leaders to get current lock information
+*** Only _one_ member holds a lock at any time
+
+
+
 Distributed counters
 --------------------
 
@@ -530,7 +552,8 @@ public class CounterService {
 <2> Returns an existing counter, or creates a new one if none exists
 <3> Deletes a counter instance (on the coordinator)
 
-NOTE: `CounterService` requires `COUNTER` to be somewhere near the top of the stack
+NOTE:
+`CounterService` requires `COUNTER` to be somewhere near the top of the stack
 
 
 Counter
@@ -571,10 +594,13 @@ CounterServiceDemo
                 view_bundling="true"/>
     <MFC max_credits="2M" min_threshold="0.4"/>
     <FRAG2 frag_size="60K"  />
-    <CENTRAL_LOCK num_backups="1"/>
     <COUNTER num_backups="1"/>
 </config>
 ----
+* Regarding merging, the same caveats as for distributed locks hold for distributed counters
+
+
+
 
 
 Distributed task execution
@@ -616,7 +642,7 @@ Design
    this time by a different node
 ** This is done by comparing the rank shipped with the task to the node's rank and executing it if a node's
    own rank matches it
-* If a master M crashes after having submitted a few tasks but not yet having received the results,
+* If a node M crashes after having submitted a few tasks but not yet having received the results,
   the slaves remove all tasks submitted by M, because M won't need the results anymore.
 
 Example

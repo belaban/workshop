@@ -13,7 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ReplicatedStockServer extends ReceiverAdapter {
-    private final Map<String,Double> stocks=new HashMap<String,Double>();
+    private final Map<String,Double> stocks=new HashMap<>();
     private JChannel                 channel;
     private RpcDispatcher            disp; // to invoke RPCs
 
