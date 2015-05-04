@@ -60,19 +60,21 @@ Message.RSVP:: When this flag is set, a message send will block until the receiv
 
 Message.DONT_LOOPBACK:: When set, a message is multicast, but not looped back up the stack.
                         Useful when a sender doesn't want to receive its own multicast. +
-                        Note that this is a _transient flag_, so `Message.isTransientFlagSet()` has
-                        to be used instead of `Message.isFlagSet()`
+                        Note that this is a _transient flag_, so `Message.setTransientFlag()` has
+                        to be used instead of `Message.setFlag()`
 
 
 
-OOB messages
-------------
+Regular and OOB messages
+------------------------
 * Regular messages are ordered as follows
-** Messages from the same sender are delivered FIFO: one-by-one
+** Messages from sender P are delivered sequentially, in the order in which P sent them
 ** Messages from different senders are delivered in parallel
 *** When P sends P1 -> P2 -> P3, P1 is delivered first, then P2, then P3
 *** P3 has to wait until both P1 and P2 have been processed
-* However, _OOB messages_ completely ignore any ordering constraints the stack might have
+*** Messages from sender Q are delivered in parallel to P's messages
+**** Make sure your `receive()` callback is reentrant
+* However, _OOB messages_ completely ignore any ordering constraints of the stack
 ** A message marked as OOB is processed by the OOB thread pool, not the regular thread pool (see below)
 ** When P sends P1 -> P2 -> P3, then all 3 messages are delivered randomly (but only once !)
 *** Whether all 3 messages are really delivered in parallel also depends on the config of the OOB thread pool
@@ -84,7 +86,7 @@ OOB messages
 The transport
 -------------
 * Bottom most protocol in the stack
-* Serializes messages and sends them as UDP datagram packets, or sends them over a TCP connection
+* Serializes messages and sends them as UDP datagram packets, or over a TCP connection
 * Receives packets and de-serializes them into messages, which are then passed up the stack
 * 4 thread pools for handling of incoming messages
 . Regular thread pool
@@ -139,14 +141,14 @@ Internal:: Handles `INTERNAL` messages. Reserved for use by JGroups. Needed to d
 Timer:: Used to execute tasks (periodic or one-time), e.g. retransmission, expiry of connection pools, stability etc
 
 
-Regular thread pool
--------------------
+Processing regular messages
+---------------------------
 image::../images/RegularThreadPool.png[Regular thread pool,width="100%"]
 
 
 
-OOB thread pool
----------------
+Processing OOB messages
+-----------------------
 image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
 
 
@@ -249,7 +251,10 @@ Explanation 1
 ** All other 3 messages are added to table-A by thread-2 _before thread-1 returns_
 * Regular messages from the same sender are delivered in the order in which they were sent
 * Message `A5` sent by a sender thread in A has to wait until messages `A1` - `A4` have been delivered: takes 4 * 1s
-
+* To dump the messages in the table:
+----
+probe.sh  jmx=NAKACK2.xmit_table_undelivered
+----
 
 
 Possible fixes
@@ -425,14 +430,12 @@ Use of the asynchronous invocation API
 ---------------------------------------
 * An application can subclass `RpcDispatcher`, or it can set a custom request handler via
   `setRequestHandler()`, and implement `AsyncRequestHandler.handle()` by
-  dispatching the processing to a thread from a thread pool.
+  dispatching the processing to a thread pool.
 
-* The thread which guided the request message from the network up to here will therefore immediately
-  be released and can be used to process other messages.
+* The thread handling the request from will immediately be released and can be used to process other messages.
 
-* The response will be sent when the invocation of application code is done, and thus the thread from
-  the thread pool is not blocked on I/O, or trying to acquire locks or anything else that blocks in
-  application code.
+* The response will be sent when the invocation of application code is done, and thus the thread is not blocked
+  on I/O, or trying to acquire locks or anything else that blocks in application code.
 
 * To set the mode which is used, method `RpcDispatcher.asyncDispatching(boolean)` can be used. This can be
   changed even at runtime, to switch between sync and async invocation style.
@@ -440,7 +443,7 @@ Use of the asynchronous invocation API
 * Asynchrounous invocation is typically used in conjunction with an _application thread pool_. The application
   knows (JGroups doesn't) which requests can be processed in parallel and which ones can't.
 
-* Benefit: request dispatching (and ordering) is now under application control
+* Benefit: request dispatching (and ordering !) is now under application control
 
 * Example of where asynchronous invocation makes sense: replicated web sessions
 ** If a cluster node A has 1000 web sessions, then replication of updates across the cluster generates messages from A.
@@ -475,7 +478,7 @@ Lab: advanced 4
 
 Message batching
 ----------------
-* For historic reasons, message _bundling_ is used on the sender, _batching_ on the receiver
+* For historic reasons, term message _bundling_ is used on the sender, _batching_ on the receiver
 ** Let's use the term _batching_ only
 * When sending many smaller messages, it is better to queue them and send them as a _message batch_
 ** Payload / header ratio is better (e.g. payload of 5, header of 30 !)
@@ -517,16 +520,17 @@ Sending messages synchronously (RSVP)
 ** If P sends messages 1-10, and marks 10 as `RSVP`, then, upon `JChannel.send()` returning,
    P knows that all members received messages 1-10 from P.
 
-NOTE: Since RSVP'ing a message is costly, and might block the sender for a while, it should be
+NOTE:
+Since RSVP'ing a message is costly, and might block the sender for a while, it should be
 used sparingly. For example, when completing a unit of work (ie. member P sending N messages), and
 P needs to know that all messages were received by everyone, before sending other messages.
 
 
 Configuration and use
 ---------------------
-* To use RSVP, 2 things have to be done:
+* To use RSVP, two things have to be done:
 * First, the `RSVP` protocol has to be in the config, somewhere above the reliable transmission
-  protocols such as `NAKACK` or `UNICAST(2)`, e.g.:
+  protocols such as `NAKACK` or `UNICAST`, e.g.:
 
 [source,xml]
 ----
@@ -598,9 +602,10 @@ class CustomAddress extends UUID {
 }
 ----
 
-NOTE: The ID should be chosen such that it doesn't collide with any IDs defined in `jg-magic-map.xml`.
+NOTE:
+The ID should be chosen such that it doesn't collide with any IDs defined in `jg-magic-map.xml`.
 
-* Set the address generator in `JChannel: setAddressGenerator(AddressGenerator)`. This has to
+* Set the address generator in `JChannel: addAddressGenerator(AddressGenerator)`. This has to
   be done _before_ the channel is connected.
 
 
