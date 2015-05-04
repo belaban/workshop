@@ -653,13 +653,11 @@ Generating a MergeView
 ** takes the first (say M), adds it to the resulting list and then
 ** adds the subviews in turn.
 * This could result in a MergeView like +{M,A,B,C,N,O,P,X,Y,Z}+.
-
-.Ordering and duplicate elements
-NOTE: In both regular and merge views, it is important that there are no duplicate members. It is
-      possible to get overlapping subviews in the case of a merge, for instance:
-      +{A,B,C}+, +{C,D}+ and +{C,D}+. This _cannot_
-      result in C or D being present in the resulting merge view multiple times.
-
+* Ordering and duplicate elements
+** In both regular and merge views, it is important that there are _no duplicate members_. It is
+   possible to get overlapping subviews in the case of a merge, for instance:
+   +{A,B,C}+, +{C,D}+ and +{C,D}+. This _cannot_
+   result in C or D being present in the resulting merge view multiple times.
 * A +MembershipChangePolicy+ can be set in `GMS` via property `membership_change_policy`,
   which accepts the fully qualified classname of the implementation of `MembershipChangePolicy`.
 ** There is also a setter +setMembershipChangePolicy()+ which can be used to set the change policy programmatically
@@ -754,7 +752,7 @@ image::../images/ForkArchitecture.png[Fork channels,width="60%"]
 * In the example, a main channel and 5 fork channels (in the same JVM) are shown
 
 * The brown stack to the left is the main stack and it has the main channel connected to it
-** _The `FORK` protocol needs to be present in the main stack, or else fork stacks can not be created_
+** The `FORK` protocol needs to be present in the main stack, or else fork stacks can not be created
 ** It has 2 fork stacks: `"counter"` and `"lock"`
 
 * The blue stack in the middle is a fork-stack with fork stack ID `"counter"`
@@ -816,7 +814,7 @@ FORK configuration
 * File `fork-stacks.xml` defines 2 fork stacks: `"counter"` and `"lock"`
 
 * Element `<config>` is a regular JGroups configuration
-** For example, fork stack `"lock"` creates a stack with 'CENTRAL_LOCK` and `STATS`
+** For example, fork stack `"lock"` creates a stack with `CENTRAL_LOCK` and `STATS`
 
 * When `FORK` is initialized, it will create the 2 fork stacks
 * Fork channels can pick one of the 2 existing fork stacks to be created over,
@@ -844,7 +842,7 @@ main_ch.connect("cluster");
     be added to the top of fork stack `"lock"`. An exception will be thrown if a fork channel with the same ID
     already exists.
 <3> The `ForkChannel` now calls `connect()`, but the cluster name is ignored as fork channels have the same
-    cluster name as they main channel the reference. The local address, name, view and state are also the same.
+    cluster name as the main channel they reference. The local address, name, view and state are also the same.
     This means, that even though `connect()` was called, the fork channel is not yet connected. As soon as the
     main channel is connected, the fork channel will be connected, too.
 
@@ -1063,14 +1061,14 @@ bin/sfo.sh -name sfo2
 Handling network partitions (split brain)
 -----------------------------------------
 * Cluster: `v4={A,B,C,D,E}` (coord=`A`)
-* Assume a switch to subnet `{D,E}` fails -> network partition between `{A,B,C}` and `{D,E}`
+* Assume a switch connecting to members `{D,E}` fails -> network partition between `{A,B,C}` and `{D,E}`
 ** `A`, `B` and `C` can ping each other, but not `D` or `E`, and vice versa
 * JGroups detects this and creates 2 subclusters: `v5={A,B,C}` (`A` remains coordinator) and `v5={D,E}` (`D` becomes coord)
 * Clients may be able to access one or both of the partitions (or none)
-* When the partition heals, JGroups will merge the subclusters back into _MergeView_ `v5={A,B,C,D,E}`
+* When the partition heals, JGroups will merge the subclusters back into _MergeView_ `v6={A,B,C,D,E}`
 ** A MergeView has a list of all subviews (partitions)
 *** We know which members were part of which partition before the split healed
-* However, JGroups won't be able to merge the (possibly divergent) application data
+* However, JGroups won't be able to merge the (possibly divergent) _application data_
 
 
 Strategies for keeping application data consistent
@@ -1078,20 +1076,22 @@ Strategies for keeping application data consistent
 * CAP: either CP or AP (P can never be forfeited as partitions do happen)
 * CP: consistency & partition handling
 ** System may not be available all the time
+** jgroups-raft
 * AP: availability & partition handling
 ** Consistency not guaranteed all the time
 ** Eventual consistency: possibility to see stale data but eventual convergence of data
+** Infinispan eventual consistency
 
 
 Consistency and partition handling (CP)
 ---------------------------------------
 * Only a majority partition is allowed to perform reads and writes
 ** The majority partition can also be defined differently as long as the decision is deterministic
-   (only 1 majority partition), e.g.
+   (only one majority partition), e.g.
 *** A given node needs to be present
 *** Access to a given resource (e.g. DB)
 **** Whoever has access to the DB is allowed to write, others shut down or become read-only
-* A minority partition rejects client access (possibly stale reads are allowed)
+* A minority partition rejects client access (stale reads might be allowed)
 * Advantage: no merging of data
 * Disadvantage: system unavailable when no majority
 
@@ -1172,7 +1172,6 @@ Methods to be overridden
 ------------------------
 * The table below lists the most important methods to be overridden by a protocol:
 
-.Methods
 [align="left",width="90%",cols="2,10",options="header"]
 |=================
 |Name|Description
@@ -1281,6 +1280,7 @@ Running the demo
 * Note that the full classname of `PRINT_BYTES` has to be given
 * Run the demo: `bin/repl-cache.sh`
 * Extra credit
+. Maintain the number of sent messages / bytes in variables and expose them with `@ManagedAttribute`
 . Disable and re-enable printing of messages via probe.sh
 . Print the headers (`Message.getHeaders()`)
 . Dynamically remove `PRINT_BYTES` via `probe.sh remove-protocol ...`

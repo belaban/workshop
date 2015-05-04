@@ -28,7 +28,7 @@
     <property name="deck.js"               value="deck.js"/>
     <property name="deck.js.dir"           value="${basedir}/../${deck.js}"/>
     <property name="deck.js.url"           value="git://github.com/imakewebthings/deck.js.git"/>
-    <property name="ivy.version"           value="2.3.0" />
+    <property name="ivy.version"           value="2.4.0" />
 
 
     <path id="jg.classpath">
