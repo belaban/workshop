@@ -164,7 +164,7 @@ Jumbo frames
 ------------
 * Increases the size of a datagram packet's MTU, e.g. from 1500 to 8000
 * If we send large messages, fewer datagrams need to be sent
-** 60'000 byte message: ~40 packets with mtu=1500,  with mtu=8000
+** 60'000 byte message: 40 packets with mtu=1500, 8 with mtu=8000
 ** `UDP`: if 1 datagram packet of a message is lost, we need to retransmit all IP packets
 *** Smaller chance of dropping 1 out of 8 packets than 1 out of 40
 * Excellent for high throughput
@@ -174,7 +174,7 @@ Jumbo frames
 UDP versus TCP
 --------------
 * `UDP` sends 1 multicast packet to the switch, which copies it to all ports with subscribers for the multicast group
-** Cost to send a group message to all cluster members : 1
+** Cost to send a group message to all cluster members: 1
 * `TCP` sends the message to each member separately
 ** Cost: N-1 (where N is the cluster size)
 ** If `N-1 * message size` is larger than the link's bandwidth, this is a bottleneck
@@ -241,181 +241,184 @@ Link bundling
 
 Top JGroups problems
 --------------------
-* Mailing lists
-* Support cases
-* Consulting
-* Interaction with customers
-* Bug reports
+* From
+** Mailing lists
+** Support cases
+** Consulting
+** Interaction with customers
+** Bug reports
 
 
 
 
 
 Problem #12: AWS
----------------
-Large packets sizes in EC2 are dropped::
-The problem was that large packets using the default stack configuration for `FRAG2` (60k) were sometimes being dropped
-between some hosts. The cluster would work fine until a large amount of data was sent between some pairs of servers. +
-Amazon support: this is an update for case 85983221. We are currently limited to packet sizes of 32k and below on Amazon
-EC2 and can confirm the issues you are facing for larger packet sizes. We are investigating a solution
-to this limitation. Please let us know if you can keep your packet sizes below this level, or if this
-is severe problem blocking your ability to operate. +
-Solution: use `FRAG2` sizes of <= 32k if you are running in `UDP` mode under EC2.
+----------------
+* Large packets sizes in EC2 are dropped
+** The problem was that large packets using the default stack configuration for `FRAG2` (60k) were sometimes being dropped
+   between some hosts.
+** The cluster would work fine until a large amount of data was sent between some pairs of servers.
+** Amazon support: this is an update for case 85983221. We are currently limited to packet sizes of 32k and below on Amazon
+   EC2 and can confirm the issues you are facing for larger packet sizes. We are investigating a solution
+   to this limitation. Please let us know if you can keep your packet sizes below this level, or if this
+   is severe problem blocking your ability to operate.
+* Solution: use `FRAG2` sizes of <= 32k if you are running in `UDP` mode under EC2.
 
 
 Problem #11: last message dropped in `NAKACK2`
 ---------------------------------------------
-Last message dropped issue::
-Use `RSVP` to ack a batch of work, or set `resend_last_seqno` in `NAKACK2`
+* Last message dropped issue
+* Solution: use `RSVP` to ack a batch of work, or set `resend_last_seqno` in `NAKACK2`
 
 
 
 
 Problem #10: `receive()` and `viewAccepted()` callbacks
 ------------------------------------------------------
-Invoking blocking RPCs or doing something long or blocking in these callbacks::
-Because JGroups calls these callbacks on a thread from the incoming thread pool, all messages behind this one are stuck
-until the callback returns +
-Solution: use a separate thread is some callback code needs to block, invoke a blocking RPC, or perform a long task
+* Invoking blocking RPCs or doing something long or blocking in these callbacks
+* Because JGroups calls these callbacks on a thread from the incoming thread pool, all messages behind this one are stuck
+  until the callback returns
+* Solution: use a separate thread is some callback code needs to block, invoke a blocking RPC, or perform a long task
 
 
 
 Problem #9: MacOS
 -----------------
-
-Multicast routing on Mac OS::
-https://developer.jboss.org/wiki/MulticastRoutingOnMacOSX +
-Pick the correct `mcast_addr` in `UDP` based on the routing table and `bind_addr`
+* Multicast routing on Mac OS: https://developer.jboss.org/wiki/MulticastRoutingOnMacOSX
+* Solution: pick the correct `mcast_addr` in `UDP` based on the routing table and `bind_addr`
 
 
 
 Problem #8: JGroups eating memory: NAKACK2 / STABLE
 ---------------------------------------------------
-Memory grows in `NAKACK`::
-In most cases, this is caused by a slow member which hasn't yet been suspected and excluded (hinders progress) +
-Symptom: one or more slow members prevent an agreement between all members on which messages have been seen and can
-be discarded -> memory accumulates +
-Solution: remove / fix the slow or unresponsive members or decrease the failure detection timeout to exclude the member
+* Memory grows in `NAKACK`
+* In most cases, this is caused by a slow member which hasn't yet been suspected and excluded (hinders progress)
+* Symptom: one or more slow members prevent an agreement between all members on which messages have been seen and can
+  be discarded -> memory accumulates
+* Solution: remove / fix the slow or unresponsive members or decrease the failure detection timeout to exclude the member
 
 
 
 
 Problem #7: seeing traffic from different clusters
 --------------------------------------------------
-When using UDP, we get warnings that traffic from a different cluster was discarded::
-This is caused by using the same `mcast_addr` and `mcast_port` in `UDP` in different clusters +
-Solution: use different values for either or both attributes in `UDP` for each separate cluster
+* When using UDP, we get warnings that traffic from a different cluster was discarded
+* This is caused by using the same `mcast_addr` and `mcast_port` in `UDP` in different clusters
+* Solution: use different values for either or both attributes in `UDP` for each separate cluster
 
 
 
 
 Problem #6: TCPPING
 -------------------
-TCPPING.initial_hosts doesn't list all cluster members::
-If `initial_hosts=A` and we have `{A,B,C}`, then `A` leaves, no new members can join +
-Solution: list all members, use `send_cache_on_join` (`3.6.1` and higher) or use `MPING` (if IP multicasting is enabled)
+* TCPPING.initial_hosts doesn't list all cluster members
+** If `initial_hosts=A` and we have `{A,B,C}`, then `A` leaves, no new members can join
+** Solutions:
+*** List all members
+*** Use `send_cache_on_join` (`3.6.1` and higher)
+*** use `MPING` (if IP multicasting is enabled)
 
-TCPPING not merging::
-Same as above: if we have `initial_hosts=A`, but 2 partitions `{A,B,C}` and `{X,Y,Z}`, then `X` will be able to send a
-message to `A`, but `A` won't be able to respond (it doesn't have `X`'s address) -> no merge
+* TCPPING not merging
+** Same as above: if we have `initial_hosts=A`, but 2 partitions `{A,B,C}` and `{X,Y,Z}`, then `X` will be able to send a
+  message to `A`, but `A` won't be able to respond (it doesn't have `X`'s address) -> no merge
 
 
-TCPPING.initial_hosts lists the wrong members::
-All members need to be listed with the `bind_addr` they're bound to and the `bind_port` they use
+* TCPPING.initial_hosts lists the wrong members
+** All members need to be listed with the `bind_addr` they're bound to and the `bind_port` they use
 
-TCPPING is used but TCP doesn't set `bind_port`::
-If `TCP.bind_port` is 0, a random port will be used and we cannot list it in `TCPPING.initial_hosts`
+* TCPPING is used but TCP doesn't set `bind_port`
+** If `TCP.bind_port` is 0, a random port will be used and we cannot list it in `TCPPING.initial_hosts`
 
 
 
 Problem #5: IPv6
 ----------------
-Running in IPv6 without a correctly configured IPv6 routing table::
-By default, the JDKs use IPv6, but the routing table is not configured correctly, or the config uses IPv4 +
-Solution: look at IPv6 routing or force use of IPv4 (`-Djava.net.preferIPv4Stack=true`)
+* Running in IPv6 without a correctly configured IPv6 routing table
+** By default, the JVM uses IPv6, but the routing table is not configured correctly, or the config uses IPv4
+** Solution: look at IPv6 routing or force use of IPv4 (`-Djava.net.preferIPv4Stack=true`)
 
-Mixing IPv4 and IPv6::
-This works with TCP as IPv4 addresses are mapped to IPv4-mapped IPv6 addresses, but this is (IMO) hard to set up correctly
+* Mixing IPv4 and IPv6
+** This works with TCP as IPv4 addresses are mapped to IPv4-mapped IPv6 addresses, but this is (IMO) hard to set up correctly
 
-Wiki: https://developer.jboss.org/wiki/IPv6
+* Wiki: https://developer.jboss.org/wiki/IPv6
 
 
 
 Problem #4: JGroups versions
 ----------------------------
+* An old JGroups version is used
+** Symptom: a bug that was fixed a long time ago pops up
+** Side effect: Bela gets very tired having to waste time on some bug that's already been fixed
+** Solution: upgrade to the latest stable JGroups version
 
-An old JGroups version is used::
-Symptom: a bug that was fixed a long time ago pops up +
-Side effect: Bela gets very tired having to waste time on some bug that's alread been fixed +
-Solution: upgrade to the latest stable JGroups version
+* Different JGroups version in the same cluster
+** Running different JGroups versions on different nodes might lead to subtle issues, e.g. dropping messages due to
+   deserialization issues.
+** Solution: run the same version on all cluster nodes
 
-Different JGroups version in the same cluster::
-Running different JGroups versions on different nodes might lead to subtle issues, e.g. dropping messages due to
-deserialization issues. +
-Solution: run the same version on all cluster nodes
-
-Old JGroups configuration::
-Sometimes, people upgrade to a newer JGroups version, but forget to upgrade their config(s) as well. +
-Solution: always use the config template from the JGroups version you upgrade to and apply your specific changes
+* Old JGroups configuration
+** Sometimes, people upgrade to a newer JGroups version, but forget to upgrade their config(s) as well.
+** Solution: always use the config template from the JGroups version you upgrade to and apply your specific changes
 
 
 
 Problem #3: tinkering with configuration
 ----------------------------------------
-(The "I'm smarter than Bela" problem)
+* (The "I'm smarter than Bela" problem)
 
-Custom configuration files::
-A configuration should never be built from the ground up; instead, copy `udp.xml` or `tcp.xml` from the JGroups JAR
-and modify it
+* Custom configuration files
+** A configuration should never be built from the ground up; instead, copy `udp.xml` or `tcp.xml` from the JGroups JAR
+   and modify it
 
-Removing \'unneeded' protocols::
-Removing `UNICAST` because the transport is `TCP` (reliable): this won't work as `UNICAST` also performs ordering +
-Symptoms: unicast messages can be unordered +
-Removing `STABLE` causes OOMEs
+* Removing \'unneeded' protocols
+** Removing `UNICAST` because the transport is `TCP` (reliable): this won't work as `UNICAST` also performs ordering
+** Symptoms: unicast messages can be unordered
+** Removing `STABLE` causes OOMEs
 
-Putting protocols in the wrong place::
-A configuration needs to be defined in a certain order; placing protocols in the wrong place almost always causes subtle issues
+* Putting protocols in the wrong place
+** A configuration needs to be defined in a certain order; placing protocols in the wrong place almost always causes subtle issues
 
 
 
 Problem #2: cluster falls apart
 -------------------------------
-Low timeout in `FD` / `FD_ALL`::
-GC, high network traffic or exhausted thread pools on the receivers can lead to missing heartbeats, causing members
-to be suspected. +
-Symptoms: some members are suspected, excluded and later merged back +
-Solution: use high timeouts in heartbeat based failure detection protocols and add `FD_SOCK` / `FD_HOST`
+* Low timeout in `FD` / `FD_ALL`
+** GC, high network traffic or exhausted thread pools on the receivers can lead to missing heartbeats, causing members
+   to be suspected.
+** Symptoms: some members are suspected, excluded and later merged back
+** Solution: use high timeouts in heartbeat based failure detection protocols and add `FD_SOCK` / `FD_HOST`
 
-IGMP Snooping::
-Snooping (in the switch) listens on ports for IGMP joins and copies multicast packets for a groups to all joiners of
-that group. Buggy code leads to that information getting dropped and multicast packets getting dropped until the
-information has been refreshed. +
-Symptoms: multicast groups falls apart every N minutes +
-Solution: upgrade switch firmware
+* IGMP Snooping
+** Snooping (in the switch) listens on ports for IGMP joins and copies multicast packets for a groups to all joiners of
+   that group.
+** Buggy firmware code leads to that information getting dropped and multicast packets getting dropped until the
+   information has been refreshed.
+** Symptoms: multicast groups falls apart every N minutes
+** Solution: upgrade switch firmware
 
-Faulty network card::
-Sometimes a faulty NIC randomly drops packets, or drops sent packets but accepts received packts
+* Faulty network card
+** Sometimes a faulty NIC randomly drops packets, or drops sent packets but accepts received packets
 
 
 
 Problem #1: members don't find each other
 -----------------------------------------
-Binding to the loopback interface::
-Setting `bind_addr` (in the transport) or system property `jgroups.bind_addr`
-to `127.0.0.1` works when members are running on the same host, but doesn't work across hosts
+* Binding to the loopback interface
+** Setting `bind_addr` (in the transport) or system property `jgroups.bind_addr`
+   to `127.0.0.1` works when members are running on the same host, but doesn't work across hosts
 
-Binding to the wrong network interface::
-Binding to a VPN tunnel that's down, or `A` binding to `eth0` and `B` binding to `eth1` (different networks)
+* Binding to the wrong network interface
+** Binding to a VPN tunnel that's down, or `A` binding to `eth0` and `B` binding to `eth1` (different networks)
 
-Firewalls dropping packets::
-Disable the firewall, to see if this helps (e.g. `sudo iptables -F` on Linux). If this is the issue, open ports for
-JGroups (`UDP.bind_port`, `FD_SOCK`, `STATE_SOCK`) and re-enable the firewall
+* Firewalls dropping packets
+** Disable the firewall, to see if this helps (e.g. `sudo iptables -F` on Linux).
+** If this is the issue, open ports for JGroups (`UDP.bind_port`, `FD_SOCK`, `STATE_SOCK`) and re-enable the firewall
 
-Switch dropping packets::
-Especially between VLANs. Check the swithc configuration
+* Switch dropping packets
+** Especially between VLANs. Check the switch configuration
 
-UDP: time-to-live loo low::
-If `UDP` is used, increase the value of `ip_ttl`. See whether packets are received with wireshark / tcpdump
+* UDP: time-to-live loo low
+** If `UDP` is used, increase the value of `ip_ttl`. See whether packets are received with wireshark / tcpdump
 
 
 

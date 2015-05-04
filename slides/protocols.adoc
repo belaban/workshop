@@ -183,9 +183,9 @@ Failure detection
 
 Reliable transmission and ordering
 ----------------------------------
-* A sender S assigns monotonically increasing sequence numbers (seqnos) to messages
+* Sender S assigns monotonically increasing sequence numbers (seqnos) to messages
 * Receiver R receives messages from P and delivers them (up the stack) in seqno order
-* Negative acks: the receiver only asks a sender to retransmit a message if a gap has been detected, e.g. `S5` -> `S6`
+* Negative acks: the receiver asks a sender to retransmit a message if a gap has been detected, e.g. `S5` -> `S6`
   -> `S8`: here, message `7` from `S` is missing so `R` asks `S` to resend message `7`.
 * Positive acks: the sender continues to periodically retransmit a message `M` until the receiver `R` has acked
   `M`, or `R` left the cluster
@@ -204,15 +204,15 @@ Message stability
 -----------------
 * Only applicable to one-to-many (= multicast) messages (`NAKACK2`)
 * When multicasting messages with `NAKACK2`, receivers store all messages in order to deliver them in order, and
-  to possibly resend messages to members missing them
+  to possibly resend missing messages
 * However, keeping messages around indefinitely increases the heap used and eventually members run out of memory
 * `STABLE` is an agreement protocol which runs periodically (or based on received bytes) and removes messages which
   have been seen by everyone
 * E.g if we have members `{A,B,C}` and receive
-** From `A`: `{A:15,B:25,C:3`
-** From `B`: `{A:14,B:29,C:5`
-** From `C`: `{A:15,B:27,C:5`
-** Then the minimum vector is `{A:14,B:25,C:3`.
+** From `A`: `{A:15,B:25,C:3}`
+** From `B`: `{A:14,B:29,C:5}`
+** From `C`: `{A:15,B:27,C:5}`
+** Then the minimum vector is `{A:14,B:25,C:3}`.
 *** All members can now remove messages `14` and lower from `A`, `25` and lower from `B` and `3` and lower from `C`
 * Slow or unresponsive members can prevent fast agreement, but they'll eventually get removed by failure detection
 
