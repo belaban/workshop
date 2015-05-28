@@ -830,8 +830,8 @@ Creation of fork channels
 JChannel main_ch, fork_ch;                            // <1>
 fork_ch=new ForkChannel(main_ch, "lock", "fork-ch4",  // <2>
                         new CENTRAL_LOCK(), new STATS());
-fork_ch.connect("bla");                               // <3>
 main_ch.connect("cluster");
+fork_ch.connect("bla");                               // <3>
 ----
 <1> This is the main channel. Its stack may or may not contain `FORK`, but for this example, we
     assume it is present.
@@ -843,8 +843,7 @@ main_ch.connect("cluster");
     already exists.
 <3> The `ForkChannel` now calls `connect()`, but the cluster name is ignored as fork channels have the same
     cluster name as the main channel they reference. The local address, name, view and state are also the same.
-    This means, that even though `connect()` was called, the fork channel is not yet connected. As soon as the
-    main channel is connected, the fork channel will be connected, too.
+    Note that the main channel needs to be connected _before_ any fork channel.
 
 * The lifetime of a fork channel is always dominated by the main channel: if the main channel is closed, all
   fork channels atttached to it are in closed state, too, and trying to send a message will throw an exception.

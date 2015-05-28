@@ -254,7 +254,7 @@ Time for some interactivity !
 ----
 * Alternative (uses `init.groovy`):
 ----
-groovy:000> c=createChannel("A");
+groovy:000> ch=createChannel("A");
 ===> org.jgroups.JChannel@44a2b17b
 ----
 
