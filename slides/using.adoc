@@ -37,7 +37,7 @@ Goals for JGroups
 * "A designer knows he has achieved perfection not when there is nothing left to add, but when there is nothing left
    to take away" (Antoine de Saint-Exupery)
 * I like KISS
-* I'm fighting depedency orgies seen in a lot of projects today
+* I'm fighting dependency orgies seen in a lot of projects today
 * JGroups has 0 (runtime) dependencies and I want to keep it that way
 
 
