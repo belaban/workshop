@@ -30,6 +30,18 @@ What is it ?
 * Runs on Android, too
 
 
+Goals for JGroups
+-----------------
+* Keep JGroups small, lean & mean and don't lose focus of the scope (reliable group comm)
+* I'm happier if I can remove something than if I have to add something
+* "A designer knows he has achieved perfection not when there is nothing left to add, but when there is nothing left
+   to take away" (Antoine de Saint-Exupery)
+* I like KISS
+* I'm fighting depedency orgies seen in a lot of projects today
+* JGroups has 0 (runtime) dependencies and I want to keep it that way
+
+
+
 
 JGroups has 3 parts
 -------------------
