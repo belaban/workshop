@@ -611,33 +611,29 @@ ch.connect("cluster");
 
 Controlling view generation
 ---------------------------
-* View generation is pluggable; application code can be called to determine how a new view is created
+* View generation is pluggable; application code can be called to create a view
 * The first member of a view is always the _coordinator_
 ** The application can therefore pick the coordinator
 ** Useful to
 *** Pin the coordinatorship to only certain 'beefy' servers
-*** Make sure that only one of the previous coordinators becomes the new coordinator after a merge. This
-    reduces the frequency at which the coordinator moves around and thus increases stability for
-    singleton services (services which are started only on one node in a given cluster).
-
+*** Make sure that one of the previous coordinators becomes the new coordinator after a merge. This
+    reduces the frequency at which the coordinator moves around and increases stability for
+    singleton services.
 * To do this, interface +MembershipChangePolicy+ has to be implemented
 
 [source,java]
 ----
 public interface MembershipChangePolicy {
-    List<Address> getNewMembership(Collection<Address> current_members,
-                                   Collection<Address> joiners,
-                                   Collection<Address> leavers,
-                                   Collection<Address> suspects);
-    List<Address> getNewMembership(Collection<Collection<Address>> subviews);
+  List<Address> getNewMembership(Collection<Address> current,            // <1>
+                                 Collection<Address> joiners,
+                                 Collection<Address> leavers,
+                                 Collection<Address> suspects);
+  List<Address> getNewMembership(Collection<Collection<Address>> views); // <2>
 }
 ----
-
-
-* The first method is called to create a regular view: `current_members` is a list of the current members, `joiners`
+<1> Create a regular view: `current_members` is a list of the current members, `joiners`
   of new members, `leavers` of members which want to leave and `suspects` of members which have crashed
-* The second method accepts a list of membership lists; each list is a subview that needs to get
-  merged into a new `MergeView`
+<2> Accepts a list of membership lists; each list is a subview that needs to get merged into a new `MergeView`
 
 
 
@@ -690,7 +686,7 @@ A sample MembershipChangePolicy
 
 [source,java]
 ----
-public List<Address> getNewMembership(Collection<Address> current_members,
+public List<Address> getNewMembership(Collection<Address> current,
                                       Collection<Address> joiners,
                                       Collection<Address> leavers,
                                       Collection<Address> suspects) {
@@ -721,7 +717,6 @@ public List<Address> getNewMembership(Collection<Address> current_members,
 
 
 
-
 Fork channels
 -------------
 * A fork channel is a light-weight channel, forked off of a main channel (`JChannel`)
@@ -739,6 +734,8 @@ Fork channels
 *** To do so, it can create a fork stack with `COUNTER` and a fork channel connecting to that stack, and it will now
     have distributed atomic counter functionality on its fork stack, not available in the main stack
 
+NOTE:
+Fork channels are exposed directly in WildFly 9
 
 
 
@@ -785,35 +782,26 @@ FORK configuration
 
 [source,xml]
 ----
-<FORK config="/home/bela/fork-stacks.xml" />
+<FORK>
+    <fork-stacks>
+        <fork-stack id="counter">
+            <config>
+                <COUNTER bypass_bundling="true"/>
+            </config>
+        </fork-stack>
+        <fork-stack id="lock">
+            <config>
+                <CENTRAL_LOCK num_backups="2"/>
+                <STATS/>
+            </config>
+        </fork-stack>
+    </fork-stacks>
+</FORK>
 ----
 
-* `FORK` refers to an external file to configure its fork stacks:
-
-[source,xml]
-----
-<fork-stacks xmlns="fork-stacks">
-    <fork-stack id="counter">
-        <config>
-            <COUNTER bypass_bundling="true"/>
-        </config>
-    </fork-stack>
-
-    <fork-stack id="lock">
-         <config>
-             <CENTRAL_LOCK num_backups="2"/>
-             <STATS/>
-         </config>
-    </fork-stack>
-
-</fork-stacks>
-----
-
-* File `fork-stacks.xml` defines 2 fork stacks: `"counter"` and `"lock"`
-
-* Element `<config>` is a regular JGroups configuration
+* `FORK` defines 2 fork stacks: `"counter"` and `"lock"`
+* The stack definition is defined with `<fork-stack>` elements
 ** For example, fork stack `"lock"` creates a stack with `CENTRAL_LOCK` and `STATS`
-
 * When `FORK` is initialized, it will create the 2 fork stacks
 * Fork channels can pick one of the 2 existing fork stacks to be created over,
   or they can dynamically create new fork stacks
@@ -1196,8 +1184,8 @@ Example: printing a view change
 
 [source,java]
 ----
-public Object down(Event evt) { // <1>
-    switch(evt.getType()) {     // <2>
+public Object down(Event evt) {  // <1>
+    switch(evt.getType()) {      // <2>
          case Event.VIEW_CHANGE: // <3>
              View view=(View)evt.getArg(); // <4>
              System.out.println("view = " + view);
