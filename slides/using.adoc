@@ -14,17 +14,6 @@ Using JGroups: overview and API
 :status:
 
 
-Disclaimer
-----------
-Red Hat supports the JGroups versions packaged in Red Hat JBoss Enterprise Application Platform and
-Red Hat JBoss Data Grid for clustering use cases in these products.
-
-For supported JGroups configurations, please refer to the documentation for these products or ask GSS.
-
-Red Hat does not support use of JGroups directly from application code or as a standalone module.
-The objective of this workshop/training is to provide deeper knowledge of JGroups internals, it does not imply
-Red Hat support for this material.
-
 
 What is it ?
 ------------
