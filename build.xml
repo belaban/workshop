@@ -141,6 +141,7 @@
     <target name="slides" description="Generates the slides using asciidoctor"
             depends="get-asciidoc-backends,get-deckjs">
         <symlink link="${slides.dir}/${deck.js}" resource="${deck.js.dir}" overwrite="false" failonerror="false"/>
+        <run-asciidoc dir="${basedir}/slides" input="welcome.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="admin.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="advanced.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="blocks.adoc"/>
