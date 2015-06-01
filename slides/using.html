@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+<meta content="Asciidoctor 1.5.0" name="generator">
+<meta content="Bela Ban belaban@yahoo.com" name="author">
+<title>Using JGroups: overview and API</title>
+<link href="deck.js/core/deck.core.css" rel="stylesheet">
+<link href="deck.js/extensions/scale/deck.scale.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/goto/deck.goto.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/menu/deck.menu.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/navigation/deck.navigation.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/status/deck.status.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/toc/deck.toc.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/style/web-2.0.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/transition/fade.css" media="screen" rel="stylesheet">
+<link href="deck.js/core/print.css" media="print" rel="stylesheet">
+<script src="deck.js/modernizr.custom.js"></script>
+</head>
+<body class="article">
+<div class="deck-container">
+<section class="slide" id="title-slide">
+<h1>Using JGroups: overview and API</h1>
+<span id="author">Bela Ban belaban@yahoo.com</span>
+<br>
+</section>
+<section class="slide" id="_disclaimer">
+<h2>Disclaimer</h2>
+<div class="paragraph"><p>Red Hat supports the JGroups versions packaged in Red Hat JBoss Enterprise Application Platform and
+Red Hat JBoss Data Grid for clustering use cases in these products.</p></div>
+<div class="paragraph"><p>For supported JGroups configurations, please refer to the documentation for these products or ask GSS.</p></div>
+<div class="paragraph"><p>Red Hat does not support use of JGroups directly from application code or as a standalone module.
+The objective of this workshop/training is to provide deeper knowledge of JGroups internals, it does not imply
+Red Hat support for this material.</p></div>
+</section>
+<section class="slide" id="_what_is_it">
+<h2>What is it ?</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Clustering library (only <strong>a single 2MB JAR</strong>) to write clustered applications<div class="ulist">
+<ul>
+<li>Communication in a cluster</li>
+<li>Chat</li>
+<li>Replicated or distributed state (session state in application servers)</li>
+<li>Task distribution</li>
+<li>Presence</li>
+<li>Pub/sub</li>
+</ul>
+</div></p></li>
+<li><p>
+Processes (nodes) on different hosts form a cluster and send each other messages<div class="ulist">
+<ul>
+<li>Reliable <em>one-to-many</em> or <em>one-to-one</em> communication</li>
+</ul>
+</div></p></li>
+<li>Nodes get notifications when others join or leave (or crash)</li>
+<li>Runs on Android, too</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_jgroups_has_3_parts">
+<h2>JGroups has 3 parts</h2>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>JChannel</p>
+<div class="ulist">
+<ul>
+<li>A <em>cluster node endpoint</em>. Like a socket</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Protocol stack</p>
+<div class="ulist">
+<ul>
+<li>Users can add, remove, replace, enhance, or even write their own protocols</li>
+<li><p>
+Ships protocols for<div class="ulist">
+<ul>
+<li>Network communication (transport)</li>
+<li>Membership discovery</li>
+<li>Failure detection</li>
+<li>Lossless and ordered transmission</li>
+<li>Network split handling and subsequent merging</li>
+<li>Notification when nodes join or leave the cluster (membership)</li>
+<li>Flow control</li>
+<li>Fragmentation</li>
+<li>Compression, encryption, authentication</li>
+</ul>
+</div></p></li>
+<li>Stack can be adapted to every environment</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Building blocks</p>
+<div class="ulist">
+<ul>
+<li><p>
+Used over a channel<div class="ulist">
+<ul>
+<li>Method invocation across a cluster</li>
+<li>Distributed caches, counters, locks, task execution</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_architecture">
+<h2>Architecture</h2>
+<div class="ulist">
+<ul>
+<li>Users deal mainly with the <em>channel</em> (<code>JChannel</code>)</li>
+<li>The protocol stack is setup according to an XML config file</li>
+<li>A sent message passes the stack <em>top-down</em></li>
+<li>A received message is passed up through the stack <em>bottom-up</em></li>
+</ul>
+</div>
+<div class="imageblock" style="text-align: left">
+<div class="content">
+<img alt="Architecture of JGroups" src="../images/arch.png" width="60%">
+</div>
+</div>
+</section>
+<section class="slide" id="_common_classes">
+<h2>Common classes</h2>
+<div class="ulist">
+<ul>
+<li><p>
+<code>Address</code><div class="ulist">
+<ul>
+<li>Identifies a node (=member) in a cluster</li>
+<li>Can be used as destination to send a message to a node</li>
+<li>A node&#8217;s address can be retrieved from the channel: <code>JChannel.getAddress()</code></li>
+</ul>
+</div></p></li>
+<li><p>
+<code>View</code><div class="ulist">
+<ul>
+<li>List of addresses, lists all cluster nodes</li>
+<li>Order is the same in all nodes</li>
+<li><p>
+Example: <code>A[4] (2) [A, B]</code><div class="ulist">
+<ul>
+<li>View was created by (coordinator) A and the current cluster contains A and B</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li><p>
+<code>Message</code><div class="ulist">
+<ul>
+<li>This is sent and received by cluster nodes</li>
+<li><p>
+Destination and sender&#8217;s addresses<div class="ulist">
+<ul>
+<li>Destination == null: send to entire cluster</li>
+</ul>
+</div></p></li>
+<li>Payload (<code>byte[]</code> buffer)</li>
+<li>Flags</li>
+<li>Headers (used mainly by protocols to add information, e.g. sequence numbers)</li>
+</ul>
+</div></p></li>
+<li>Example:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">// "hello" is serialized into a byte[] buffer
+Message msg=new Message(null, "hello")
+                .setFlag(Message.Flag.OOB); // set flag OOB
+channel.send(msg);</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_receiving_messages">
+<h2>Receiving messages</h2>
+<div class="ulist">
+<ul>
+<li>The <em>push model</em> is used</li>
+<li>Callbacks are used to receive messages and view changes</li>
+<li>Users typically extend <code>ReceiverAdapter</code> and override <code>receive()</code> and <code>viewAccepted()</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void receive(Message msg) {
+    Address sender=msg.getSrc();
+    String greeting=(String)msg.getObject();
+    System.out.println("received " + greeting + " from " + sender);
+}
+
+public void viewAccepted(View view) {
+    System.out.println("received view " + view);
+}</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_jchannel">
+<h2>JChannel</h2>
+<div class="ulist">
+<ul>
+<li>A <code>JChannel</code> is used to represent a cluster node</li>
+<li>Simple API: create, connect, send / receive, disconnect, destroy</li>
+<li>Example:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">// Create a channel, name it "A":
+JChannel ch=new JChannel("/home/bela/udp.xml").name("A");
+
+// Add a receiver to receive messages:
+ch.setReceiver(new ReceiverAdapter() {
+    public void receive(Message msg) {
+        System.out.printf("msg from %s: %s\n", msg.getSrc(), msg.getObject());
+    }
+});
+
+// Join the cluster "demo-cluster":
+ch.connect("demo-cluster");
+
+// Send a message to all nodes (including myself):
+Message msg=new Message(null, "hello world");
+ch.send(msg);
+
+// Disconnect and close the channel:
+ch.close();</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_creation_of_a_channel">
+<h2>Creation of a channel</h2>
+<div class="ulist">
+<ul>
+<li>There are a number of constructors available:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public JChannel(); // creates a default channel (uses udp.xml)
+public JChannel(File properties); // from a file
+public JChannel(Element el); // from a DOM element
+public JChannel(URL url); // from a URL
+public JChannel(String props); // config file on the classpath
+public JChannel(InputStream input); // input stream
+public JChannel(Protocol ... protocols); // programmatic creation
+public JChannel(Collection&lt;Protocol&gt; protocols);
+public JChannel(JChannel ch); // from another channel</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_sample_xml_configuration_file">
+<h2>Sample XML configuration file</h2>
+<div class="ulist">
+<ul>
+<li><em>Bottom-up</em>: <code>UDP</code> is the transport protocol, <code>FRAG2</code> is the top protocol</li>
+<li>Attributes configure the protocols, e.g. <code>mcast_port</code> in <code>UDP</code></li>
+<li><p>
+Attributes can use variables, e.g. <code>${jgroups.udp.mcast_port:45588}</code><div class="ulist">
+<ul>
+<li>System property <code>-Djgroups.udp.mcast_port=60000</code> overrides the (default) value of <code>45588</code></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;config xmlns="urn:org:jgroups"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd"&gt;
+    &lt;UDP mcast_port="${jgroups.udp.mcast_port:45588}" /&gt;
+    &lt;PING /&gt;
+    &lt;MERGE3 max_interval="30000"
+            min_interval="10000"/&gt;
+    &lt;FD_SOCK/&gt;
+    &lt;FD_ALL/&gt;
+    &lt;VERIFY_SUSPECT timeout="1500"  /&gt;
+    &lt;pbcast.NAKACK2 xmit_interval="500"
+                    use_mcast_xmit="false"/&gt;
+    &lt;UNICAST3 xmit_interval="500"
+              conn_expiry_timeout="0" /&gt;
+    &lt;pbcast.STABLE desired_avg_gossip="50000"
+                   max_bytes="4M"/&gt;
+    &lt;pbcast.GMS print_local_addr="true" join_timeout="2000"
+                view_bundling="true"/&gt;
+    &lt;UFC max_credits="2M" min_threshold="0.4"/&gt;
+    &lt;MFC max_credits="2M" min_threshold="0.4"/&gt;
+    &lt;FRAG2 frag_size="60K"  /&gt;
+&lt;/config&gt;</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_programmatic_creation">
+<h2>Programmatic creation</h2>
+<div class="ulist">
+<ul>
+<li>A channel can also be created without any XML config file, ie. programmatically:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">Protocol[] prot_stack={
+          new UDP().setValue("bind_addr", InetAddress.getByName("127.0.0.1")),
+          new PING(),
+          new MERGE3(),
+          new FD_SOCK(),
+          new FD_ALL(),
+          new VERIFY_SUSPECT(),
+          new BARRIER(),
+          new NAKACK2(),
+          new UNICAST3(),
+          new STABLE(),
+          new GMS(),
+          new UFC(),
+          new MFC(),
+          new FRAG2()}; <b class="conum">(1)</b>
+JChannel ch=new JChannel(prot_stack) <b class="conum">(2)</b>
+            .name("A"); <b class="conum">(3)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>First, an array of protocols is created.</p>
+</li>
+<li>
+<p>Next, the <code>JChannel</code> constructor which accepts the protocols array is called</p>
+</li>
+<li>
+<p>Finally, the channel is given a logical name ("A")</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_time_for_some_interactivity">
+<h2>Time for some interactivity !</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Start a Groovy shell:<div class="ulist">
+<ul>
+<li><code>cd workshop/bin</code></li>
+<li>Modify <code>run.sh</code> or <code>run.bat</code>: set <code>BIND_ADDR</code> to the IP of the network interface to be used)</li>
+<li><code>./groovy-shell.sh</code> (or <code>groovy-shell.bat</code>) or <code>groovy-console.sh</code> (<code>groovy-console.bat</code>)</li>
+</ul>
+</div></p></li>
+<li>Create a channel:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>groovy:000&gt; ch=new JChannel("config.xml").name("A");
+  ===&gt; org.jgroups.JChannel@609640d5</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Alternative (uses <code>init.groovy</code>):</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>groovy:000&gt; ch=createChannel("A");
+===&gt; org.jgroups.JChannel@44a2b17b</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_joining_a_cluster">
+<h2>Joining a cluster</h2>
+<div class="ulist">
+<ul>
+<li>When a client wants to join a cluster, it <em>connects</em> to a channel giving the name of the cluster to be joined:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void connect(String cluster_name) throws Exception;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+<code>cluster_name</code> is the name of the cluster to be joined<div class="ulist">
+<ul>
+<li>All channels that call <code>connect()</code> with the same name form a cluster</li>
+</ul>
+</div></p></li>
+<li><p>
+Messages sent on any channel in the cluster will be received by all members (including the one who sent it)<div class="ulist">
+<ul>
+<li>Local delivery can be turned off using <code>setDiscardOwnMessages(true)</code>.</li>
+</ul>
+</div></p></li>
+<li>The <code>connect()</code> method returns as soon as the new member has joined successfully</li>
+<li><p>
+If there are no other members, then a new cluster is created and the member joins it as first member.<div class="ulist">
+<ul>
+<li>The first member of a cluster becomes its <em>coordinator</em>.</li>
+<li>A coordinator is in charge of installing new views whenever the membership changes</li>
+</ul>
+</div></p></li>
+<li>A node can join only one cluster at a time</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>groovy:000&gt; ch.connect("demo");</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_utility_methods_of_jchannel">
+<h2>Utility methods of JChannel</h2>
+<div class="ulist">
+<ul>
+<li>Getting the address of a node: <code>getAddress()</code></li>
+<li>Getting the name of the cluster which a node joined: <code>getClusterName()</code></li>
+<li>Getting the current view of a node: <code>getView()</code></li>
+<li>Getting the logical name of a node: <code>getName()</code></li>
+<li>Misc: <code>isOpen()</code>, <code>isConnected()</code>, <code>isClosed()</code></li>
+<li>Use tab-completion of groovy-shell to find more methods</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_registering_a_channel_with_jmx">
+<h2>Registering a channel with JMX</h2>
+<div class="ulist">
+<ul>
+<li>A channel can expose its operations and attributes via JMX:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">JChannel ch=...
+ch.connect("cluster");
+Util.registerChannel((JChannel)ch, "jgroups");</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Attributes and operations can be accessed with a JMX client, e.g. <code>jconsole</code>:</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img alt="jconsole" src="../images/jconsole.png" width="60%">
+</div>
+</div>
+</section>
+<section class="slide" id="_receiving_messages_2">
+<h2>Receiving messages</h2>
+<div class="ulist">
+<ul>
+<li>Method <code>receive()</code> in ReceiverAdapter (or Receiver) can be overridden to receive messages:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void receive(Message msg);</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>A Receiver can be registered with a channel using <code>JChannel.setReceiver()</code>. All received messages
+will invoke callbacks on the registered receiver:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">JChannel ch=new JChannel();
+ch.setReceiver(new ReceiverAdapter() {
+    public void receive(Message msg) {
+        System.out.println("received message " + msg);
+    }
+    public void viewAccepted(View v) {
+        System.out.println("received view " + v);
+    }
+});
+ch.connect("MyCluster");</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>groovy:000&gt; ch.setReceiver(new SampleReceiver());</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_receiving_view_changes">
+<h2>Receiving view changes</h2>
+<div class="ulist">
+<ul>
+<li>As shown above, the <code>viewAccepted()</code> callback of ReceiverAdapter can be used
+to get notified when a cluster membership change occurs. The receiver needs to be set via
+<code>JChannel.setReceiver()</code>.</li>
+</ul>
+</div>
+<div class="paragraph"><p>NOTE:
+Code in callbacks must avoid anything that takes a lot of time, or blocks; JGroups
+invokes this callback as part of the view installation, and if this user code blocks,
+the view installation would block, too.</p></div>
+</section>
+<section class="slide" id="_sending_messages">
+<h2>Sending messages</h2>
+<div class="ulist">
+<ul>
+<li>JChannel has a number of <code>send()</code> methods:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void send(Message msg) throws Exception; <b class="conum">(1)</b>
+public void send(Address dst, Serializable obj) throws Exception; <b class="conum">(2)</b>
+public void send(Address dst, byte[] buf) throws Exception; <b class="conum">(3)</b>
+public void send(Address dst, byte[] buf, int off, int len) throws Exception; <b class="conum">(4)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Accepts a message as parameter. The message&#8217;s destination should either be the address of the
+receiver (unicast) or null (multicast). When the destination is null, the message will be sent to all members
+of the cluster (including itself).</p>
+</li>
+<li>
+<p>The object will be serialized into a <code>byte[]</code> buffer and set as the message&#8217;s payload.</p>
+</li>
+<li>
+<p>The payload is defined directly</p>
+</li>
+<li>
+<p>Same as above, but allows for definition of length and offset of the payload into a buffer</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>groovy:000&gt; ch.send(null, "hello world");</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_getting_the_group_s_state">
+<h2>Getting the group&#8217;s state</h2>
+<div class="ulist">
+<ul>
+<li>Frequently clusters have <em>shared state</em>, ie. every node has the same local state, and updates are propagated
+across the cluster to all nodes, which then update their local state</li>
+<li>State can be anything, e.g. a hashmap that stores servlet session data</li>
+<li>A newly joined member may want to retrieve the state of the cluster before starting work. This is done
+with <code>getState()</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void getState(Address target, long timeout) throws Exception;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+This method returns the state of the coordinator (target == null)<div class="ulist">
+<ul>
+<li>If a timeout (ms) elapses before the state has been fully fetched, an exception will be thrown</li>
+<li>A timeout of 0 waits until the entire state has been transferred.</li>
+</ul>
+</div></p></li>
+<li>To participate in state transfer, both state provider and state requester have to override the
+following methods in <code>ReceiverAdapter</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void getState(OutputStream output) throws Exception;
+public void setState(InputStream input) throws Exception;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+Method <code>getState()</code> is invoked on the <em>state provider</em> (usually the coordinator)<div class="ulist">
+<ul>
+<li>It needs to write its state to the output stream given.</li>
+</ul>
+</div></p></li>
+<li><p>
+The <code>setState()</code> method is invoked on the <em>state requester</em>; this is the member
+which called <code>JChannel.getState()</code><div class="ulist">
+<ul>
+<li>It needs to read its state from the input stream and set its
+internal state to it.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_state_transfer_sequence_diagram">
+<h2>State transfer sequence diagram</h2>
+<div class="ulist">
+<ul>
+<li><p>
+In a cluster consisting of A, B and C, with D joining the cluster and calling <code>Channel.getState()</code>, the
+following sequence of callbacks happens:<div class="ulist">
+<ul>
+<li>D calls <code>JChannel.getState()</code>. The state will be retrieved from the oldest member, A</li>
+<li>A&#8217;s <code>getState()</code> callback is called. A writes its state to the output stream passed as a
+parameter to <code>getState()</code>.</li>
+<li>D&#8217;s <code>setState()</code> callback is called with an input stream as argument. D reads the state from the
+input stream and sets its internal state to it, overriding any previous data.</li>
+<li>D: <code>JChannel.getState()</code> returns</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_state_transfer_sample_code">
+<h2>State transfer sample code</h2>
+<div class="ulist">
+<ul>
+<li>The following code fragment shows how a group member participates in state transfers:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void getState(OutputStream output) throws Exception {
+    synchronized(state) {
+        Util.objectToStream(state, new DataOutputStream(output));
+    }
+}
+
+public void setState(InputStream input) throws Exception {
+    List&lt;String&gt; list=(List&lt;String&gt;)Util.objectFromStream(new DataInputStream(input));
+    synchronized(state) {
+        state.clear();
+        state.addAll(list);
+    }
+    System.out.println(list.size() + " messages in chat history):");
+    for(String str: list)
+        System.out.println(str);
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>This code is the Chat example from the JGroups tutorial and the state here is a list of strings.</li>
+<li>The <code>getState()</code> implementation synchronizes on the state (so no incoming messages can modify it during
+the state transfer), and uses the JGroups utility method <code>objectToStream()</code>.</li>
+<li>The <code>setState()</code> implementation also uses the <code>Util.objectFromStream()</code> utility method to read the state from
+the input stream and assign it to its internal list.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_state_transfer_protocols">
+<h2>State transfer protocols</h2>
+<div class="ulist">
+<ul>
+<li>In order to use state transfer, a state transfer protocol has to be included in the configuration.
+This can either be <code>STATE_TRANSFER</code>, <code>STATE</code>, or <code>STATE_SOCK</code>.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_leaving_a_cluster">
+<h2>Leaving a cluster</h2>
+<div class="ulist">
+<ul>
+<li>Leaving a cluster is done using the <code>disconnect()</code> method:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void disconnect();</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>It will have no effect if the channel is already in the disconnected or closed state</li>
+<li><p>
+If connected, it will leave the cluster<div class="ulist">
+<ul>
+<li>This is done by sending a leave request to the current coordinator</li>
+<li>The coordinator removes the leaving node from the view and installs a new view in all remaining members</li>
+</ul>
+</div></p></li>
+<li>After a successful disconnect, the channel will be in the unconnected state, and may subsequently be
+reconnected.</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>groovy:000&gt; ch.disconnect();</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_destroying_a_channel">
+<h2>Destroying a channel</h2>
+<div class="ulist">
+<ul>
+<li>To destroy a channel instance (destroy the associated protocol stack, and release all resources),
+method <code>close()</code> is used:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void close();</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Closing a connected channel disconnects the channel first</li>
+<li>The <code>close()</code> method moves the channel to the closed state, in which no further operations are allowed
+(most throw an exception when invoked on a closed channel)</li>
+<li>In this state, a channel is not considered used any longer by an application and&#8201;&#8212;&#8201;when the reference to the instance is reset&#8201;&#8212;&#8201;the channel essentially only lingers around until it gets garbage collected</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>groovy:000&gt; ch.close();</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_lab_chatdemo_writing_a_simple_chat_application">
+<h2>Lab ChatDemo: writing a simple chat application</h2>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+Create a channel
+</li>
+<li>
+<p>Register a ReceiverAdapter with it</p>
+<div class="olist loweralpha">
+<ol class="loweralpha" type="a">
+<li>
+Method <code>receive()</code> prints the received chat message
+</li>
+<li>
+Method <code>viewAccepted()</code> prints the view
+</li>
+</ol>
+</div>
+</li>
+<li>
+Connect the channel
+</li>
+<li>
+<p>In a loop</p>
+<div class="olist loweralpha">
+<ol class="loweralpha" type="a">
+<li>
+Read a line from stdin (<code>Util.readLine(System.in)</code>) and
+</li>
+<li>
+Send a message to all cluster nodes
+</li>
+</ol>
+</div>
+</li>
+<li>
+<p>Extra credits</p>
+<div class="olist loweralpha">
+<ol class="loweralpha" type="a">
+<li>
+Store the last N messages in memory as state and perform a state transfer on startup
+</li>
+<li>
+Expose contents and length of state via JMX
+</li>
+<li>
+Make N configurable via a property "max_history"
+</li>
+</ol>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<div aria-role="navigation">
+<a class="deck-prev-link" href="#" title="Previous">&#8592;</a>
+<a class="deck-next-link" href="#" title="Next">&#8594;</a>
+</div>
+<p aria-role="status" class="deck-status">
+<span class="deck-status-current"></span>
+/
+<span class="deck-status-total"></span>
+</p>
+<form action="." class="goto-form" method="get">
+<label for="goto-slide">Go to Slide:</label>
+<input id="goto-slide" list="goto-datalist" name="slidenum" type="text">
+<datalist id="goto-data-list"></datalist>
+<input type="submit" value="Go">
+</form>
+</div>
+<script src="deck.js/jquery.min.js"></script>
+<script src="deck.js/core/deck.core.js"></script>
+<script src="deck.js/extensions/scale/deck.scale.js"></script>
+<script src="deck.js/extensions/goto/deck.goto.js"></script>
+<script src="deck.js/extensions/menu/deck.menu.js"></script>
+<script src="deck.js/extensions/navigation/deck.navigation.js"></script>
+<script src="deck.js/extensions/status/deck.status.js"></script>
+<script src="deck.js/extensions/toc/deck.toc.js"></script>
+<div class="deck-toc"></div>
+<script>
+  (function($, deck, undefined) {
+    $.deck.defaults.keys['previous'] = [8, 33, 37, 39];
+    $.deck.defaults.keys['next'] = [13, 32, 34, 39];
+  
+    $.extend(true, $[deck].defaults, {
+        countNested: false
+    });
+  
+    $.deck('.slide');
+  })(jQuery, 'deck');
+</script>
+<style>
+  .slide.canvas-image {
+  -moz-background-size: cover;
+  -webkit-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+  display: -moz-box;
+  display: -webkit-box;
+  display: -ms-box;
+  display: box;
+  -moz-box-orient: vertical;
+  -webkit-box-orient: vertical;
+  -ms-box-orient: vertical;
+  box-orient: vertical;
+  -moz-box-align: start;
+  -webkit-box-align: start;
+  -ms-box-align: start;
+  box-align: start;
+  -moz-box-pack: start;
+  -webkit-box-pack: start;
+  -ms-box-pack: start;
+  box-pack: start;}
+  
+  .bottom-left {
+    left: 1%;
+    bottom: 20%; }
+  
+  .top-left {
+    left: 1%;
+    top: 20%; }
+  
+  .bottom-right {
+    right: 1%;
+    bottom: 20%; }
+  
+  .top-right {
+    right: 1%;
+    top: 20%; }
+  
+  .center-up {
+    right: 50%;
+    top: 1%;
+  }
+  
+  .center-down {
+    right: 50%;
+    bottom: 1%;
+  }
+  .canvas-image .canvas-caption p {
+    text-align: center;
+    padding-top: 0;
+    padding: 0;
+    -moz-transform: none;
+    -webkit-transform: none;
+    -o-transform: none;
+    -ms-transform: none;
+    transform: none;
+    display: inline;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    font-weight: bold;
+    font-size: 58px;
+    -webkit-box-shadow: 2px 2px 2px #000;
+    -moz-box-shadow: 2px 2px 2px #000;
+    box-shadow: 2px 2px 2px #000;
+    padding: 1rem;
+    color: white; }
+  kbd.keyseq { color: #555555; }
+  kbd:not(.keyseq) {
+    display: inline-block;
+    color: #222222;
+    font-size: 0.7em;
+    line-height: 1.4;
+    background-color: #F7F7F7;
+    border: 1px solid #ccc;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+    -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    margin: -0.15em 0.15em 0 0.15em;
+    padding: 0.2em 0.6em;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  kbd kbd:first-child { margin-left: 0; }
+  kbd kbd:last-child { margin-right: 0; }
+</style>
+</body>
+</html>

@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+<meta content="Asciidoctor 1.5.0" name="generator">
+<meta content="Bela Ban belaban@yahoo.com" name="author">
+<title>Advanced topics</title>
+<link href="deck.js/core/deck.core.css" rel="stylesheet">
+<link href="deck.js/extensions/scale/deck.scale.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/goto/deck.goto.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/menu/deck.menu.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/navigation/deck.navigation.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/status/deck.status.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/toc/deck.toc.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/style/web-2.0.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/transition/fade.css" media="screen" rel="stylesheet">
+<link href="deck.js/core/print.css" media="print" rel="stylesheet">
+<script src="deck.js/modernizr.custom.js"></script>
+</head>
+<body class="article">
+<div class="deck-container">
+<section class="slide" id="title-slide">
+<h1>Advanced topics</h1>
+<span id="author">Bela Ban belaban@yahoo.com</span>
+<br>
+</section>
+<section class="slide" id="_message_flags">
+<h2>Message flags</h2>
+<div class="ulist">
+<ul>
+<li>Message flags are used to override default behavior provided by the protocols in a stack</li>
+<li><p>
+Examples:<div class="ulist">
+<ul>
+<li>Mark a message as OOB (out-of-band) to deliver multiple messages from the same sender concurrently</li>
+<li>Skip the flow control protocols</li>
+</ul>
+</div></p></li>
+<li>The advantage of tagging messages is that we don&#8217;t need to change the configuration, but instead
+can override it on a per-message basis.</li>
+<li>API:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public Message setFlag(Flag ... flags);</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Example:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">Message msg=new Message(null, "hello").setFlag(Message.Flag.OOB).name("A");</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_provided_message_flags">
+<h2>Provided message flags</h2>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">Message.OOB</dt>
+<dd>
+<p>Marks a message as <em>out-of-band</em>. OOB messages don&#8217;t not provide any ordering guarantees,
+although they&#8217;re are reliable (no loss) and are delivered only once.</p>
+</dd>
+<dt class="hdlist1">Message.DONT_BUNDLE</dt>
+<dd>
+<p>Causes the transport not to bundle the message, but to send it immediately.</p>
+</dd>
+<dt class="hdlist1">Message.NO_FC</dt>
+<dd>
+<p>Bypasses any flow control protocols.</p>
+</dd>
+<dt class="hdlist1">Message.NO_RELIABILITY</dt>
+<dd>
+<p>Bypasses reliable protocols; makes the message unreliable. An unreliable message has no
+ordering constraints, may get dropped or delivered multiple times.</p>
+</dd>
+<dt class="hdlist1">Message.NO_TOTAL_ORDER</dt>
+<dd>
+<p>If we use a total order configuration with <code>SEQUENCER</code>, then we
+can bypass <code>SEQUENCER</code> (if we don&#8217;t need total order for a given message) by tagging the message
+with <code>NO_TOTAL_ORDER</code>.</p>
+</dd>
+<dt class="hdlist1">Message.RSVP</dt>
+<dd>
+<p>When this flag is set, a message send will block until the receiver (unicast) or receivers
+(multicast) have acked reception of the message, or until a timeout occurs.</p>
+</dd>
+<dt class="hdlist1">Message.DONT_LOOPBACK</dt>
+<dd>
+<p>When set, a message is multicast, but not looped back up the stack.
+Useful when a sender doesn&#8217;t want to receive its own multicast.<br>
+Note that this is a <em>transient flag</em>, so <code>Message.setTransientFlag()</code> has
+to be used instead of <code>Message.setFlag()</code></p>
+</dd>
+</dl>
+</div>
+</section>
+<section class="slide" id="_regular_and_oob_messages">
+<h2>Regular and OOB messages</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Regular messages are ordered as follows<div class="ulist">
+<ul>
+<li>Messages from sender P are delivered sequentially, in the order in which P sent them</li>
+<li><p>
+Messages from different senders are delivered in parallel<div class="ulist">
+<ul>
+<li>When P sends P1 &#8594; P2 &#8594; P3, P1 is delivered first, then P2, then P3</li>
+<li>P3 has to wait until both P1 and P2 have been processed</li>
+<li><p>
+Messages from sender Q are delivered in parallel to P&#8217;s messages<div class="ulist">
+<ul>
+<li>Make sure your <code>receive()</code> callback is reentrant</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li><p>
+However, <em>OOB messages</em> completely ignore any ordering constraints of the stack<div class="ulist">
+<ul>
+<li>A message marked as OOB is processed by the OOB thread pool, not the regular thread pool (see below)</li>
+<li><p>
+When P sends P1 &#8594; P2 &#8594; P3, then all 3 messages are delivered randomly (but only once !)<div class="ulist">
+<ul>
+<li>Whether all 3 messages are really delivered in parallel also depends on the config of the OOB thread pool</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_the_transport">
+<h2>The transport</h2>
+<div class="ulist">
+<ul>
+<li>Bottom most protocol in the stack</li>
+<li>Serializes messages and sends them as UDP datagram packets, or over a TCP connection</li>
+<li>Receives packets and de-serializes them into messages, which are then passed up the stack</li>
+<li><p>
+4 thread pools for handling of incoming messages<div class="olist arabic">
+<ol class="arabic">
+<li>
+Regular thread pool
+</li>
+<li>
+OOB thread pool
+</li>
+<li>
+Internal thread pool
+</li>
+<li>
+Timer thread pool
+</li>
+</ol>
+</div></p></li>
+<li>All thread pools can be configured (e.g. min/max threads)</li>
+<li>The thread pools can be replaced with custom thread pools</li>
+<li>The thread factories can also be replaced</li>
+<li>The transport also manages all sockets (UDP or TCP)</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_available_transports">
+<h2>Available transports</h2>
+<div class="ulist">
+<ul>
+<li>Currently <code>UDP</code> and <code>TCP</code></li>
+<li><p>
+UDP uses <em>IP multicasting</em><div class="ulist">
+<ul>
+<li><p>
+A message to N cluster nodes is sent <strong>once</strong>, as a datagram packet to a multicast (class D) address<div class="ulist">
+<ul>
+<li>Class D addresses: <code>224.0.0.1</code> - <code>239.255.255.255</code> (<code>224.0.0.x</code> reserved for host / router pings)</li>
+</ul>
+</div></p></li>
+<li>The switch copies the packet to all ports which have multicast group members</li>
+<li>This can be turned off by setting <code>ip_mcast</code> to <code>false</code> in <code>UDP</code></li>
+</ul>
+</div></p></li>
+<li><p>
+TCP uses N-1 TCP connections; 1 connection per destination<div class="ulist">
+<ul>
+<li><p>
+A message to N cluster nodes is sent <strong>N-1 times</strong><div class="ulist">
+<ul>
+<li>This generates a lot of traffic</li>
+<li>1 thread per connection</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li><p>
+Recommendation: don&#8217;t use TCP for large clusters, or clusters with a lot of traffic<div class="ulist">
+<ul>
+<li><p>
+But: I&#8217;ve run a 1000 node TCP cluster on Google Compute Engine&#8230;&#8203; :-)<div class="ulist">
+<ul>
+<li><a class="bare" href="http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html">http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html</a></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_the_transport_2">
+<h2>The transport</h2>
+<div class="imageblock" style="text-align: left">
+<div class="content">
+<img alt="The transport" src="../images/Transport.png" width="60%">
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>UDP: 1 receiver thread for unicast datagram packets, 1 thread for multicast packets</li>
+<li><p>
+TCP: 1 thread per connection model; ie. in a 100 node cluster, we have 99 connection receiver threads in a node<div class="ulist">
+<ul>
+<li>In 4.0, NIO.2 will be used to manage all TCP connections with a configurable pool of threads</li>
+</ul>
+</div></p></li>
+<li><p>
+A receiver thread receives a network packet and - depending on the type - passes it to the right thread pool<div class="ulist">
+<ul>
+<li><p>
+The pool performs<div class="ulist">
+<ul>
+<li>Version checking (drops packets with different version)</li>
+<li>Deserializes the buffer into a <code>Message</code></li>
+<li>Passes the message (or message batch) up through the protocol stack all the way to the channel</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_thread_pools">
+<h2>Thread pools</h2>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">Regular</dt>
+<dd>
+<p>Handles regular messages (non-OOB, non-internal)</p>
+</dd>
+<dt class="hdlist1">OOB</dt>
+<dd>
+<p>Handles OOB messages</p>
+</dd>
+<dt class="hdlist1">Internal</dt>
+<dd>
+<p>Handles <code>INTERNAL</code> messages. Reserved for use by JGroups. Needed to deliver some important messages by
+JGroups protocols (e.g. heartbeats in failure detection), without potentially blocking on user messages.</p>
+</dd>
+<dt class="hdlist1">Timer</dt>
+<dd>
+<p>Used to execute tasks (periodic or one-time), e.g. retransmission, expiry of connection pools, stability etc</p>
+</dd>
+</dl>
+</div>
+</section>
+<section class="slide" id="_processing_regular_messages">
+<h2>Processing regular messages</h2>
+<div class="imageblock">
+<div class="content">
+<img alt="Regular thread pool" src="../images/RegularThreadPool.png" width="100%">
+</div>
+</div>
+</section>
+<section class="slide" id="_processing_oob_messages">
+<h2>Processing OOB messages</h2>
+<div class="imageblock">
+<div class="content">
+<img alt="OOB thread pool" src="../images/OOBThreadPool.png" width="100%">
+</div>
+</div>
+</section>
+<section class="slide" id="_configuration_of_thread_pools">
+<h2>Configuration of thread pools</h2>
+<div class="ulist">
+<ul>
+<li>All pools need to implement <code>java.util.concurrent.Executor</code> and the default implementations use
+<code>java.util.concurrent.ThreadPoolExecutor</code></li>
+<li>The configuration of a thread pool is done with properties of the form &lt;pool_name&gt;.&lt;attr&gt;,
+e.g. <code>oob_thread_pool.min_threads</code>. The pool names are <code>thread_pool</code> (regular), <code>oob_thread_pool</code>, <code>internal</code> and
+<code>timer</code></li>
+<li>The following attributes are used:</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">enabled</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">If false, the thread pool is not enabled: when a message is received, it is passed up the stack by the receiver thread</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">min_threads</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The min number of threads</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">max_threads</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The max number of threads</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">keep_alive_time</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Time (ms) after which an idle thread should be returned to the pool</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">queue_enabled</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Whether or not a thread pool should have a queue enabled</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">queue_max_size</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The max size of a queue (if enabled)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">rejection_policy</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The rejection policy. One of <code>run</code>, <code>discard</code>, <code>discardoldest</code> or <code>abort</code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="slide" id="_thread_pool_behavior">
+<h2>Thread pool behavior</h2>
+<div class="ulist">
+<ul>
+<li>Semantics are the same as for <code>ThreadPoolExecutor</code>: on submission of a task:</li>
+<li>If we have fewer than <code>min_threads</code> &#8594; create an additional thread</li>
+<li><p>
+Else:<div class="ulist">
+<ul>
+<li>If a queue is enabled and not full &#8594; queue the task</li>
+<li>Else create an additional thread if we&#8217;re below <code>max_threads</code></li>
+</ul>
+</div></p></li>
+<li><p>
+If the queue is full (or disabled) or we&#8217;ve reached <code>max_threads</code> and all threads are busy &#8594; consult the rejection policy<div class="dlist">
+<dl>
+<dt class="hdlist1">run</dt>
+<dd>
+<p>Pass the message up on the receiver&#8217;s thread. If there&#8217;s a risk that the thread might block, or take a long time,
+this hampers the ability of the receiver to quickly remove packets and might thus lead to queue overflow
+(or a 0 TCP write window, <em>blocking the sender</em>)</p>
+</dd>
+<dt class="hdlist1">discard</dt>
+<dd>
+<p>Discard the message. JGroups retransmission will later retransmit the message, but dropping a message is
+good as it tells the sender to slow down a bit (via the flow control protocols)</p>
+</dd>
+<dt class="hdlist1">abort</dt>
+<dd>
+<p>same as discard, but throw an exception</p>
+</dd>
+<dt class="hdlist1">discardoldest</dt>
+<dd>
+<p>Discards the oldest message first</p>
+</dd>
+</dl>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_thread_pool_use">
+<h2>Thread pool use</h2>
+<div class="ulist">
+<ul>
+<li><p>
+An OOB message uses 1 thread which passes it all the way up to the channel and to the application (see Transport)<div class="ulist">
+<ul>
+<li>If the application sends another message (or invokes an RPC) <em>on the same thread</em>, that incoming thread can be
+busy for quite a while</li>
+</ul>
+</div></p></li>
+<li><p>
+A regular message is passed up to the reliable protocol (either NAKACK for mcasts or UNICAST for unicasts)<div class="ulist">
+<ul>
+<li>The message is then added to a table</li>
+<li>If there&#8217;s no other thread busy removing messages from the table &#8594; Set a CAS and
+remove as many messages as possible and pass them up</li>
+<li>Else return (thread is ready to process other messages)</li>
+<li>Most threads will only add their message (or message batch) to the table and return</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_recommended_configs">
+<h2>Recommended configs</h2>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Pool</th>
+<th class="tableblock halign-left valign-top">Recommendation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OOB</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No queue &#8594; OOB messages are executed on a thread or dropped.<br>
+Set <code>min_size</code> to a small size (more threads are created if needed), <code>max_size</code> should be higher than the max number of OOB messages received
+at any given time</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Regular</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Queue is enabled and quite large, to handle message peaks.<br>
+Set <code>min_size</code> to the number of cluster nodes plus a few more (D), <code>max_size</code> to a slightly higher value.<br>
+In a cluster of N, we never have more than N threads passing messages up, so we need D additional threads to
+handle all other regular messages and add them to the retransmission tables. This is quick so D can be small.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Internal</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Leave the default config (min=2,max=4), don&#8217;t touch</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Timer</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Defaults (min=2,max=4,small queue) should be sufficient</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="slide" id="_lab_advanced_1">
+<h2>Lab: advanced 1</h2>
+<div class="ulist">
+<ul>
+<li>Run one instance of <code>bin/advanced.sh</code></li>
+<li>Press <code>[1] start</code></li>
+<li>The first RPC takes 1s, the second 2s, then 3s, 4s, 5s.</li>
+<li><strong>All subsequent RPCs take 5s. Why ?</strong></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_explanation_1">
+<h2>Explanation 1</h2>
+<div class="ulist">
+<ul>
+<li><code>min=2</code>, <code>max=8</code>, large queue: we will always only have 2 threads handling incoming messages</li>
+<li>5 threads are invoking <em>blocking RPCs</em>: max of 5 incoming requests at any time</li>
+<li><p>
+Thread-1:<div class="ulist">
+<ul>
+<li>Takes message A1 and adds it to table-A in <code>NAKACK2</code></li>
+<li>Nobody&#8217;s currently delivering messages in table-A, so thread-1 removes A1 from table-A and delivers it &#8594; sleeps 1s in app code</li>
+<li>When done, thread-2 (below) already added more messages, so thread-1 removes and delivers all other messages in turn</li>
+</ul>
+</div></p></li>
+<li><p>
+Thread-2<div class="ulist">
+<ul>
+<li>Takes A2 and adds it to table-A</li>
+<li>Sees that thread-1 is already delivering messages, so thread-2 returns and takes the next message</li>
+<li>All other 3 messages are added to table-A by thread-2 <em>before thread-1 returns</em></li>
+</ul>
+</div></p></li>
+<li>Regular messages from the same sender are delivered in the order in which they were sent</li>
+<li>Message <code>A5</code> sent by a sender thread in A has to wait until messages <code>A1</code> - <code>A4</code> have been delivered: takes 4 * 1s</li>
+<li>To dump the messages in the table:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>probe.sh  jmx=NAKACK2.xmit_table_undelivered</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_possible_fixes">
+<h2>Possible fixes</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Fix 1: use OOB messages (see below)<div class="ulist">
+<ul>
+<li>Press <code>'o'</code> to switch to <code>OOB</code> RPCs</li>
+<li>Each message now takes 1s to process</li>
+<li>However, messages are delievered in random order (no FIFO-per-sender anymore)</li>
+</ul>
+</div></p></li>
+<li><p>
+Fix 2: use the asynchronous invocation API (see below)<div class="ulist">
+<ul>
+<li>Reduced thread use in the regular and OOB pools, but more use of the application&#8217;s thread pool</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_lab_advanced_2">
+<h2>Lab: advanced 2</h2>
+<div class="ulist">
+<ul>
+<li>Run 3 instances of <code>bin/advanced.sh</code></li>
+<li>Start all of them</li>
+<li><strong>RPCs take more than 5s. Why ?</strong></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_explanation_2">
+<h2>Explanation 2</h2>
+<div class="ulist">
+<ul>
+<li>We only have 2 threads handling 15 incoming messages</li>
+<li>The 2 processing threads are almost always stuck in <code>sleep()</code></li>
+<li>The other (13) messages are added to the queue &#8594; which is growing:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep regular
+UDP={regular_queue_size=23, regular_pool_size_active=2, regular_pool_size=2}
+UDP={regular_queue_size=25, regular_pool_size_active=2, regular_pool_size=2}
+UDP={regular_queue_size=22, regular_pool_size_active=2, regular_pool_size=2}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+Sender could be starved for processing, e.g. if we have a queue: <code>A1</code> &#8594; <code>A2</code> &#8594; <code>B1</code> &#8594; <code>A3</code> &#8594; <code>A4</code> &#8594; <code>B2</code> &#8594; <code>C1</code>:<div class="ulist">
+<ul>
+<li>(Thread T1 and T2)</li>
+<li>Sec 1: <code>A1</code> is processed by T1, <code>A2</code> is added to table-A by T2, <code>B1</code> is processed by T2</li>
+<li>Sec 2: <code>A2</code> is processed by T1, <code>A3</code> and <code>A4</code> are added to table-A by T2, <code>B2</code> is processed by T2</li>
+<li>Sec 3: <code>A3</code> is processed by T1, <code>C1</code> is processed by T2</li>
+<li>Sec 4: <code>A4</code> is processed by T1</li>
+</ul>
+</div></p></li>
+<li><code>C1</code> starts processing after ~ 2 s</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_possible_fixes_2">
+<h2>Possible fixes</h2>
+<div class="ulist">
+<ul>
+<li>Same as in lab 1</li>
+<li>Increase <code>UDP.thread_pool.min_threads</code> to 4 (in the running system, or the config, but the latter requires a restart):</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>probe.sh op=UDP.setThreadPoolMinThreads[4]</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+3 threads are busy processing <code>sleep()</code><div class="ulist">
+<ul>
+<li>1 thread takes all other incoming messages and adds them to the respective tables</li>
+</ul>
+</div></p></li>
+<li><p>
+Downside: this will increase the tables sizes<div class="ulist">
+<ul>
+<li>Resulting queue and pool sizes:</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep UDP
+UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
+UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
+UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>The block times are now back to 5s</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_lab_advanced_3">
+<h2>Lab: advanced 3</h2>
+<div class="ulist">
+<ul>
+<li>Run 3 instances of <code>bin/advanced.sh</code></li>
+<li>Start all of them</li>
+<li>Press <code>[o]</code> to use <code>OOB</code> RPCs</li>
+<li><strong>RPCs take more then 1s. Why?</strong></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_explanation_3">
+<h2>Explanation 3</h2>
+<div class="ulist">
+<ul>
+<li><p>
+The OOB thread is configured as follows: <code>min=1</code>, <code>max=8</code>, no queue<div class="ulist">
+<ul>
+<li>Will create up to 8 threads to handle the 15 incoming messages</li>
+<li>8 threads are almost always in <code>sleep()</code></li>
+<li><p>
+The other 7 messages are discarded (<code>rejection_policy="discard"</code>)<div class="ulist">
+<ul>
+<li>They will get retransmitted</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.oob_pool,oob_queue|grep UDP
+UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=8}
+UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
+UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Retransmit requests:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>mac] /Users/bela/JGroups$ probe.sh jmx=NAKACK2.xmit_r|grep xmit_r
+NAKACK2={xmit_rsps_sent=11, xmit_reqs_received=11, xmit_rsps_received=7, xmit_reqs_sent=8}
+NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=9, xmit_reqs_sent=10}
+NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=13, xmit_reqs_sent=13}</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_possible_fixes_3">
+<h2>Possible fixes</h2>
+<div class="ulist">
+<ul>
+<li>Increase <code>UDP.oob_thread_pool.max_size</code> to 15:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>probe.sh op=UDP.setOOBThreadPoolMaxThreads[15]</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Now each request takes ~ 1s again</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_asynchronous_invocation_api">
+<h2>Asynchronous invocation API</h2>
+<div class="ulist">
+<ul>
+<li>A method invoked in an RpcDispatcher is dispatched to application code
+by calling method handle from <code>RequestHandler</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface RequestHandler {
+    Object handle(Message msg) throws Exception;
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>In the case of RpcDispatcher, the <code>handle()</code> method converts the message&#8217;s contents into a method call,
+invokes the method against the target object and returns the result (or throws an exception). The return value
+is then sent back to the sender of the message.</li>
+<li>The invocation is <em>synchronous</em>, ie. done on the thread responsible for dispatching this
+particular message from the network up the stack all the way into the application. The thread is therefore
+<em>busy</em> for the duration of the method invocation.</li>
+<li>If the invocation takes a while, e.g. because locks are acquired or the application waits on some I/O,
+another thread will be used for a different request. This can quickly lead to the thread pool being
+exhausted or many messages getting queued if the pool has an associated queue.</li>
+<li>Therefore a new way of dispatching messages to the application was devised; the asynchronous invocation API</li>
+<li>A new interface <code>AsyncRequestHandler</code> (derived from <code>RequestHandler</code>) is introduced</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_asyncrequesthandler">
+<h2>AsyncRequestHandler</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface AsyncRequestHandler extends RequestHandler {
+    void handle(Message request, Response response) throws Exception;
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><code>AsyncRequestHandler</code> adds an additional method taking a request message and a <code>Response</code> object.</li>
+<li>The request message contains the same information as before (e.g. a method call plus args)</li>
+<li><code>Response</code> is used to send a reply at a later time, when processing is done.</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface Response {
+    void send(Object reply, boolean is_exception);
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><code>Response</code> has information about the request (e.g. request ID and sender), and has method <code>reply()</code> to
+send a response. The <code>is_exception</code> parameter should be true if the reply is an exception, e.g.
+was thrown when <code>handle()</code> ran application code.</li>
+<li>The advantage of the new API is that it can be used asynchronously. The default
+implementation uses a synchronous invocation:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void handle(Message request, Response response) throws Exception {
+    Object retval=handle(request);
+    if(response != null)
+        response.send(retval, false);
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Method <code>handle()</code> synchronously calls into application code and returns a result, which is
+sent back to the sender of the request.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_use_of_the_asynchronous_invocation_api">
+<h2>Use of the asynchronous invocation API</h2>
+<div class="ulist">
+<ul>
+<li>An application can subclass <code>RpcDispatcher</code>, or it can set a custom request handler via
+<code>setRequestHandler()</code>, and implement <code>AsyncRequestHandler.handle()</code> by
+dispatching the processing to a thread pool.</li>
+<li>The thread handling the request from will immediately be released and can be used to process other messages.</li>
+<li>The response will be sent when the invocation of application code is done, and thus the thread is not blocked
+on I/O, or trying to acquire locks or anything else that blocks in application code.</li>
+<li>To set the mode which is used, method <code>RpcDispatcher.asyncDispatching(boolean)</code> can be used. This can be
+changed even at runtime, to switch between sync and async invocation style.</li>
+<li>Asynchrounous invocation is typically used in conjunction with an <em>application thread pool</em>. The application
+knows (JGroups doesn&#8217;t) which requests can be processed in parallel and which ones can&#8217;t.</li>
+<li>Benefit: request dispatching (and ordering !) is now under application control</li>
+<li><p>
+Example of where asynchronous invocation makes sense: replicated web sessions<div class="ulist">
+<ul>
+<li>If a cluster node A has 1000 web sessions, then replication of updates across the cluster generates messages from A.</li>
+<li>Because JGroups delivers messages from the <em>same</em> sender <em>sequentially</em>, even
+updates to unrelated web sessions are delivered in strict order.</li>
+<li><p>
+With asynchronous invocation, the application could devise a dispatching strategy which assigns updates to
+different (unrelated) web sessions to any available thread from the pool, but queues updates to the same
+session, and processes those by the same thread, to provide ordering of updates to the same session.<div class="ulist">
+<ul>
+<li>This would speed up overall processing, as updates to a web session 1 on A don&#8217;t have to wait until all
+updates to an unrelated web session 2 on A have been processed.</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_lab_advanced_4">
+<h2>Lab: advanced 4</h2>
+<div class="ulist">
+<ul>
+<li>Run <code>bin/advanced.sh -use_async_handler</code></li>
+<li><p>
+Run <code>jconsole</code> and observe attributes of <code>advanced:advanced-obj</code><div class="ulist">
+<ul>
+<li>Alternative: <code>probe.sh adv</code></li>
+<li>The app-thread-pool&#8217;s size is 5</li>
+<li>Note that the regular thread pool&#8217;s size is 0 !</li>
+</ul>
+</div></p></li>
+<li><p>
+So what happened ?<div class="ulist">
+<ul>
+<li>The thread delivering a message returns immediately because the <code>AsyncRequestHandler</code> processes the message in a
+separate thread</li>
+<li><p>
+JGroups considers <em>returning</em> as delivered<div class="ulist">
+<ul>
+<li>This allows the thread to grab the next message</li>
+</ul>
+</div></p></li>
+<li>The caller still blocks until it receives the response</li>
+<li>Note that the order of messages is now defined by the application thread pool</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_message_batching">
+<h2>Message batching</h2>
+<div class="ulist">
+<ul>
+<li><p>
+For historic reasons, term message <em>bundling</em> is used on the sender, <em>batching</em> on the receiver<div class="ulist">
+<ul>
+<li>Let&#8217;s use the term <em>batching</em> only</li>
+</ul>
+</div></p></li>
+<li><p>
+When sending many smaller messages, it is better to queue them and send them as a <em>message batch</em><div class="ulist">
+<ul>
+<li>Payload / header ratio is better (e.g. payload of 5, header of 30 !)</li>
+</ul>
+</div></p></li>
+<li>Simple sender algorithm:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>LOOP(while there are messages pending for destination D):
+    - If the message batch size for D is &lt; max bundle size: add the message to the batch
+    - Else: send the batch, create a new batch for D and add the message
+ENDLOOP
+- Send batch if size &gt; 0</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>This collects many messages into a batch until the <code>max_bundle_size</code> has been reached, but sends individual messages
+immediately</li>
+<li>E.g. message P1-5 are sent at time T1, and P6 at time T20: this create a batch for P1-5 and a single message for P6</li>
+<li>Message batching can be overridden with flag <code>DONT_BUNDLE</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_message_batching_on_the_receiver">
+<h2>Message batching on the receiver</h2>
+<div class="ulist">
+<ul>
+<li>On the receiver, we create instances of <code>MessageBatch</code> for batches (one for each destination) and pass the batches
+up rather than the individual messages</li>
+<li><p>
+Advantages:<div class="ulist">
+<ul>
+<li>Multiple messages can be processed in one go</li>
+<li>Locks are acquired once for a batch (say of 10) rather than 10 times &#8594; less context switching</li>
+<li><code>NAKACK</code> / <code>UNICAST</code>: add N messages into the retransmission table <strong>in one step</strong> rather than <strong>N steps</strong></li>
+<li>The destination and sender addresses are sent <strong>only once rather than N times</strong></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_sending_messages_synchronously_rsvp">
+<h2>Sending messages synchronously (RSVP)</h2>
+<div class="ulist">
+<ul>
+<li><p>
+While JGroups guarantees that a message will eventually be delivered at all non-faulty members,
+sometimes this might take a while<div class="ulist">
+<ul>
+<li>We don&#8217;t know when a message has been delivered at all nodes</li>
+</ul>
+</div></p></li>
+<li><p>
+This can be changed by setting flag <code>Message.RSVP</code> in a message<div class="ulist">
+<ul>
+<li>The send blocks until all members have acknowledged reception (or delivery) of the message
+(excluding members which crashed or left meanwhile).</li>
+</ul>
+</div></p></li>
+<li><p>
+If we send an <code>RSVP</code> tagged message, then - when <code>send()</code> returns - we&#8217;re guaranteed that all messages
+sent <em>before</em> will have been delivered at all members as well<div class="ulist">
+<ul>
+<li>If P sends messages 1-10, and marks 10 as <code>RSVP</code>, then, upon <code>JChannel.send()</code> returning,
+P knows that all members received messages 1-10 from P.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+<div class="paragraph"><p>NOTE:
+Since RSVP&#8217;ing a message is costly, and might block the sender for a while, it should be
+used sparingly. For example, when completing a unit of work (ie. member P sending N messages), and
+P needs to know that all messages were received by everyone, before sending other messages.</p></div>
+</section>
+<section class="slide" id="_configuration_and_use">
+<h2>Configuration and use</h2>
+<div class="ulist">
+<ul>
+<li>To use RSVP, two things have to be done:</li>
+<li>First, the <code>RSVP</code> protocol has to be in the config, somewhere above the reliable transmission
+protocols such as <code>NAKACK</code> or <code>UNICAST</code>, e.g.:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;config&gt;
+    &lt;UDP/&gt;
+    &lt;pbcast.NAKACK2 /&gt;
+    &lt;UNICAST3 /&gt;
+    ...
+    &lt;RSVP /&gt;
+&lt;/config&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Secondly, the message we want to get ack&#8217;ed must be marked as <code>RSVP</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">Message msg=new Message(null, "hello world").setFlag(Message.RSVP);
+ch.send(msg);</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+Method <code>send()</code> returns as soon as it has received acks from all current members<div class="ulist">
+<ul>
+<li>If there are 4 members A, B, C and D, and A has received acks from itself, B and C,
+but D&#8217;s ack is missing and D crashes before the timeout kicks in, then this will
+nevertheless make <code>send()</code> return, as if D had actually sent an ack.</li>
+</ul>
+</div></p></li>
+<li><p>
+If the <code>timeout</code> property is greater than 0, and we don&#8217;t receive all acks within
+<code>timeout</code> milliseconds, a <code>TimeoutException</code> will be thrown (if <code>RSVP.throw_exception_on_timeout</code> is true)<div class="ulist">
+<ul>
+<li>The application can choose to catch this (runtime) exception and do something with it, e.g. retry.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_non_blocking_rsvp">
+<h2>Non blocking RSVP</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Sometimes a sender wants a given message to be resent until it has been received, or a timeout occurs, but doesn&#8217;t
+want to block. As an example, <code>RpcDispatcher.callRemoteMethodsWithFuture()</code> needs to return immediately, even
+if the results aren&#8217;t available yet.<div class="ulist">
+<ul>
+<li>If the call options contain flag <code>RSVP</code>, then the future would only be returned once all responses have been
+received. This is clearly undesirable behavior.</li>
+</ul>
+</div></p></li>
+<li>To solve this, flag <code>RSVP_NB</code> (non-blocking) can be used. This has the same behavior as <code>RSVP</code>, but the caller is not
+blocked by the RSVP protocol. When a timeout occurs, a warning message will be logged, but since the caller doesn&#8217;t
+block, the call won&#8217;t throw an exception.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_generating_custom_addresses">
+<h2>Generating custom addresses</h2>
+<div class="ulist">
+<ul>
+<li>Address generation is pluggable: an application can define what kind of
+addresses it uses. The default address type is <code>UUID</code>, and since some protocols use UUID, it is
+recommended to provide custom classes as <em>subclasses of UUID</em>.</li>
+<li>This can be used to pass additional data around with an address, for example information
+about the location of the node to which the address is assigned</li>
+<li>To use custom addresses, an implementation of <code>org.jgroups.stack.AddressGenerator</code>
+has to be written:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface AddressGenerator {
+    Address generateAddress();
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>For any class <code>CustomAddress</code>, it will need to get registered with <code>ClassConfigurator</code> in
+order to marshal it correctly:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">class CustomAddress extends UUID {
+    static {
+        ClassConfigurator.add((short)8900, CustomAddress.class);
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph"><p>NOTE:
+The ID should be chosen such that it doesn&#8217;t collide with any IDs defined in <code>jg-magic-map.xml</code>.</p></div>
+<div class="ulist">
+<ul>
+<li>Set the address generator in <code>JChannel: addAddressGenerator(AddressGenerator)</code>. This has to
+be done <em>before</em> the channel is connected.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_controlling_view_generation">
+<h2>Controlling view generation</h2>
+<div class="ulist">
+<ul>
+<li>View generation is pluggable; application code can be called to determine how a new view is created</li>
+<li><p>
+The first member of a view is always the <em>coordinator</em><div class="ulist">
+<ul>
+<li>The application can therefore pick the coordinator</li>
+<li><p>
+Useful to<div class="ulist">
+<ul>
+<li>Pin the coordinatorship to only certain <em>beefy</em> servers</li>
+<li>Make sure that only one of the previous coordinators becomes the new coordinator after a merge. This
+reduces the frequency at which the coordinator moves around and thus increases stability for
+singleton services (services which are started only on one node in a given cluster).</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>To do this, interface <code>MembershipChangePolicy</code> has to be implemented</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface MembershipChangePolicy {
+    List&lt;Address&gt; getNewMembership(Collection&lt;Address&gt; current_members,
+                                   Collection&lt;Address&gt; joiners,
+                                   Collection&lt;Address&gt; leavers,
+                                   Collection&lt;Address&gt; suspects);
+    List&lt;Address&gt; getNewMembership(Collection&lt;Collection&lt;Address&gt;&gt; subviews);
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>The first method is called to create a regular view: <code>current_members</code> is a list of the current members, <code>joiners</code>
+of new members, <code>leavers</code> of members which want to leave and <code>suspects</code> of members which have crashed</li>
+<li>The second method accepts a list of membership lists; each list is a subview that needs to get
+merged into a new <code>MergeView</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_generating_a_mergeview">
+<h2>Generating a MergeView</h2>
+<div class="ulist">
+<ul>
+<li>For example, we could have <code>{A,B,C}</code>, <code>{M,N,O,P}</code> and <code>{X,Y,Z}</code>:</li>
+<li>A, M and X are the respective coordinators of the subviews and the task of the code
+is to determine the <em>single coordinator</em> of the merged view.</li>
+<li><p>
+The default implementation<div class="ulist">
+<ul>
+<li>adds all subview coordinators to a sorted set,</li>
+<li>takes the first (say M), adds it to the resulting list and then</li>
+<li>adds the subviews in turn.</li>
+</ul>
+</div></p></li>
+<li>This could result in a MergeView like <code>{M,A,B,C,N,O,P,X,Y,Z}</code>.</li>
+<li><p>
+Ordering and duplicate elements<div class="ulist">
+<ul>
+<li>In both regular and merge views, it is important that there are <em>no duplicate members</em>. It is
+possible to get overlapping subviews in the case of a merge, for instance:
+<code>{A,B,C}</code>, <code>{C,D}</code> and <code>{C,D}</code>. This <em>cannot</em>
+result in C or D being present in the resulting merge view multiple times.</li>
+</ul>
+</div></p></li>
+<li><p>
+A <code>MembershipChangePolicy</code> can be set in <code>GMS</code> via property <code>membership_change_policy</code>,
+which accepts the fully qualified classname of the implementation of <code>MembershipChangePolicy</code>.<div class="ulist">
+<ul>
+<li>There is also a setter <code>setMembershipChangePolicy()</code> which can be used to set the change policy programmatically</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_sample_view_generation">
+<h2>Sample view generation</h2>
+<div class="ulist">
+<ul>
+<li>The following example shows how to pin coordinatorship to a certain subset of nodes in a cluster.</li>
+<li>Beefy nodes need to be marked as such, and this is done by using a special address, generated by an
+<code>AddressGenerator</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">if(beefy)
+    channel.setAddressGenerator(new AddressGenerator() {
+        public Address generateAddress() {
+            return ExtendedUUID.randomUUID(channel.getName());
+        }
+    });
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>First we check if the node that&#8217;s started needs to be marked as beefy. If so, we grab the current channel
+and set an <code>AddressGenerator</code> which creates an <code>ExtendedUUID</code>.</li>
+<li>The <code>MembershipChangePolicy</code> now knows if a node is beefy by checking if the node&#8217;s
+address is an <code>ExtendedUUID</code>.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_a_sample_membershipchangepolicy">
+<h2>A sample MembershipChangePolicy</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public List&lt;Address&gt; getNewMembership(Collection&lt;Address&gt; current_members,
+                                      Collection&lt;Address&gt; joiners,
+                                      Collection&lt;Address&gt; leavers,
+                                      Collection&lt;Address&gt; suspects) {
+    Membership retval=new Membership();
+    for(Address addr: current_members)
+        if(addr instanceof ExtendedUUID)
+            retval.add(addr);
+    for(Address addr: joiners)
+        if(addr instanceof ExtendedUUID)
+            retval.add(addr);
+    retval.add(current_members).add(joiners);
+    retval.remove(leavers).remove(suspects);
+    return retval.getMembers();
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Beefy servers are at the head of a view. When a new beefy server joins, it should <em>not</em> become the new
+coordinator if the current coordinator already <em>is</em> a beefy server, but add itself to the end of the beefy
+servers, ahead of non-beefy servers.</li>
+<li>First we create a <code>Membership</code>, which is an ordered list without duplicates. Then we iterate through
+the current membership and add the beefy servers to the list, followed by the beefy joiners.</li>
+<li>After that, we add all other current members and joiners and remove suspected and leaving members.</li>
+<li><p>
+Effect: while there are beefy servers in a view, the oldest beefy server will be the coordinator,
+then the second-oldest and so on.<div class="ulist">
+<ul>
+<li>When no beefy servers are available, the oldest non-beefy server will be coordinator.</li>
+<li>When a beefy server joins again, it will become coordinator, taking the coordinatorship away from the
+previous non-beefy server.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_fork_channels">
+<h2>Fork channels</h2>
+<div class="ulist">
+<ul>
+<li><p>
+A fork channel is a light-weight channel, forked off of a main channel (<code>JChannel</code>)<div class="ulist">
+<ul>
+<li>Used as a private communication channel for a subsystem</li>
+<li>Additional protocols can be attached to a fork channel</li>
+<li>A fork channel only lives as long as the main channel lives</li>
+<li>Subclass of <code>JChannel</code>; but some methods are not supported (e.g. state transfer)</li>
+</ul>
+</div></p></li>
+<li>Can be created declaratively (at main channel creation time) or dynamically using the programmatic API</li>
+<li><p>
+Use cases for fork channels:<div class="ulist">
+<ul>
+<li>No need to configure a separate channel; use of an existing <code>JChannel</code> (e.g. grabbed
+from Infinispan or WildFly) for private communication</li>
+<li><p>
+If we cannot for some reason modify the main stack&#8217;s configuration, we can create a fork channel and
+a corresponding fork stack and add the protocols we need to that fork stack. Example:<div class="ulist">
+<ul>
+<li>An application needs a fork stack with <code>COUNTER</code> (a distributed atomic counter) on top</li>
+<li>To do so, it can create a fork stack with <code>COUNTER</code> and a fork channel connecting to that stack, and it will now
+have distributed atomic counter functionality on its fork stack, not available in the main stack</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_architecture_of_fork_channels">
+<h2>Architecture of fork channels</h2>
+<div class="imageblock">
+<div class="content">
+<img alt="Fork channels" src="../images/ForkArchitecture.png" width="60%">
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>In the example, a main channel and 5 fork channels (in the same JVM) are shown</li>
+<li><p>
+The brown stack to the left is the main stack and it has the main channel connected to it<div class="ulist">
+<ul>
+<li>The <code>FORK</code> protocol needs to be present in the main stack, or else fork stacks can not be created</li>
+<li>It has 2 fork stacks: <code>"counter"</code> and <code>"lock"</code></li>
+</ul>
+</div></p></li>
+<li><p>
+The blue stack in the middle is a fork-stack with fork stack ID <code>"counter"</code><div class="ulist">
+<ul>
+<li>It adds protocol <code>COUNTER</code> to the protocols provided by the main stack</li>
+<li>Therefore a message passing down through fork stack <code>"counter"</code> will pass through protocols <code>COUNTER</code> &#8594; <code>FORK</code> &#8594;
+<code>MFC</code> &#8594; <code>GMS</code></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_architecture_of_fork_channels_2">
+<h2>Architecture of fork channels</h2>
+<div class="ulist">
+<ul>
+<li>Fork channels have an ID, e.g. <code>"fork-ch1"</code></li>
+<li>The combination of fork stack ID and fork channel ID is used to demultiplex incoming messages</li>
+<li><p>
+If fork channel 2 sends a message, it&#8217;ll pass through <code>COUNTER</code> and into <code>FORK</code><div class="ulist">
+<ul>
+<li><code>FORK</code> adds a header to the message, containing <code>fork channel ID="fork-ch2"</code> and <code>fork stack ID="counter"</code></li>
+<li>Then the message passes down the main stack, through <code>MFC</code>, <code>GMS</code> and so on</li>
+</ul>
+</div></p></li>
+<li><p>
+When the message is received, it passes up the reverse order: <code>GMS</code> &#8594; <code>MFC</code> &#8594; <code>FORK</code><div class="ulist">
+<ul>
+<li>If there is no header, <code>FORK</code> passes the message up the main stack, where it passes through <code>FRAG2</code> and ends up
+in the main channel</li>
+<li>If a header is present, the fork stack ID is used to find the correct fork-stack (<code>"counter"</code>).</li>
+<li>The message then passes through <code>COUNTER</code></li>
+<li>Finally, the fork channel ID (<code>"fork-ch2"</code>) is used to find the right fork channel and the message is passed to it</li>
+</ul>
+</div></p></li>
+<li><p>
+Fork channels sharing the same fork stack also share state<div class="ulist">
+<ul>
+<li>For example, fork channels <code>fork-ch1</code> and <code>fork-ch2</code> share <code>COUNTER</code>, which means they will see each other&#8217;s
+increments and decrements of the same counter</li>
+<li>If fork stack <code>"lock"</code> also had a <code>COUNTER</code> protocol, and <code>fork-ch1</code> anf <code>fork-ch4</code> accessed a counter with
+the same name, they would still not see each other&#8217;s changes, as they&#8217;d have 2 different <code>COUNTER</code> protocols.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_fork_configuration">
+<h2>FORK configuration</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;FORK config="/home/bela/fork-stacks.xml" /&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><code>FORK</code> refers to an external file to configure its fork stacks:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;fork-stacks xmlns="fork-stacks"&gt;
+    &lt;fork-stack id="counter"&gt;
+        &lt;config&gt;
+            &lt;COUNTER bypass_bundling="true"/&gt;
+        &lt;/config&gt;
+    &lt;/fork-stack&gt;
+
+    &lt;fork-stack id="lock"&gt;
+         &lt;config&gt;
+             &lt;CENTRAL_LOCK num_backups="2"/&gt;
+             &lt;STATS/&gt;
+         &lt;/config&gt;
+    &lt;/fork-stack&gt;
+
+&lt;/fork-stacks&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>File <code>fork-stacks.xml</code> defines 2 fork stacks: <code>"counter"</code> and <code>"lock"</code></li>
+<li><p>
+Element <code>&lt;config&gt;</code> is a regular JGroups configuration<div class="ulist">
+<ul>
+<li>For example, fork stack <code>"lock"</code> creates a stack with <code>CENTRAL_LOCK</code> and <code>STATS</code></li>
+</ul>
+</div></p></li>
+<li>When <code>FORK</code> is initialized, it will create the 2 fork stacks</li>
+<li>Fork channels can pick one of the 2 existing fork stacks to be created over,
+or they can dynamically create new fork stacks</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_creation_of_fork_channels">
+<h2>Creation of fork channels</h2>
+<div class="ulist">
+<ul>
+<li>A fork channel is created by instantiating a new <code>ForkChannel</code> object:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">JChannel main_ch, fork_ch;                            <b class="conum">(1)</b>
+fork_ch=new ForkChannel(main_ch, "lock", "fork-ch4",  <b class="conum">(2)</b>
+                        new CENTRAL_LOCK(), new STATS());
+main_ch.connect("cluster");
+fork_ch.connect("bla");                               <b class="conum">(3)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>This is the main channel. Its stack may or may not contain <code>FORK</code>, but for this example, we
+assume it is present.</p>
+</li>
+<li>
+<p>The fork channel is created. It is passed the main channel, the fork stack ID (<code>"lock"</code>) and the
+fork channel ID (<code>"fork-ch4"</code>), plus a list of already created protocols (<code>CENTRAL_LOCK</code> and <code>STATS</code>). If
+<code>FORK</code> already contains a fork stack with ID=<code>"lock"</code>, the existing fork stack will be used, or else a new
+one will be created with protocols <code>CENTRAL_LOCK</code> and <code>STATS</code>. Then a new fork channel with ID=<code>"fork-ch4"</code> will
+be added to the top of fork stack <code>"lock"</code>. An exception will be thrown if a fork channel with the same ID
+already exists.</p>
+</li>
+<li>
+<p>The <code>ForkChannel</code> now calls <code>connect()</code>, but the cluster name is ignored as fork channels have the same
+cluster name as the main channel they reference. The local address, name, view and state are also the same.
+Note that the main channel needs to be connected <em>before</em> any fork channel.</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_dynamically_inserting_a_fork_protocol">
+<h2>Dynamically inserting a FORK protocol</h2>
+<div class="ulist">
+<ul>
+<li>The example above showed the simplified constructor, which requires the <code>FORK</code> protocol to be present in the
+stack. There&#8217;s another constructor which allows for FORK to be created dynamically if not present:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public ForkChannel(final Channel main_channel,
+                   String fork_stack_id, String fork_channel_id,
+                   boolean create_fork_if_absent,
+                   int position,
+                   Class&lt;? extends Protocol&gt; neighbor,
+                   Protocol ... protocols) throws Exception;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>In addition to passing the main channel, the fork stack and channel IDs and the list of protocols, this
+constructor also allows a user to create <code>FORK</code> in the main stack if not present. To do so,
+<code>create_fork_if_absent</code> has to be set to true (else an exception is thrown if <code>FORK</code> is not found), and the
+neighbor protocol (e.g. <code>FRAG2.class</code>) has to be defined, plus the position (<code>ProtocolStack.ABOVE/BELOW</code>)
+relative to the neighbor protocol has to be defined as well.</li>
+<li>The design of FORK / ForkChannel is discussed in more detail in
+<a href="https://github.com/belaban/JGroups/blob/master/doc/design/FORK.txt"><a class="bare" href="https://github.com/belaban/JGroups/blob/master/doc/design/FORK.txt">https://github.com/belaban/JGroups/blob/master/doc/design/FORK.txt</a></a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_relaying_between_multiple_sites">
+<h2>Relaying between multiple sites</h2>
+<div class="ulist">
+<ul>
+<li>A <em>site</em> is a local cluster</li>
+<li><code>RELAY2</code> relays unicast and multicast messages between different sites</li>
+<li>Each site is <strong>completely autonomous</strong> and knows nothing about different sites other than their names</li>
+<li>The coordinator of each site is the <em>site master</em> and is responsible for traffic relaying</li>
+<li><p>
+Goals:<div class="ulist">
+<ul>
+<li>Relay traffic between sites</li>
+<li>Send a unicast message to the <em>site master</em> of a given site</li>
+<li>Send back a response to a sender from a different site</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img alt="RELAY2 architecture" src="../images/RelayArchitecture.png" width="70%">
+</div>
+</div>
+</section>
+<section class="slide" id="_relay2_configuration">
+<h2>RELAY2 configuration</h2>
+<div class="ulist">
+<ul>
+<li>To use RELAY2, it has to be placed towards the top of the configuration, e.g.:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">...
+&lt;FRAG2 /&gt;
+&lt;relay.RELAY2 enable_address_tagging="true" site="${site:lon}"&gt;
+    &lt;RelayConfiguration&gt;
+        &lt;sites&gt;
+            &lt;site name="lon"&gt;
+                &lt;bridges&gt;
+                    &lt;bridge name="global" config="relay-global.xml"/&gt;
+                &lt;/bridges&gt;
+            &lt;/site&gt;
+            &lt;site name="sfo"&gt;
+                &lt;bridges&gt;
+                    &lt;bridge name="global" config="relay-global.xml"/&gt;
+                &lt;/bridges&gt;
+            &lt;/site&gt;
+            &lt;site name="nyc"&gt;
+                &lt;bridges&gt;
+                    &lt;bridge name="global" config="relay-global.xml"/&gt;
+                &lt;/bridges&gt;
+            &lt;/site&gt;
+        &lt;/sites&gt;
+    &lt;/RelayConfiguration&gt;
+&lt;/relay.RELAY2&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>The <code>site</code> property gives the local site its name, used for routing between sites</li>
+<li>Addresses contain site name, e.g. address <code>A1:LON</code> in the <code>SFO</code> site is not local, but will be routed
+to member <code>A</code> in the remote site <code>LON</code>.</li>
+<li><p>
+Property <code>relay_multicasts</code> determines whether or not multicast messages (with <code>dest</code> == <code>null</code>) are relayed to other sites<div class="ulist">
+<ul>
+<li>When we have a site <code>LON</code>, connected to sites <code>SFO</code> and <code>NYC</code>, if a multicast message is sent in site <code>LON</code>,
+and <code>relay_multicasts</code> is true, then all members of sites <code>SFO</code> and <code>NYC</code> will receive the message</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_sites_configuration">
+<h2>Sites configuration</h2>
+<div class="ulist">
+<ul>
+<li>Sites an be configured via the <code>config</code> attribute, which points to an external XML file, or inline via the
+<code>&lt;RelayConfiguration&gt;</code> child element, as shown above</li>
+<li>The example defines 3 sites <code>lon</code>, <code>sfo</code> and <code>nyc</code>, connected with a global cluster <code>"global"</code> (defined in <code>relay-global.xml</code>)</li>
+<li>All <em>inter-site</em> traffic is sent via this global cluster</li>
+<li><p>
+The above configuration can also be structured differently, ie. instead of a global cluster, we could define separate clusters
+between <code>lon</code> and <code>sfo</code>, and <code>lon</code> and <code>nyc</code><div class="ulist">
+<ul>
+<li>However, in such a setup, <code>nyc</code> and <code>sfo</code> wouldn&#8217;t be able to send each other messages;
+only <code>lon</code> would be able to send message to <code>sfo</code> and <code>nyc</code>.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_relaying_of_multicasts">
+<h2>Relaying of multicasts</h2>
+<div class="ulist">
+<ul>
+<li>If <code>relay_multicasts</code> is true then any multicast received by the <em>site master</em> of a site will get forwarded
+to <em>all connected sites</em></li>
+<li>A recipient of a multicast message which originated in a different site will see that the sender&#8217;s
+address is not a <code>UUID</code>, but a subclass (<code>SiteUUID</code>) which is the <code>UUID</code> plus the site suffix, e.g. <code>A1:sfo</code></li>
+<li><p>
+When a reply is to be sent to the sender of the multicast message, <code>Message.getSrc()</code> provides the target
+address for the unicast response message<div class="ulist">
+<ul>
+<li>This is also a <code>SiteUUID</code>, but the sender of the response neither has to know this nor take any special action to send
+the response, as JGroups takes care of routing the response back to the original sender.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_relaying_of_unicasts">
+<h2>Relaying of unicasts</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Relaying of unicasts is done transparently<div class="ulist">
+<ul>
+<li>If we don&#8217;t have a dest address (e.g. as a result of reception of a multicast), there is a special address
+<code>SiteMaster(name)</code> which identifies the site master for relaying of messages</li>
+</ul>
+</div></p></li>
+<li><p>
+Class <code>SiteMaster</code> is created with the name of a site, e.g. <code>new SiteMaster("lon")</code><div class="ulist">
+<ul>
+<li>When a unicast with destination <code>SiteMaster("lon")</code> is sent, then the message is relayed to the <em>current</em>
+site master of <code>lon</code></li>
+<li>If the site master changes, messages will get relayed to a different node, which
+took over as site master from the old site master</li>
+</ul>
+</div></p></li>
+<li><p>
+Sometimes only certain members of a site should become site masters; e.g. the more powerful boxes
+(as routing needs some additional CPU power), or multi-homed hosts which are connected to the external
+network (over which the sites are connected with each other).<div class="ulist">
+<ul>
+<li><p>
+To do this, <code>RELAY2</code> can generate special addresses which contain knowledge about whether a member
+should be skipped when selecting a site master from a view, or not<div class="ulist">
+<ul>
+<li>If <code>can_become_site_master</code> is set to false in <code>RELAY2</code>, then the selection process will skip that member</li>
+<li>However, if all members in a given view are marked with <code>can_become_site_master</code>==<code>false</code>,
+then the first member of the view will get picked</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li><p>
+When we have all members in a view marked with <code>can_become_site_master</code>==<code>false</code>, e.g. <code>{B,C,D}</code>, then <code>B</code>
+is the site master<div class="ulist">
+<ul>
+<li>If we now start a member <code>A</code> with <code>can_become_site_master</code>==<code>true</code>, then <code>B</code> will stop
+being the site master and <code>A</code> will become the new site master</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_invoking_rpcs_across_sites">
+<h2>Invoking RPCs across sites</h2>
+<div class="ulist">
+<ul>
+<li>Invoking RPCs across sites is more or less transparent, except when we cannot contact a site</li>
+<li>If we want to invoke method <code>foo()</code> in <code>A1</code>, <code>A2</code> (local) and <code>SiteMaster("sfo")</code>, we could
+write the following code:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">List&lt;Address&gt; dests=new ArrayList&lt;&gt;(view.getMembers());
+dests.add(new SiteMaster("sfo"));
+RspList&lt;Object&gt; rsps;
+rsps=disp.callRemoteMethods(dests, call,
+              new RequestOptions(ResponseMode.GET_ALL, 5000));
+for(Rsp rsp: rsps.values()) {
+    if(rsp.wasUnreachable())
+        System.out.println("&lt;&lt; unreachable: " + rsp.getSender());
+    else
+        System.out.println("&lt;&lt; " + rsp.getValue() + " from " + rsp.getSender());
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>First, we add the members (<code>A1</code> and <code>A2</code>) of the current (local) view to the destination set</li>
+<li>Then we add the special address of the <code>sfo</code> site master: <code>SiteMaster("sfo")</code></li>
+<li>Next, we invoke the call and block until responses from all <code>A1</code>, <code>A2</code> and <code>SiteMaster("sfo")</code>
+have been received, or until 5 seconds have elapsed.</li>
+<li><p>
+Finally, we check the response list<div class="ulist">
+<ul>
+<li>If a site is unreachable, a <code>Rsp</code> has field <code>"unreachable"</code> set</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_issues_with_invoking_rpcs_across_different_sites">
+<h2>Issues with invoking RPCs across different sites</h2>
+<div class="ulist">
+<ul>
+<li>The above example added the local members and the site master of <code>sfo</code> to <code>dests</code></li>
+<li>This means the caller will block until a response from each of these 3 nodes has been received</li>
+<li>If site <code>sfo</code> has 10 members, their responses will get dropped as they&#8217;re not in the destination list</li>
+<li>So while we can invoke an RPC in all members of all sites, the responses from non-local sites will get dropped</li>
+<li><p>
+To fix this, there are 2 alternatives:<div class="dlist">
+<dl>
+<dt class="hdlist1">Add all nodes to <code>dests</code></dt>
+<dd>
+<p>This is a problem since the view only shows members of the local site. A <em>site-local</em> membership could be maintained via
+application RPCs, but then this membership would have to be maintained whenever a member leaves or joins. New members
+would also have to learn the membership</p>
+</dd>
+<dt class="hdlist1">Use regular messages</dt>
+<dd>
+<p>Requests and responses could be marked specially, so the <code>receive()</code> callback knows what to do. When a message marked
+as request is received, a response could be sent to the sender of the message. See <code>ChatDemo</code> for details.</p>
+</dd>
+</dl>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_lab_relay_demo">
+<h2>Lab: relay demo</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Goal<div class="ulist">
+<ul>
+<li>Create 3 sites <code>lon</code>, <code>nyc</code> and <code>sfo</code></li>
+<li>Run 2 <code>ChatDemo</code> instances in each site</li>
+<li>Each message is sent to all members in all sites</li>
+<li>Each member replies with an <code>ack</code> message</li>
+</ul>
+</div></p></li>
+<li>Note that each site needs to have a different site id, mcast_addr and mcast_port</li>
+<li>Run 2 nodes of each site:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>bin/lon.sh -name lon1
+bin/lon.sh -name lon2
+bin/nyc.sh -name nyc1
+bin/nyc.sh -name nyc2
+bin/sfo.sh -name sfo1
+bin/sfo.sh -name sfo2</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_handling_network_partitions_split_brain">
+<h2>Handling network partitions (split brain)</h2>
+<div class="ulist">
+<ul>
+<li>Cluster: <code>v4={A,B,C,D,E}</code> (coord=<code>A</code>)</li>
+<li><p>
+Assume a switch connecting to members <code>{D,E}</code> fails &#8594; network partition between <code>{A,B,C}</code> and <code>{D,E}</code><div class="ulist">
+<ul>
+<li><code>A</code>, <code>B</code> and <code>C</code> can ping each other, but not <code>D</code> or <code>E</code>, and vice versa</li>
+</ul>
+</div></p></li>
+<li>JGroups detects this and creates 2 subclusters: <code>v5={A,B,C}</code> (<code>A</code> remains coordinator) and <code>v5={D,E}</code> (<code>D</code> becomes coord)</li>
+<li>Clients may be able to access one or both of the partitions (or none)</li>
+<li><p>
+When the partition heals, JGroups will merge the subclusters back into <em>MergeView</em> <code>v6={A,B,C,D,E}</code><div class="ulist">
+<ul>
+<li><p>
+A MergeView has a list of all subviews (partitions)<div class="ulist">
+<ul>
+<li>We know which members were part of which partition before the split healed</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>However, JGroups won&#8217;t be able to merge the (possibly divergent) <em>application data</em></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_strategies_for_keeping_application_data_consistent">
+<h2>Strategies for keeping application data consistent</h2>
+<div class="ulist">
+<ul>
+<li>CAP: either CP or AP (P can never be forfeited as partitions do happen)</li>
+<li><p>
+CP: consistency &amp; partition handling<div class="ulist">
+<ul>
+<li>System may not be available all the time</li>
+<li>jgroups-raft</li>
+</ul>
+</div></p></li>
+<li><p>
+AP: availability &amp; partition handling<div class="ulist">
+<ul>
+<li>Consistency not guaranteed all the time</li>
+<li>Eventual consistency: possibility to see stale data but eventual convergence of data</li>
+<li>Infinispan eventual consistency</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_consistency_and_partition_handling_cp">
+<h2>Consistency and partition handling (CP)</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Only a majority partition is allowed to perform reads and writes<div class="ulist">
+<ul>
+<li><p>
+The majority partition can also be defined differently as long as the decision is deterministic
+(only one majority partition), e.g.<div class="ulist">
+<ul>
+<li>A given node needs to be present</li>
+<li><p>
+Access to a given resource (e.g. DB)<div class="ulist">
+<ul>
+<li>Whoever has access to the DB is allowed to write, others shut down or become read-only</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>A minority partition rejects client access (stale reads might be allowed)</li>
+<li>Advantage: no merging of data</li>
+<li>Disadvantage: system unavailable when no majority</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_example_primary_partition_handling">
+<h2>Example: primary partition handling</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">static final int majority=3;
+boolean is_primary;
+
+public void viewAccepted(View new_view) {
+    int size=new_view.size();
+    if(is_primary) {
+        if(size &lt; majority) {
+            is_primary=false;
+            // go into read-only mode (or reject all requests)
+        }
+    }
+    else {
+        if(size &gt;= majority) {
+            is_primary=true;
+            // 1. go into read-write mode
+            // 2. overwrite state with state from primary partition
+        }
+    }
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>A cluster becomes a primary partition as soon as it has <code>majority</code> members</li>
+<li>A read-only, non-primary partition exists when the view size drops below <code>majority</code> members</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_availability_and_partition_handling_ap">
+<h2>Availability and partition handling (AP)</h2>
+<div class="ulist">
+<ul>
+<li>All partitions are allowed to make progress (read-write)</li>
+<li>Partitions can diverge if the same data is modified in different partitions</li>
+<li>When the network partition heals, data has to be merged</li>
+<li><p>
+Merge strategies:<div class="ulist">
+<ul>
+<li>Timestamps, physical time, logical clocks</li>
+<li>Member precedence</li>
+<li><p>
+Causal vectors (<em>eventual consistency</em>)<div class="ulist">
+<ul>
+<li>Has to contact application if data collision cannot be resolved automatically</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>Advantage: system is always available and accepts writes</li>
+<li>Disadvantage: merging data can be hard (and we may have to consult the application)</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_writing_a_protocol">
+<h2>Writing a protocol</h2>
+<div class="ulist">
+<ul>
+<li>Let&#8217;s write a simple protocol which prints the number of bytes for each sent or received message to stdout</li>
+<li>To do this, we have to extend <code>Protocol</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">@MBean(description="A sample protocol printing the number of bytes of all received messages")
+public class PRINT_BYTES extends Protocol {
+    protected static final short ID=2015;
+
+    static {
+        ClassConfigurator.addProtocol(ID, PRINT_BYTES.class);
+    }
+
+    @Property(description="Suppresses printing to stdout if false")
+    protected boolean do_print=true;
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>The <code>@MBean</code> annotation makes all attributes and operations available via JMX (see below)</li>
+<li><p>
+Each protocol has a unique ID, which needs to be registered<div class="ulist">
+<ul>
+<li>The IDs of all JGroups protocols are defined in <code>conf/jg-protocol-ids.xml</code></li>
+</ul>
+</div></p></li>
+<li>There&#8217;s a property <code>do_print</code> which can be set via configuration and JMX, e.g. <code>&lt;PRINT_BYTES do_print="false".../&gt;</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_methods_to_be_overridden">
+<h2>Methods to be overridden</h2>
+<div class="ulist">
+<ul>
+<li>The table below lists the most important methods to be overridden by a protocol:</li>
+</ul>
+</div>
+<table class="tableblock frame-all grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">init()</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called at initialization time, after all properties have been set from the config file</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">start()</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called on <code>JChannel.connect()</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">stop()</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called on <code>JChannel.disconnect()</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">destroy()</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called when a channel is closed (<code>JChannel.close()</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">down(Event)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called when an event (e.g. a message) is sent</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">up(Event)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called when an event (e.g. a message) is received</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">up(MessageBatch)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called when a message batch is received</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="slide" id="_a_few_facts_about_protocols">
+<h2>A few facts about protocols</h2>
+<div class="ulist">
+<ul>
+<li>Each protocol has a neighbor above it (<code>up_prot</code>) and below it (<code>down_prot</code>)</li>
+<li><p>
+<em>Events</em> are passed between protocols<div class="ulist">
+<ul>
+<li><p>
+An Event has a <code>type</code> and <code>arg</code> (<code>Object</code>)<div class="ulist">
+<ul>
+<li>E.g. <code>type</code>=<code>VIEW_CHANGE</code> &#8594; <code>arg</code> = <code>View</code></li>
+<li><code>type</code>=<code>MSG</code> &#8594; <code>arg</code>=<code>Message</code></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_example_printing_a_view_change">
+<h2>Example: printing a view change</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public Object down(Event evt) { <b class="conum">(1)</b>
+    switch(evt.getType()) {     <b class="conum">(2)</b>
+         case Event.VIEW_CHANGE: <b class="conum">(3)</b>
+             View view=(View)evt.getArg(); <b class="conum">(4)</b>
+             System.out.println("view = " + view);
+             break;
+    }
+    return down_prot.down(evt);
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Intercepting a view change in the down direction</p>
+</li>
+<li>
+<p>Switching based on the type of the event</p>
+</li>
+<li>
+<p>Handling a view change</p>
+</li>
+<li>
+<p>Getting the argument and casting it to a <code>View</code></p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_caveats">
+<h2>Caveats</h2>
+<div class="ulist">
+<ul>
+<li>GMS sends a <code>VIEW_CHANGE</code> up and down</li>
+<li><p>
+If <code>PRINT_BYTES</code> is <strong>above</strong> GMS, it won&#8217;t handle the view change<div class="ulist">
+<ul>
+<li>Need to handle <code>VIEW_CHANGE</code> in the down and up direction</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_printing_the_sent_messages">
+<h2>Printing the sent messages</h2>
+<div class="ulist">
+<ul>
+<li>To do this, we need to override <code>down()</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">case Event.MSG:
+    if(do_print) { <b class="conum">(1)</b>
+        Message msg=(Message)evt.getArg(); <b class="conum">(2)</b>
+        int num_bytes=msg.getLength();     <b class="conum">(3)</b>
+        if(num_bytes &gt; 0)
+            System.out.printf("-- sending %d bytes\n", num_bytes);
+    }
+    break;</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Only print if <code>do_print</code> is true</p>
+</li>
+<li>
+<p>Cast the event&#8217;s argument to <code>Message</code></p>
+</li>
+<li>
+<p><code>Message.getLength()</code> returns the number of bytes of the message&#8217;s payload</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_printing_the_received_bytes">
+<h2>Printing the received bytes</h2>
+<div class="ulist">
+<ul>
+<li>We have to override methods <code>up(Event)</code> and <code>up(MessageBatch</code></li>
+<li><code>up(Event)</code> is more or less the same code as <code>down(Event)</code></li>
+<li><code>up(MessageBatch)</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public void up(MessageBatch batch) {
+    int total_bytes=0;
+    for(Message msg: batch)
+        total_bytes+=msg.getLength();
+    // alternative: total_bytes=batch.length();
+    System.out.printf("received batch of %d messages: total size is %d bytes\n",
+                      batch.size(), total_bytes);
+    if(!batch.isEmpty())
+        up_prot.up(batch);
+}</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_running_the_demo">
+<h2>Running the demo</h2>
+<div class="ulist">
+<ul>
+<li>Add <code>PRINT_BYTES</code> to <code>config.xml</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;UDP mcast_addr="228.5.5.5".../&gt;
+&lt;org.lab.protocols.PRINT_BYTES do_print="true" /&gt;
+&lt;PING /&gt;
+ ...</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Note that the full classname of <code>PRINT_BYTES</code> has to be given</li>
+<li>Run the demo: <code>bin/repl-cache.sh</code></li>
+<li><p>
+Extra credit<div class="olist arabic">
+<ol class="arabic">
+<li>
+Maintain the number of sent messages / bytes in variables and expose them with <code>@ManagedAttribute</code>
+</li>
+<li>
+Disable and re-enable printing of messages via probe.sh
+</li>
+<li>
+Print the headers (<code>Message.getHeaders()</code>)
+</li>
+<li>
+Dynamically remove <code>PRINT_BYTES</code> via <code>probe.sh remove-protocol ...</code>
+</li>
+</ol>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_debugging">
+<h2>Debugging</h2>
+<div class="ulist">
+<ul>
+<li>Failure detection protocols depending on heartbeats should be disabled</li>
+<li><p>
+Otherwise, stopping member P in a breakpoint for more than the failure detection timeout would
+suspect and exclude P<div class="ulist">
+<ul>
+<li>Disable FD_ALL, FD</li>
+<li>FD_SOCK is fine</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_simulation">
+<h2>Simulation</h2>
+<div class="ulist">
+<ul>
+<li><p>
+JGroups ships with a number of protocols for simulation of<div class="ulist">
+<ul>
+<li>Message drops: <code>DISCARD</code></li>
+<li>Network partitions: <code>DISCARD</code> (demo)</li>
+<li>Duplicate messages: <code>DUPL</code></li>
+<li>High latency: <code>DELAY</code></li>
+<li>Message reordering: <code>SHUFFLE</code></li>
+</ul>
+</div></p></li>
+<li><p>
+These are used in unit tests to test correctness of protocols<div class="ulist">
+<ul>
+<li>Example: <code>DuplicateTest</code></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_byteman">
+<h2>Byteman</h2>
+<div class="ulist">
+<ul>
+<li>Adding behavior to a running JVM via dynamic byte code rewriting</li>
+<li>Even to a JVM that was started <em>without a byteman agent</em> (with <code>bminstall</code>)</li>
+<li>Dynamically install byteman rules (<code>bmsubmit</code>), e.g. to print the bytes of sent / received messages</li>
+<li>Byteman rules can be removed at runtime &#8594; no overhead</li>
+<li>Can be used even in production</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_byteman_demo">
+<h2>Byteman demo</h2>
+<div class="ulist">
+<ul>
+<li>Make sure <code>JAVA_HOME</code> is set or copy <code>tools.jar</code> from the JDK to <code>workshop/lib</code></li>
+<li>Run a ChatDemo, e.g. <code>./run.sh org.lab.ChatDemo -name A -props config.xml</code></li>
+<li>Find out the Java process ID:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela$ jps -l
+70246 sun.tools.jps.Jps
+70235 org.lab.ChatDemo</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Install the byteman agent: <code>./bm-install.sh 70235</code></li>
+<li>Install the test rule: <code>./bm-submit.sh ../conf/byteman.btm</code></li>
+<li>See that the rule is installed: <code>./bm-submit -l</code></li>
+<li>Observe all events sent by the transport are printed</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>hello
+--&gt; MSG, arg=[dst: &lt;null&gt;, src: A (1 headers), size=6 bytes] (headers=NAKACK2: [MSG, seqno=1])
+&gt; [A]: hello
+world
+--&gt; MSG, arg=[dst: &lt;null&gt;, src: A (1 headers), size=6 bytes] (headers=NAKACK2: [MSG, seqno=2])
+&gt; [A]: world
+--&gt; GET_PHYSICAL_ADDRESS, arg=A
+--&gt; MSG, arg=[dst: &lt;null&gt;, src: &lt;null&gt; (1 headers), size=0 bytes, flags=INTERNAL, transient_flags=DONT_LOOPBACK] (headers=MERGE3: INFO: view_id=[A|0], logical_name=A, physical_addr=127.0.0.1:63360)</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Uninstall the rule: <code>./bm-submit -u</code></li>
+</ul>
+</div>
+</section>
+<div aria-role="navigation">
+<a class="deck-prev-link" href="#" title="Previous">&#8592;</a>
+<a class="deck-next-link" href="#" title="Next">&#8594;</a>
+</div>
+<p aria-role="status" class="deck-status">
+<span class="deck-status-current"></span>
+/
+<span class="deck-status-total"></span>
+</p>
+<form action="." class="goto-form" method="get">
+<label for="goto-slide">Go to Slide:</label>
+<input id="goto-slide" list="goto-datalist" name="slidenum" type="text">
+<datalist id="goto-data-list"></datalist>
+<input type="submit" value="Go">
+</form>
+</div>
+<script src="deck.js/jquery.min.js"></script>
+<script src="deck.js/core/deck.core.js"></script>
+<script src="deck.js/extensions/scale/deck.scale.js"></script>
+<script src="deck.js/extensions/goto/deck.goto.js"></script>
+<script src="deck.js/extensions/menu/deck.menu.js"></script>
+<script src="deck.js/extensions/navigation/deck.navigation.js"></script>
+<script src="deck.js/extensions/status/deck.status.js"></script>
+<script src="deck.js/extensions/toc/deck.toc.js"></script>
+<div class="deck-toc"></div>
+<script>
+  (function($, deck, undefined) {
+    $.deck.defaults.keys['previous'] = [8, 33, 37, 39];
+    $.deck.defaults.keys['next'] = [13, 32, 34, 39];
+  
+    $.extend(true, $[deck].defaults, {
+        countNested: false
+    });
+  
+    $.deck('.slide');
+  })(jQuery, 'deck');
+</script>
+<style>
+  .slide.canvas-image {
+  -moz-background-size: cover;
+  -webkit-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+  display: -moz-box;
+  display: -webkit-box;
+  display: -ms-box;
+  display: box;
+  -moz-box-orient: vertical;
+  -webkit-box-orient: vertical;
+  -ms-box-orient: vertical;
+  box-orient: vertical;
+  -moz-box-align: start;
+  -webkit-box-align: start;
+  -ms-box-align: start;
+  box-align: start;
+  -moz-box-pack: start;
+  -webkit-box-pack: start;
+  -ms-box-pack: start;
+  box-pack: start;}
+  
+  .bottom-left {
+    left: 1%;
+    bottom: 20%; }
+  
+  .top-left {
+    left: 1%;
+    top: 20%; }
+  
+  .bottom-right {
+    right: 1%;
+    bottom: 20%; }
+  
+  .top-right {
+    right: 1%;
+    top: 20%; }
+  
+  .center-up {
+    right: 50%;
+    top: 1%;
+  }
+  
+  .center-down {
+    right: 50%;
+    bottom: 1%;
+  }
+  .canvas-image .canvas-caption p {
+    text-align: center;
+    padding-top: 0;
+    padding: 0;
+    -moz-transform: none;
+    -webkit-transform: none;
+    -o-transform: none;
+    -ms-transform: none;
+    transform: none;
+    display: inline;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    font-weight: bold;
+    font-size: 58px;
+    -webkit-box-shadow: 2px 2px 2px #000;
+    -moz-box-shadow: 2px 2px 2px #000;
+    box-shadow: 2px 2px 2px #000;
+    padding: 1rem;
+    color: white; }
+  kbd.keyseq { color: #555555; }
+  kbd:not(.keyseq) {
+    display: inline-block;
+    color: #222222;
+    font-size: 0.7em;
+    line-height: 1.4;
+    background-color: #F7F7F7;
+    border: 1px solid #ccc;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+    -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    margin: -0.15em 0.15em 0 0.15em;
+    padding: 0.2em 0.6em;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  kbd kbd:first-child { margin-left: 0; }
+  kbd kbd:last-child { margin-right: 0; }
+</style>
+</body>
+</html>

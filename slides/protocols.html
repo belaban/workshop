@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+<meta content="Asciidoctor 1.5.0" name="generator">
+<meta content="Bela Ban belaban@yahoo.com" name="author">
+<title>Protocols in JGroups</title>
+<link href="deck.js/core/deck.core.css" rel="stylesheet">
+<link href="deck.js/extensions/scale/deck.scale.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/goto/deck.goto.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/menu/deck.menu.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/navigation/deck.navigation.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/status/deck.status.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/toc/deck.toc.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/style/web-2.0.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/transition/fade.css" media="screen" rel="stylesheet">
+<link href="deck.js/core/print.css" media="print" rel="stylesheet">
+<script src="deck.js/modernizr.custom.js"></script>
+</head>
+<body class="article">
+<div class="deck-container">
+<section class="slide" id="title-slide">
+<h1>Protocols in JGroups</h1>
+<span id="author">Bela Ban belaban@yahoo.com</span>
+<br>
+</section>
+<section class="slide" id="_udp_xml">
+<h2>udp.xml</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;config xmlns="urn:org:jgroups"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd"&gt;
+    &lt;UDP mcast_port="${jgroups.udp.mcast_port:45588}"
+         ip_ttl="4"
+         ucast_recv_buf_size="5M"
+         ucast_send_buf_size="5M"
+         mcast_recv_buf_size="5M"
+         mcast_send_buf_size="5M"
+         max_bundle_size="64K"
+         max_bundle_timeout="30"
+
+         thread_pool.min_threads="2"
+         thread_pool.max_threads="8"
+         thread_pool.keep_alive_time="5000"
+         thread_pool.queue_max_size="10000"
+         thread_pool.rejection_policy="discard"
+
+         oob_thread_pool.min_threads="1"
+         oob_thread_pool.max_threads="8"
+         oob_thread_pool.keep_alive_time="5000"
+         oob_thread_pool.rejection_policy="discard"/&gt;
+
+    &lt;PING /&gt;
+    &lt;MERGE3 max_interval="30000"
+            min_interval="10000"/&gt;
+    &lt;FD_SOCK/&gt;
+    &lt;FD_ALL/&gt;
+    &lt;VERIFY_SUSPECT timeout="1500"  /&gt;
+    &lt;BARRIER /&gt;
+    &lt;pbcast.NAKACK2 xmit_interval="500"
+                    max_msg_batch_size="500"
+                    discard_delivered_msgs="true"/&gt;
+    &lt;UNICAST3 xmit_interval="500"
+              max_msg_batch_size="500"/&gt;
+    &lt;pbcast.STABLE desired_avg_gossip="50000"
+                   max_bytes="4M"/&gt;
+    &lt;pbcast.GMS print_local_addr="true" join_timeout="2000"
+                view_bundling="true"/&gt;
+    &lt;UFC max_credits="2M"
+         min_threshold="0.4"/&gt;
+    &lt;MFC max_credits="2M"
+         min_threshold="0.4"/&gt;
+    &lt;FRAG2 frag_size="60K"  /&gt;
+    &lt;RSVP resend_interval="2000" timeout="10000"/&gt;
+    &lt;pbcast.STATE_TRANSFER /&gt;
+&lt;/config&gt;</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_transport_protocols">
+<h2>Transport protocols</h2>
+<div class="ulist">
+<ul>
+<li>Bottom-most protocol in a stack</li>
+<li>Interacts with the network</li>
+<li><p>
+Main tasks<div class="olist arabic">
+<ol class="arabic">
+<li>
+Serialization and sending of messages to other nodes
+</li>
+<li>
+Deserialization of network buffers into messages and passing those up the stack
+</li>
+</ol>
+</div></p></li>
+<li>Most of the resources of a node (sockets, thread pools) are located in the transport protocol</li>
+<li>Available transports:</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:100%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UDP</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sends datagram packets (to single destination) or multicast packets (to all cluster nodes). Requires IP multicasting to be enabled.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TCP</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Uses TCP sockets. A message sent to the entire cluster (N nodes) is sent N-1 times. 1 thread per connection.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TCP_NIO</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Same as TCP, but uses NIO.2: thread pool to handle <em>all</em> connections. Currently not supported. Will get revamped in 4.0</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TUNNEL</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Talks to external process (GossipRouter) to send/receive messages. Can be used to connect nodes behind firewalls.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SHARED_LOOPBACK</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Dummy transport to connect members running inside the same process. Used for unit testing</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#Transport">http://www.jgroups.org/manual/index.html#Transport</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_discovery">
+<h2>Discovery</h2>
+<div class="ulist">
+<ul>
+<li>Discovers the initial membership</li>
+<li>Used to find out who the <em>existing coordinator</em> is (to send a <code>JOIN</code> request to it)</li>
+<li>Implementations:</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:100%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PING</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sends discovery request as multicast (requiring <code>UDP</code> as transport)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TCPPING</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Defines a static list of nodes (IP addresses and ports) to contact, e.g. <code>initial_hosts=A[7800],B[7800],C[7800]</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MPING</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Uses its own multicast socket to multicast discovery requests. Used when the transport
+          doesn&#8217;t support multicasting, e.g. <code>TCP</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TCPGOSSIP</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Contacts one or more external processes (<code>GossipRouter</code>) to find the initial membership for a given
+              cluster. Each node registers with the GossipRouter(s) on startup.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">JDBC_PING</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Uses a database to store the membership for a given cluster. Each members adds its own information at startup.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FILE_PING</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Uses the file system to store membership information. On startup, each members writes its own information
+              to the (shared) file system</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">S3_PING, GOOGLE_PING</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Uses a cloud store for membership information. More impls include AWS_PING, SWIFT_PING,
+                        RACKSPACE_PING, Kubernetes, Zookeeper etc</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SHARED_LOOPBACK_PING</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Requires <code>SHARED_LOOPBACK</code> as transport, delegates all discovery requests to the transport</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#DiscoveryProtocols">http://www.jgroups.org/manual/index.html#DiscoveryProtocols</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_merging">
+<h2>Merging</h2>
+<div class="ulist">
+<ul>
+<li><p>
+When failure detection splits a cluster into multiple subclusters, e.g. <code>A15={A,B,C}</code> and <code>D15={D,E}</code>, merging tries to
+merge the subclusters back into a single cluster:<div class="ulist">
+<ul>
+<li><p>
+The <em>subcluster coordinators</em> <code>A</code> and <code>D</code> periodically send out merge messages<div class="ulist">
+<ul>
+<li><code>A</code> sends <code>{coord=A,addr=192.166.1.5:50500,view=A15,cluster="demo"}</code></li>
+<li><code>D</code> sends <code>{coord=D,addr=192.168.1.6:60500,view=D15,cluster="demo"}</code></li>
+</ul>
+</div></p></li>
+<li><p>
+When <code>A</code> or <code>D</code> encounter a message from another node claiming to be coordinator for the same cluster, they
+engage in a protocol to<div class="ulist">
+<ul>
+<li>Exchange information about their respective subclusters</li>
+<li><p>
+Agree on a <em>merge leader</em> who<div class="ulist">
+<ul>
+<li>Generates a <code>MergeView</code> (<code>A16={A,B,C,D,E}</code>)</li>
+<li>Has all subcluster coordinators install the MergeView</li>
+<li>All subcluster coordinators except one (e.g. <code>A</code>) step down</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>The merging itself is done by <code>GMS</code>; the merge protocol only notifies <code>GMS</code> that a merge is needed</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:100%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MERGE3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Uses the algorithm described avove</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#_merging_after_a_network_partition">http://www.jgroups.org/manual/index.html#_merging_after_a_network_partition</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_failure_detection">
+<h2>Failure detection</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Failure detection checks for crashed or unresponsive members and <em>suspects them</em><div class="ulist">
+<ul>
+<li>It <em>doesn&#8217;t remove suspected members</em> (that&#8217;s the task of <code>GMS</code>)</li>
+</ul>
+</div></p></li>
+<li>Noe that members which leave <em>gracefully</em> (e.g. via <code>JChannel.disconnect()</code>) are never handled by failure detection</li>
+<li>Implementations:</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:100%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FD_ALL</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every node periodically multicasts heartbeats. Members maintains a table of members and timestamps and
+           reset the timestamp for P on reception of a heartbeat or message from P.<br>
+           If a member&#8217;s timestamp exceeds a threshold, a suspect(P) message is sent to the coordinator, which tells
+           <code>GMS</code> to handle the suspicion.<br>
+           <code>GMS</code> then removes P and installs a new view excluding P. <code>FD_ALL</code> works best with <code>UDP</code> as transport as
+           heartbeats are multicast.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FD_SOCK</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Members of a cluster form a logical ring, with each member creating a TCP connection to the member to its
+            right. E.g. in <code>{A,B,C}</code>, <code>A</code> &#8594; <code>B</code> &#8594; <code>C</code> &#8594; <code>A</code>.<br>
+            When <code>C</code> crashes, <code>B</code> will get notified that the TCP connection to <code>C</code> was closed and sends a
+            <code>suspect(C)</code> to the coordinator (<code>A</code>), who excludes <code>C</code> from the view.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FD</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Same as <code>FD_SOCK</code> but instead of a TCP connection, heartbeat messages are sent to the neighbor to the right. If
+       a timeout elapses without getting a response or traffic from the neighbor, the neighbor is suspected.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FD_HOST</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">To detect the crash or freeze of entire hosts and the cluster members running on them. Not
+           meant to be used in isolation, as it doesn’t detect crashed members on the local host, but in conjunction
+           with other failure detection protocols, such as <code>FD_ALL</code> or <code>FD_SOCK</code>.<br>
+           Can be used when multiple cluster members are running on a box. For example, if we have members
+           <code>{A,B,C,D}</code> running on host 1 and <code>{M,N,O,P}</code> running on host 2, and host 1 is powered down, then <code>A</code>, <code>B</code>,
+           <code>C</code> and <code>D</code> are suspected and removed from the cluster <em>together</em>, typically in one view change.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#FailureDetection">http://www.jgroups.org/manual/index.html#FailureDetection</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_reliable_transmission_and_ordering">
+<h2>Reliable transmission and ordering</h2>
+<div class="ulist">
+<ul>
+<li>Sender S assigns monotonically increasing sequence numbers (seqnos) to messages</li>
+<li>Receiver R receives messages from P and delivers them (up the stack) in seqno order</li>
+<li>Negative acks: the receiver asks a sender to retransmit a message if a gap has been detected, e.g. <code>S5</code> &#8594; <code>S6</code>
+&#8594; <code>S8</code>: here, message <code>7</code> from <code>S</code> is missing so <code>R</code> asks <code>S</code> to resend message <code>7</code>.</li>
+<li>Positive acks: the sender continues to periodically retransmit a message <code>M</code> until the receiver <code>R</code> has acked
+<code>M</code>, or <code>R</code> left the cluster</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">NAKACK2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">For sending messages reliably and in (sender) order to all cluster nodes. Uses negative acks.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UNICAST3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">For sending unicast (point-to-point) ordered messages. Uses a mixture of negative and positive acking.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#ReliableMessageTransmission">http://www.jgroups.org/manual/index.html#ReliableMessageTransmission</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_message_stability">
+<h2>Message stability</h2>
+<div class="ulist">
+<ul>
+<li>Only applicable to one-to-many (= multicast) messages (<code>NAKACK2</code>)</li>
+<li>When multicasting messages with <code>NAKACK2</code>, receivers store all messages in order to deliver them in order, and
+to possibly resend missing messages</li>
+<li>However, keeping messages around indefinitely increases the heap used and eventually members run out of memory</li>
+<li><code>STABLE</code> is an agreement protocol which runs periodically (or based on received bytes) and removes messages which
+have been seen by everyone</li>
+<li><p>
+E.g if we have members <code>{A,B,C}</code> and receive<div class="ulist">
+<ul>
+<li>From <code>A</code>: <code>{A:15,B:25,C:3}</code></li>
+<li>From <code>B</code>: <code>{A:14,B:29,C:5}</code></li>
+<li>From <code>C</code>: <code>{A:15,B:27,C:5}</code></li>
+<li><p>
+Then the minimum vector is <code>{A:14,B:25,C:3}</code>.<div class="ulist">
+<ul>
+<li>All members can now remove messages <code>14</code> and lower from <code>A</code>, <code>25</code> and lower from <code>B</code> and <code>3</code> and lower from <code>C</code></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>Slow or unresponsive members can prevent fast agreement, but they&#8217;ll eventually get removed by failure detection</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">STABLE</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Implements the above algorithm</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#STABLE">http://www.jgroups.org/manual/index.html#STABLE</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_group_membership">
+<h2>Group membership</h2>
+<div class="ulist">
+<ul>
+<li>Handles new member joining, existing members leaving or crashing (suspicions) and merging</li>
+<li>Adds new members to the view, removes left or suspected members from the view and installs a new view</li>
+<li>Also handles merge events sent by a merge protocol</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">GMS</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Implements the functionality discussed above</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#GMS">http://www.jgroups.org/manual/index.html#GMS</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_flow_control">
+<h2>Flow control</h2>
+<div class="ulist">
+<ul>
+<li>Flow control makes sure that receivers that process messages slower than senders are sending them, don&#8217;t get
+overwhelmed by the traffic &#8594; OOME</li>
+<li>This is done by throttling the senders: their rate is adjusted to the fastest rate at which the receiver(s) can process messages</li>
+<li>Senders and receivers start out with <em>credits</em> which are bytes to send</li>
+<li>A sender subtracts the bytes it sends and blocks if its credits are used up</li>
+<li>A receiver also subtracts the credits for each message it receives from a sender and sends new credits to the sender(s)
+when the credits fall below a given threshold (e.g. 10%)</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UFC</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Unicast flow control. Maintains flow control between 2 peers for unicast messages. Can be removed if <code>TCP</code> is
+        used as transport</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MFC</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Multicast flow control. Maintains a credit table for <em>all</em> receivers and senders and blocks for credits
+        or sends credits based on the <em>slowest</em> member.<br>
+        A slow member can slow everyone down &#8594; if it&#8217;s too slow it can be suspected and removed by failure detection)</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#FlowControl">http://www.jgroups.org/manual/index.html#FlowControl</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_fragmentation">
+<h2>Fragmentation</h2>
+<div class="ulist">
+<ul>
+<li>Fragments packets larger than a threshold at the sender and unfragments at the receiver</li>
+<li>Handles both unicast and multicast messages</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FRAG2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Framentation / unfragmentation with minimal copying</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#_fragmentation">http://www.jgroups.org/manual/index.html#_fragmentation</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_synchronous_sending">
+<h2>Synchronous sending</h2>
+<div class="ulist">
+<ul>
+<li>Handles messages with an <code>RSVP</code> flag</li>
+<li>Blocks the sender until acks from all receivers have been received</li>
+<li>Can be used for unicast and multicast messages</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">RSVP</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">See discussion on RSVP in the advanced section</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#RSVP">http://www.jgroups.org/manual/index.html#RSVP</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_state_transfer">
+<h2>State transfer</h2>
+<div class="ulist">
+<ul>
+<li>Used for state transfer between a new joiner and the coordinator</li>
+<li>See section on state transfer</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:23%">
+<col style="width:76%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">STATE_TRANSFER</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Uses byte buffers for state transfer</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">STATE</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Chunks state into multiple segments and sends them (flow controlled)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">STATE_SOCK</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Establishes a TCP connection between state requester and provider to exchange state</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">BARRIER</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Blocks threads from modifying state on the state provider until state has been written to the pipe</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#StateTransferProtocolDetails">http://www.jgroups.org/manual/index.html#StateTransferProtocolDetails</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_total_order">
+<h2>Total order</h2>
+<div class="ulist">
+<ul>
+<li>Establishes total order for <em>multicast</em> messages</li>
+<li>All multicast messages are sent to a sequencer (coordinator)</li>
+<li>The sequencer then sends the messages on behalf of the sender &#8594; total order</li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SEQUENCER</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">See <code>sequencer.xml</code> for where to place this protocol</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#_ordering">http://www.jgroups.org/manual/index.html#_ordering</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_encryption_and_authentication">
+<h2>Encryption and authentication</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Encryption of unicast and multicast messages<div class="ulist">
+<ul>
+<li><p>
+Done using a shared key<div class="ulist">
+<ul>
+<li>Via a keystore or asymmetric key exchange (redone on each view change)</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li><p>
+Authentication<div class="ulist">
+<ul>
+<li>Admission of new members to a cluster only if they are authenticated</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:16%">
+<col style="width:83%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ENCRYPT</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Encryption on the sender and decryption on the receiver(s)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AUTH</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Admission of new cluster members only when authentication succeeds.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SASL</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SASL based encryption (authentication not yet available)</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#Security">http://www.jgroups.org/manual/index.html#Security</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_miscellaneous">
+<h2>Miscellaneous</h2>
+<table class="tableblock frame-topbot grid-all" style="width:90%">
+<colgroup>
+<col style="width:23%">
+<col style="width:76%">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">RELAY2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Relaying of messages between separate clusters. See advanced section</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">STOMP</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Client access via Stomp to <em>any</em> cluster node. Stomp messages received by a client are sent to the entire cluster,
+          where all connected clients receive them.<br>
+          Clients can be written in any language and only need to implement the Stomp protocol.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">COMPRESS</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compression of the payload of messages on the sender and decompression on the receiver(s)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FORK</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Light-weight channels. See discussion in advanced section.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CENTRAL_LOCK</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Distributed locking. See discussion in advanced section.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">COUNTER</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Distributed atomic counters. See discussion in advanced section.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#Misc">http://www.jgroups.org/manual/index.html#Misc</a></li>
+</ul>
+</div>
+</section>
+<div aria-role="navigation">
+<a class="deck-prev-link" href="#" title="Previous">&#8592;</a>
+<a class="deck-next-link" href="#" title="Next">&#8594;</a>
+</div>
+<p aria-role="status" class="deck-status">
+<span class="deck-status-current"></span>
+/
+<span class="deck-status-total"></span>
+</p>
+<form action="." class="goto-form" method="get">
+<label for="goto-slide">Go to Slide:</label>
+<input id="goto-slide" list="goto-datalist" name="slidenum" type="text">
+<datalist id="goto-data-list"></datalist>
+<input type="submit" value="Go">
+</form>
+</div>
+<script src="deck.js/jquery.min.js"></script>
+<script src="deck.js/core/deck.core.js"></script>
+<script src="deck.js/extensions/scale/deck.scale.js"></script>
+<script src="deck.js/extensions/goto/deck.goto.js"></script>
+<script src="deck.js/extensions/menu/deck.menu.js"></script>
+<script src="deck.js/extensions/navigation/deck.navigation.js"></script>
+<script src="deck.js/extensions/status/deck.status.js"></script>
+<script src="deck.js/extensions/toc/deck.toc.js"></script>
+<div class="deck-toc"></div>
+<script>
+  (function($, deck, undefined) {
+    $.deck.defaults.keys['previous'] = [8, 33, 37, 39];
+    $.deck.defaults.keys['next'] = [13, 32, 34, 39];
+  
+    $.extend(true, $[deck].defaults, {
+        countNested: false
+    });
+  
+    $.deck('.slide');
+  })(jQuery, 'deck');
+</script>
+<style>
+  .slide.canvas-image {
+  -moz-background-size: cover;
+  -webkit-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+  display: -moz-box;
+  display: -webkit-box;
+  display: -ms-box;
+  display: box;
+  -moz-box-orient: vertical;
+  -webkit-box-orient: vertical;
+  -ms-box-orient: vertical;
+  box-orient: vertical;
+  -moz-box-align: start;
+  -webkit-box-align: start;
+  -ms-box-align: start;
+  box-align: start;
+  -moz-box-pack: start;
+  -webkit-box-pack: start;
+  -ms-box-pack: start;
+  box-pack: start;}
+  
+  .bottom-left {
+    left: 1%;
+    bottom: 20%; }
+  
+  .top-left {
+    left: 1%;
+    top: 20%; }
+  
+  .bottom-right {
+    right: 1%;
+    bottom: 20%; }
+  
+  .top-right {
+    right: 1%;
+    top: 20%; }
+  
+  .center-up {
+    right: 50%;
+    top: 1%;
+  }
+  
+  .center-down {
+    right: 50%;
+    bottom: 1%;
+  }
+  .canvas-image .canvas-caption p {
+    text-align: center;
+    padding-top: 0;
+    padding: 0;
+    -moz-transform: none;
+    -webkit-transform: none;
+    -o-transform: none;
+    -ms-transform: none;
+    transform: none;
+    display: inline;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    font-weight: bold;
+    font-size: 58px;
+    -webkit-box-shadow: 2px 2px 2px #000;
+    -moz-box-shadow: 2px 2px 2px #000;
+    box-shadow: 2px 2px 2px #000;
+    padding: 1rem;
+    color: white; }
+  kbd.keyseq { color: #555555; }
+  kbd:not(.keyseq) {
+    display: inline-block;
+    color: #222222;
+    font-size: 0.7em;
+    line-height: 1.4;
+    background-color: #F7F7F7;
+    border: 1px solid #ccc;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+    -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    margin: -0.15em 0.15em 0 0.15em;
+    padding: 0.2em 0.6em;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  kbd kbd:first-child { margin-left: 0; }
+  kbd kbd:last-child { margin-right: 0; }
+</style>
+</body>
+</html>

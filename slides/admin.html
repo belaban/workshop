@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+<meta content="Asciidoctor 1.5.0" name="generator">
+<meta content="Bela Ban belaban@yahoo.com" name="author">
+<title>Admin</title>
+<link href="deck.js/core/deck.core.css" rel="stylesheet">
+<link href="deck.js/extensions/scale/deck.scale.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/goto/deck.goto.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/menu/deck.menu.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/navigation/deck.navigation.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/status/deck.status.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/toc/deck.toc.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/style/web-2.0.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/transition/fade.css" media="screen" rel="stylesheet">
+<link href="deck.js/core/print.css" media="print" rel="stylesheet">
+<script src="deck.js/modernizr.custom.js"></script>
+</head>
+<body class="article">
+<div class="deck-container">
+<section class="slide" id="title-slide">
+<h1>Admin</h1>
+<span id="author">Bela Ban belaban@yahoo.com</span>
+<br>
+</section>
+<section class="slide" id="_tuning">
+<h2>Tuning</h2>
+<div class="ulist">
+<ul>
+<li>Let&#8217;s take a (non exhaustive) look at things that can be tuned</li>
+<li>Ref: <a class="bare" href="https://developer.jboss.org/wiki/PerfTuning">https://developer.jboss.org/wiki/PerfTuning</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_multicast_routing">
+<h2>Multicast routing</h2>
+<div class="ulist">
+<ul>
+<li>When using <code>UDP</code>, IP multicasting is required</li>
+<li><p>
+On some systems, multicast route(s) need to be added to the routing table<div class="ulist">
+<ul>
+<li><p>
+Otherwise, the default route will be used<div class="ulist">
+<ul>
+<li>Note that some systems don&#8217;t consult the routing table for IP multicast routing, only for unicast routing</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>MacOS example:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code># Adds a multicast route for 224.0.0.1-231.255.255.254
+sudo route add -net 224.0.0.0/5 127.0.0.1
+
+# Adds a multicast route for 232.0.0.1-239.255.255.254
+sudo route add -net 232.0.0.0/5 192.168.1.3</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+When binding to <code>127.0.0.1</code>, <code>UDP.mcast_addr</code> should be set to a value between <code>224.0.0.1</code> and <code>231.255.255.254</code><div class="ulist">
+<ul>
+<li><code>224.0.0.1</code> - <code>224.0.0.255</code> not recommended, can get dropped by switches</li>
+</ul>
+</div></p></li>
+<li>When binding to <code>192.168.1.3</code>, <code>mcast_addr</code> should be set to a value between <code>232.0.0.1</code> and <code>239.255.255.254</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_switching_from_udp_to_tcp">
+<h2>Switching from UDP to TCP</h2>
+<div class="ulist">
+<ul>
+<li>Copy <code>udp.xml</code> &#8594; <code>tcp.xml</code></li>
+<li>Change <code>UDP</code> to <code>TCP</code></li>
+<li>Remove <code>mcast_send_buf_size</code>, <code>mcast_recv_buf_size</code>, <code>ip_ttl</code>, <code>tos</code>, <code>mcast_port</code></li>
+<li>Change <code>ucast_send_buf_size</code> &#8594; <code>send_buf_size</code></li>
+<li>Change <code>ucast_recv_buf_size</code> &#8594; <code>recv_buf_size</code></li>
+<li>Add <code>bind_port="7800"</code> (for example) to <code>TCP</code></li>
+<li><p>
+Rename <code>PING</code> to <code>TCPPING</code>, remove all attributes<div class="ulist">
+<ul>
+<li><p>
+Add <code>initial_hosts=A[7800],B[7800],C[7800]</code> to <code>TCPPING</code><div class="ulist">
+<ul>
+<li><code>A</code> is the <code>bind_addr</code> of host A, <code>B</code> of host B etc</li>
+<li>I&#8217;m assuming here that <code>bind_port</code> is <code>7800</code> everywhere</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>Run a few Draw instances with -props ./tcp.xml</li>
+<li>Verify that <code>bind_addr</code>, <code>bind_port</code> and <code>initial_hosts</code> are OK:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=TCP.bind jmx=TCPPING.init
+
+#1 (344 bytes):
+TCP={bind_addr=/192.168.1.3, bind_port=7800}
+cluster=draw
+view=[A|1] (2) [A, B]
+physical_addr=192.168.1.3:7800
+local_addr=A [1253cca8-19e8-068a-b773-5e2d3771f507]
+TCPPING={initial_hosts=[192.168.1.3:7800, 192.168.1.3:7801, 192.168.1.3:7802]}
+
+
+#2 (344 bytes):
+TCP={bind_addr=/192.168.1.3, bind_port=7800}
+cluster=draw
+view=[A|1] (2) [A, B]
+physical_addr=192.168.1.3:7801
+local_addr=B [d77986dd-681c-a7fd-f6b7-bd2800c8b2f9]
+TCPPING={initial_hosts=[192.168.1.3:7800, 192.168.1.3:7801, 192.168.1.3:7802]}
+
+[mac] /Users/bela/workshop/bin$</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_buffers">
+<h2>Buffers</h2>
+<div class="ulist">
+<ul>
+<li><p>
+<em>Right size</em> buffers<div class="ulist">
+<ul>
+<li>Too small: packet drops, too big: wasted resources</li>
+<li><p>
+Bandwidth-delay product only works for point-to-point (TCP)<div class="ulist">
+<ul>
+<li><p>
+In the worst case, we need to multiply this by the number of senders (oversimplification)<div class="ulist">
+<ul>
+<li>Max traffic we can receive is <code>min(current_senders * rate, link_bandwidth)</code></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li><p>
+Transport buffers:<div class="ulist">
+<ul>
+<li><p>
+<code>UDP</code>: <code>mcast_send_buf_size</code>, <code>mcast_recv_buf_size</code>, <code>ucast_send_buf_size</code>, <code>ucast_recv_buf_size</code><div class="ulist">
+<ul>
+<li>Linux: these buffer cannot be bigger than <code>net.core.rmem_max</code> (recv) or <code>net.core.wmem_max</code> (send)</li>
+</ul>
+</div></p></li>
+<li><code>TCP</code>: <code>send_buf_size</code>, <code>recv_buf_size</code></li>
+</ul>
+</div></p></li>
+<li>NIC input buffers: <code>/sbin/ifconfig txqueuelen 5000</code> (Linux)</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_flow_control">
+<h2>Flow control</h2>
+<div class="ulist">
+<ul>
+<li>Multicast flow control: <code>MFC</code>, unicast flow control: <code>UFC</code></li>
+<li><code>UFC</code> not needed when the transport is <code>TCP</code></li>
+<li>The more credits (<code>max_credits</code>) a sender has, the more data it can send until it blocks</li>
+<li>A higher <code>min_threshold</code> value leads to quicker credit replenishments by the receivers back to the senders</li>
+<li><p>
+However: if <code>max_credits</code> and <code>min_threshold</code> are too large, then the purpose of flow control is defeated<div class="ulist">
+<ul>
+<li>Receivers might still run out of memory as they&#8217;re getting more messages than they can handle</li>
+</ul>
+</div></p></li>
+<li>Suggestion: test with load that&#8217;s slightly higher than expected load, watch memory use over time</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_transport_resources">
+<h2>Transport resources</h2>
+<div class="ulist">
+<ul>
+<li>Thread pool buffers (regular, OOB, incoming, timer), queues</li>
+<li><p>
+All 4 thread pool use j.u.c.ThreadPoolExecutor with its semantics<div class="ulist">
+<ul>
+<li>Create min threads, then fill queue (if enabled), then create up to max threads, then reject</li>
+</ul>
+</div></p></li>
+<li>Hands off the internal pool (used by JGroups only) !</li>
+<li>Timer pool should not be changed either, unless we expect a lot of timer tasks, or long running tasks</li>
+<li>This leaves us with the default and OOB pools</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_transport_default_thread_pool">
+<h2>Transport: default thread pool</h2>
+<div class="ulist">
+<ul>
+<li>For regular (sender-FIFO) messages</li>
+<li>(Conceptual) queues are created for each sender</li>
+<li>Only 1 thread processes a queue, delivering <em>1 message at a time</em></li>
+<li>The other messages for the same sender consume threads only to add the messages to the queue, then the thread is
+put back into the pool</li>
+<li><p>
+Recommendations for peak (receiving messages from N senders concurrently):<div class="ulist">
+<ul>
+<li>Set min-threads to N</li>
+<li>Set max-threads to N+2 (2 spare threads)</li>
+<li>Enable a queue to catch traffic peaks</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_transport_oob_thread_pool">
+<h2>Transport: OOB thread pool</h2>
+<div class="ulist">
+<ul>
+<li>For OOB messages (no defined delivery order)</li>
+<li>Each thread takes a message (or message batch) and passes it up to the application</li>
+<li>Many messages from the same sender can be processed concurrently</li>
+<li><p>
+Recommendations:<div class="ulist">
+<ul>
+<li>Disable the thread pool queue</li>
+<li>Set min-threads to a small number (more threads will be created if needed)</li>
+<li><p>
+Set max-threads to the max number of OOB messages expected to be received concurrently<div class="ulist">
+<ul>
+<li><p>
+This number can be high because we won&#8217;t reach it unless we have many concurrent messages<div class="ulist">
+<ul>
+<li>The thread idle time will reduce the active thread size after a while if not all threads &gt; min-threads are used</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>Thread stack size: uses memory, make sure to size this as well</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_ethernet_flow_control_802_3x">
+<h2>Ethernet flow control 802.3x</h2>
+<div class="ulist">
+<ul>
+<li>Good for <code>UDP</code>, bad for <code>TCP</code></li>
+<li>Enable: <code>/sbin/ethtool -A eth0 tx on rx on</code> (Linux)</li>
+<li>Enable in switch as well</li>
+<li>Ref: <a class="bare" href="https://developer.jboss.org/wiki/PerfTuning">https://developer.jboss.org/wiki/PerfTuning</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_interrupt_coalescing">
+<h2>Interrupt coalescing</h2>
+<div class="ulist">
+<ul>
+<li>Collects multiple interrupts and handles them together</li>
+<li>Less <em>context switching</em></li>
+<li>Slightly worse latency</li>
+<li>Example: <code>/usr/sbin/ethtool -C eth0 rx-usecs 75</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_jumbo_frames">
+<h2>Jumbo frames</h2>
+<div class="ulist">
+<ul>
+<li>Increases the size of a datagram packet&#8217;s MTU, e.g. from 1500 to 8000</li>
+<li><p>
+If we send large messages, fewer datagrams need to be sent<div class="ulist">
+<ul>
+<li>60'000 byte message: 40 packets with mtu=1500, 8 with mtu=8000</li>
+<li><p>
+<code>UDP</code>: if 1 datagram packet of a message is lost, we need to retransmit all IP packets<div class="ulist">
+<ul>
+<li>Smaller chance of dropping 1 out of 8 packets than 1 out of 40</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>Excellent for high throughput</li>
+<li>Needs to be enabled on all hosts and the switch(es)</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_udp_versus_tcp">
+<h2>UDP versus TCP</h2>
+<div class="ulist">
+<ul>
+<li><p>
+<code>UDP</code> sends 1 multicast packet to the switch, which copies it to all ports with subscribers for the multicast group<div class="ulist">
+<ul>
+<li>Cost to send a group message to all cluster members: 1</li>
+</ul>
+</div></p></li>
+<li><p>
+<code>TCP</code> sends the message to each member separately<div class="ulist">
+<ul>
+<li>Cost: N-1 (where N is the cluster size)</li>
+<li>If <code>N-1 * message size</code> is larger than the link&#8217;s bandwidth, this is a bottleneck</li>
+</ul>
+</div></p></li>
+<li>TCP generates more traffic for group messages</li>
+<li>UDP more scalable in large clusters</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_message_bundling_batching">
+<h2>Message bundling / batching</h2>
+<div class="ulist">
+<ul>
+<li>JGroups by default queues smaller messages on the sender until a size threshold has been exceeded, or no more
+messages are available</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>loop
+    while(queue not full and more msgs available)
+        queue next message
+    send message batch
+endloop</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Sends a single message immediately (low latency)</li>
+<li>Sends many messages in the time it takes to add them to the queue and exceed the size threshold</li>
+<li>Queued messages are then sent as one big message</li>
+<li>Advantage: payload-to-header ratio is better, less overhead per message</li>
+<li><p>
+Batching can be bypassed by marking a message as <code>DONT_BUNDLE</code> and <code>OOB</code><div class="ulist">
+<ul>
+<li>Only recommended for selected (few) messages</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_retransmission_intervals_in_nakack2_and_unicast3">
+<h2>Retransmission intervals in NAKACK2 and UNICAST3</h2>
+<div class="ulist">
+<ul>
+<li>Attribute <code>xmit_interval</code> defines the interval at which we&#8217;re checking for missing messages and ask the sender
+for retransmission (NAKACK2,UNICAST3), or resend messages for which we haven&#8217;t yet received an ack (UNICAST3)</li>
+<li><p>
+A small interval might lead to multiple redundant retransmission requests/responses<div class="ulist">
+<ul>
+<li>This increases traffic and might compound the problem &#8594; even more dropped packets due to buffer overflow</li>
+</ul>
+</div></p></li>
+<li>If the interval is too high, retransmission may not be able to retransmit all missing messages (see next topic) in one go</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_maximum_size_of_retransmission_requests">
+<h2>Maximum size of retransmission requests</h2>
+<div class="ulist">
+<ul>
+<li>In <code>NAKACK2</code> and <code>UNICAST3</code>, if too many messages are missing, a retransmit request message may become too big</li>
+<li>Only applicable to <code>UDP</code></li>
+<li>Both protocols therefore only request for retransmission of the oldest N messages, such that the size of the retransmit
+request doesn&#8217;t exceed the max datagram packet size</li>
+<li>The max size of a retransmit request can be configured: <code>max_xmit_req_size</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_stable">
+<h2>STABLE</h2>
+<div class="ulist">
+<ul>
+<li>Purges messages seen by everyone in <code>NAKACK2</code></li>
+<li>Low stable interval &#8594; quick purging but more traffic</li>
+<li>High stable interval &#8594; less traffic but memory accumulation</li>
+<li>Find the optimal tradeoff based on traffic pattern</li>
+<li>STABLE rounds can also be triggered manually / programmatically (<code>STABLE.gc()</code>)</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_link_bundling">
+<h2>Link bundling</h2>
+<div class="ulist">
+<ul>
+<li>Logical network interface, but consisting of multiple physical NICs</li>
+<li>Each physical NIC might use a different network &#8594; multiplies bandwidth</li>
+<li>Example: IP bonding (Linux)</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_top_jgroups_problems">
+<h2>Top JGroups problems</h2>
+<div class="ulist">
+<ul>
+<li><p>
+From<div class="ulist">
+<ul>
+<li>Mailing lists</li>
+<li>Support cases</li>
+<li>Consulting</li>
+<li>Interaction with customers</li>
+<li>Bug reports</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_12_aws">
+<h2>Problem #12: AWS</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Large packets sizes in EC2 are dropped<div class="ulist">
+<ul>
+<li>The problem was that large packets using the default stack configuration for <code>FRAG2</code> (60k) were sometimes being dropped
+between some hosts.</li>
+<li>The cluster would work fine until a large amount of data was sent between some pairs of servers.</li>
+<li>Amazon support: this is an update for case 85983221. We are currently limited to packet sizes of 32k and below on Amazon
+EC2 and can confirm the issues you are facing for larger packet sizes. We are investigating a solution
+to this limitation. Please let us know if you can keep your packet sizes below this level, or if this
+is severe problem blocking your ability to operate.</li>
+</ul>
+</div></p></li>
+<li>Solution: use <code>FRAG2</code> sizes of &#8656; 32k if you are running in <code>UDP</code> mode under EC2.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_11_last_message_dropped_in_code_nakack2_code">
+<h2>Problem #11: last message dropped in <code>NAKACK2</code></h2>
+<div class="ulist">
+<ul>
+<li>Last message dropped issue</li>
+<li>Solution: use <code>RSVP</code> to ack a batch of work, or set <code>resend_last_seqno</code> in <code>NAKACK2</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_10_code_receive_code_and_code_viewaccepted_code_callbacks">
+<h2>Problem #10: <code>receive()</code> and <code>viewAccepted()</code> callbacks</h2>
+<div class="ulist">
+<ul>
+<li>Invoking blocking RPCs or doing something long or blocking in these callbacks</li>
+<li>Because JGroups calls these callbacks on a thread from the incoming thread pool, all messages behind this one are stuck
+until the callback returns</li>
+<li>Solution: use a separate thread is some callback code needs to block, invoke a blocking RPC, or perform a long task</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_9_macos">
+<h2>Problem #9: MacOS</h2>
+<div class="ulist">
+<ul>
+<li>Multicast routing on Mac OS: <a class="bare" href="https://developer.jboss.org/wiki/MulticastRoutingOnMacOSX">https://developer.jboss.org/wiki/MulticastRoutingOnMacOSX</a></li>
+<li>Solution: pick the correct <code>mcast_addr</code> in <code>UDP</code> based on the routing table and <code>bind_addr</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_8_jgroups_eating_memory_nakack2_stable">
+<h2>Problem #8: JGroups eating memory: NAKACK2 / STABLE</h2>
+<div class="ulist">
+<ul>
+<li>Memory grows in <code>NAKACK</code></li>
+<li>In most cases, this is caused by a slow member which hasn&#8217;t yet been suspected and excluded (hinders progress)</li>
+<li>Symptom: one or more slow members prevent an agreement between all members on which messages have been seen and can
+be discarded &#8594; memory accumulates</li>
+<li>Solution: remove / fix the slow or unresponsive members or decrease the failure detection timeout to exclude the member</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_7_seeing_traffic_from_different_clusters">
+<h2>Problem #7: seeing traffic from different clusters</h2>
+<div class="ulist">
+<ul>
+<li>When using UDP, we get warnings that traffic from a different cluster was discarded</li>
+<li>This is caused by using the same <code>mcast_addr</code> and <code>mcast_port</code> in <code>UDP</code> in different clusters</li>
+<li>Solution: use different values for either or both attributes in <code>UDP</code> for each separate cluster</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_6_tcpping">
+<h2>Problem #6: TCPPING</h2>
+<div class="ulist">
+<ul>
+<li><p>
+TCPPING.initial_hosts doesn&#8217;t list all cluster members<div class="ulist">
+<ul>
+<li>If <code>initial_hosts=A</code> and we have <code>{A,B,C}</code>, then <code>A</code> leaves, no new members can join</li>
+<li><p>
+Solutions:<div class="ulist">
+<ul>
+<li>List all members</li>
+<li>Use <code>send_cache_on_join</code> (<code>3.6.1</code> and higher)</li>
+<li>use <code>MPING</code> (if IP multicasting is enabled)</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li><p>
+TCPPING not merging<div class="ulist">
+<ul>
+<li>Same as above: if we have <code>initial_hosts=A</code>, but 2 partitions <code>{A,B,C}</code> and <code>{X,Y,Z}</code>, then <code>X</code> will be able to send a
+message to <code>A</code>, but <code>A</code> won&#8217;t be able to respond (it doesn&#8217;t have <code>X</code>'s address) &#8594; no merge</li>
+</ul>
+</div></p></li>
+<li><p>
+TCPPING.initial_hosts lists the wrong members<div class="ulist">
+<ul>
+<li>All members need to be listed with the <code>bind_addr</code> they&#8217;re bound to and the <code>bind_port</code> they use</li>
+</ul>
+</div></p></li>
+<li><p>
+TCPPING is used but TCP doesn&#8217;t set <code>bind_port</code><div class="ulist">
+<ul>
+<li>If <code>TCP.bind_port</code> is 0, a random port will be used and we cannot list it in <code>TCPPING.initial_hosts</code></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_5_ipv6">
+<h2>Problem #5: IPv6</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Running in IPv6 without a correctly configured IPv6 routing table<div class="ulist">
+<ul>
+<li>By default, the JVM uses IPv6, but the routing table is not configured correctly, or the config uses IPv4</li>
+<li>Solution: look at IPv6 routing or force use of IPv4 (<code>-Djava.net.preferIPv4Stack=true</code>)</li>
+</ul>
+</div></p></li>
+<li><p>
+Mixing IPv4 and IPv6<div class="ulist">
+<ul>
+<li>This works with TCP as IPv4 addresses are mapped to IPv4-mapped IPv6 addresses, but this is (IMO) hard to set up correctly</li>
+</ul>
+</div></p></li>
+<li>Wiki: <a class="bare" href="https://developer.jboss.org/wiki/IPv6">https://developer.jboss.org/wiki/IPv6</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_4_jgroups_versions">
+<h2>Problem #4: JGroups versions</h2>
+<div class="ulist">
+<ul>
+<li><p>
+An old JGroups version is used<div class="ulist">
+<ul>
+<li>Symptom: a bug that was fixed a long time ago pops up</li>
+<li>Side effect: Bela gets very tired having to waste time on some bug that&#8217;s already been fixed</li>
+<li>Solution: upgrade to the latest stable JGroups version</li>
+</ul>
+</div></p></li>
+<li><p>
+Different JGroups version in the same cluster<div class="ulist">
+<ul>
+<li>Running different JGroups versions on different nodes might lead to subtle issues, e.g. dropping messages due to
+deserialization issues.</li>
+<li>Solution: run the same version on all cluster nodes</li>
+</ul>
+</div></p></li>
+<li><p>
+Old JGroups configuration<div class="ulist">
+<ul>
+<li>Sometimes, people upgrade to a newer JGroups version, but forget to upgrade their config(s) as well.</li>
+<li>Solution: always use the config template from the JGroups version you upgrade to and apply your specific changes</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_3_tinkering_with_configuration">
+<h2>Problem #3: tinkering with configuration</h2>
+<div class="ulist">
+<ul>
+<li>(The "I&#8217;m smarter than Bela" problem)</li>
+<li><p>
+Custom configuration files<div class="ulist">
+<ul>
+<li>A configuration should never be built from the ground up; instead, copy <code>udp.xml</code> or <code>tcp.xml</code> from the JGroups JAR
+and modify it</li>
+</ul>
+</div></p></li>
+<li><p>
+Removing 'unneeded' protocols<div class="ulist">
+<ul>
+<li>Removing <code>UNICAST</code> because the transport is <code>TCP</code> (reliable): this won&#8217;t work as <code>UNICAST</code> also performs ordering</li>
+<li>Symptoms: unicast messages can be unordered</li>
+<li>Removing <code>STABLE</code> causes OOMEs</li>
+</ul>
+</div></p></li>
+<li><p>
+Putting protocols in the wrong place<div class="ulist">
+<ul>
+<li>A configuration needs to be defined in a certain order; placing protocols in the wrong place almost always causes subtle issues</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_2_cluster_falls_apart">
+<h2>Problem #2: cluster falls apart</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Low timeout in <code>FD</code> / <code>FD_ALL</code><div class="ulist">
+<ul>
+<li>GC, high network traffic or exhausted thread pools on the receivers can lead to missing heartbeats, causing members
+to be suspected.</li>
+<li>Symptoms: some members are suspected, excluded and later merged back</li>
+<li>Solution: use high timeouts in heartbeat based failure detection protocols and add <code>FD_SOCK</code> / <code>FD_HOST</code></li>
+</ul>
+</div></p></li>
+<li><p>
+IGMP Snooping<div class="ulist">
+<ul>
+<li>Snooping (in the switch) listens on ports for IGMP joins and copies multicast packets for a groups to all joiners of
+that group.</li>
+<li>Buggy firmware code leads to that information getting dropped and multicast packets getting dropped until the
+information has been refreshed.</li>
+<li>Symptoms: multicast groups falls apart every N minutes</li>
+<li>Solution: upgrade switch firmware</li>
+</ul>
+</div></p></li>
+<li><p>
+Faulty network card<div class="ulist">
+<ul>
+<li>Sometimes a faulty NIC randomly drops packets, or drops sent packets but accepts received packets</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_problem_1_members_don_t_find_each_other">
+<h2>Problem #1: members don&#8217;t find each other</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Binding to the loopback interface<div class="ulist">
+<ul>
+<li>Setting <code>bind_addr</code> (in the transport) or system property <code>jgroups.bind_addr</code>
+to <code>127.0.0.1</code> works when members are running on the same host, but doesn&#8217;t work across hosts</li>
+</ul>
+</div></p></li>
+<li><p>
+Binding to the wrong network interface<div class="ulist">
+<ul>
+<li>Binding to a VPN tunnel that&#8217;s down, or <code>A</code> binding to <code>eth0</code> and <code>B</code> binding to <code>eth1</code> (different networks)</li>
+</ul>
+</div></p></li>
+<li><p>
+Firewalls dropping packets<div class="ulist">
+<ul>
+<li>Disable the firewall, to see if this helps (e.g. <code>sudo iptables -F</code> on Linux).</li>
+<li>If this is the issue, open ports for JGroups (<code>UDP.bind_port</code>, <code>FD_SOCK</code>, <code>STATE_SOCK</code>) and re-enable the firewall</li>
+</ul>
+</div></p></li>
+<li><p>
+Switch dropping packets<div class="ulist">
+<ul>
+<li>Especially between VLANs. Check the switch configuration</li>
+</ul>
+</div></p></li>
+<li><p>
+UDP: time-to-live loo low<div class="ulist">
+<ul>
+<li>If <code>UDP</code> is used, increase the value of <code>ip_ttl</code>. See whether packets are received with wireshark / tcpdump</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_logging">
+<h2>Logging</h2>
+<div class="ulist">
+<ul>
+<li>JGroups has no runtime dependencies on any logging framework (j.u.l. is used by default)</li>
+<li><p>
+At startup, JGroups looks for log4j2, log4j, j.u.l. (in this order)<div class="ulist">
+<ul>
+<li>To force use of JDK logging, even if the log4j(2) JARs are present, <code>-Djgroups.use.jdk_logger=true</code> can be used</li>
+</ul>
+</div></p></li>
+<li>Custom loggers can be used instead of the ones supported by default. To do this, interface
+<code>CustomLogFactory</code> has to be implemented:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface CustomLogFactory {
+    Log getLog(Class clazz);
+    Log getLog(String category);
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>The implementation needs to return an implementation of <code>org.jgroups.logging.Log</code>.</li>
+<li>To force using the custom log implementation, the fully qualified classname of the custom log
+factory has to be provided with <code>-Djgroups.logging.log_factory_class=com.foo.MyCustomLogger</code>.</li>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#Logging">http://www.jgroups.org/manual/index.html#Logging</a></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_jmx">
+<h2>JMX</h2>
+<div class="ulist">
+<ul>
+<li>JGroups exposes attributes and operations of the channel and all protocols via JMX</li>
+<li>Has to be enabled with <code>-Dcom.sun.management.jmxremote</code> (or others, ie. remote JMX host:port etc)</li>
+<li>To expose a channel and its attributes via JMX:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public static void registerChannel(JChannel channel,String name) {
+    JmxConfigurator.registerChannel(channel,
+                                    Util.getMBeanServer(),
+                                    (name != null? name : "jgroups"),
+                                    channel.getClusterName(),
+                                    true);
+}
+
+// Util.registerChannel((JChannel)channel, channel.getClusterName());
+
+public static void unregisterChannel(Channe channel) {
+    JmxConfigurator.unregisterChannel((JChannel)channel,
+                                      Util.getMBeanServer(),
+                                      channel.getClusterName(());
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Let&#8217;s try this out with our ChatDemo</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_probe_sh">
+<h2>probe.sh</h2>
+<div class="ulist">
+<ul>
+<li>Probe is a simple program which sends IP multicasts to a given multicast group and port and prints all responses</li>
+<li><p>
+Functionality<div class="ulist">
+<ul>
+<li>Read attributes</li>
+<li>Write attributes</li>
+<li>Invoke operations</li>
+<li>Insert new protocols, remove protocols</li>
+</ul>
+</div></p></li>
+<li>Any application can implement a <code>ProbeHandler</code> and expose its attributes and operations</li>
+<li>Probe requests are simple strings that are parsed by cluster nodes</li>
+<li>Probe responses are strings, too</li>
+<li>To enable:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;UDP enable_diagnostics="true"
+     diagnostics_addr="xxx"
+     diagnostics_port="xxx"
+     ...
+/&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Let&#8217;s run ChatDemo and explore the features of probe</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_listing_all_cluster_nodes">
+<h2>Listing all cluster nodes</h2>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh
+
+-- sending probe on /224.0.75.75:7500
+
+#1 (149 bytes):
+local_addr=A [f91dce0b-a753-987d-9d18-a8e8d86950ee]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:52181
+version=3.6.0.Final
+
+#2 (149 bytes):
+local_addr=B [9e413b1d-d2f7-eaac-cb67-8eb94b2ba352]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:58998
+version=3.6.0.Final
+
+
+2 responses (2 matches, 0 non matches)
+[mac] /Users/bela/workshop/bin$</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_reading_attributes_from_a_protocol">
+<h2>Reading attributes from a protocol</h2>
+<div class="ulist">
+<ul>
+<li>Reading the number of sent and received messages and bytes in <code>UDP</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.num_msgs,num_byt
+
+#1 (246 bytes):
+local_addr=A [f91dce0b-a753-987d-9d18-a8e8d86950ee]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:52181
+jmx=UDP={num_msgs_received=36, num_msgs_sent=37, num_bytes_received=2325, num_bytes_sent=2470}
+
+version=3.6.0.Final
+
+
+#2 (246 bytes):
+local_addr=B [9e413b1d-d2f7-eaac-cb67-8eb94b2ba352]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:58998
+jmx=UDP={num_msgs_received=36, num_msgs_sent=36, num_bytes_received=2372, num_bytes_sent=2325}
+
+version=3.6.0.Final
+
+2 responses (2 matches, 0 non matches)
+[mac] /Users/bela/workshop/bin$</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_setting_attributes">
+<h2>Setting attributes</h2>
+<div class="ulist">
+<ul>
+<li>Changing the log level of <code>NAKACK2</code> to <code>TRACE</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>./probe.sh jmx=NAKACK2.level=trace</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>This allows an admin to change the log level temporarily, and reset it back to <code>WARN</code> later</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_invoking_an_operation">
+<h2>Invoking an operation</h2>
+<div class="ulist">
+<ul>
+<li>Dump the retransmit tables in <code>NAKACK2</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh op=NAKACK2.printMessages
+
+#1 (254 bytes):
+local_addr=A [f91dce0b-a753-987d-9d18-a8e8d86950ee]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:52181
+NAKACK2.printMessages=A:
+B: [0 | 0 | 0] (0 elements, 0 missing)
+A: [2 | 9 | 9] (0 elements, 0 missing)
+
+#2 (254 bytes):
+local_addr=B [9e413b1d-d2f7-eaac-cb67-8eb94b2ba352]
+cluster=ChatCluster
+view=[A|1] (2) [A, B]
+physical_addr=127.0.0.1:58998
+NAKACK2.printMessages=B:
+B: [0 | 0 | 0] (0 elements, 0 missing)
+A: [9 | 9 | 9] (0 elements, 0 missing)
+
+[mac] /Users/bela/workshop/bin$</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_printing_the_protocol_stacks">
+<h2>Printing the protocol stacks</h2>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ ./probe.sh print-protocols
+
+#1 (140 bytes):
+protocols=UDP
+PING
+MERGE3
+FD_SOCK
+FD_ALL
+NAKACK2
+UNICAST3
+STABLE
+GMS
+UFC
+MFC
+FRAG2
+
+#2 (140 bytes):
+protocols=UDP
+PING
+MERGE3
+FD_SOCK
+FD_ALL
+NAKACK2
+UNICAST3
+STABLE
+GMS
+UFC
+MFC
+FRAG2
+
+[mac] /Users/bela/workshop/bin$</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_inserting_a_protocol_at_runtime">
+<h2>Inserting a protocol at runtime</h2>
+<div class="ulist">
+<ul>
+<li>Insert <code>PRINT_BYTES</code> above <code>UDP</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>./probe.sh insert-protocol=org.lab.protocols.PRINT_BYTES=above=UDP</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Remove <code>PRINT_BYTES</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>./probe.sh remove-protocol=PRINT_BYTES</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Works only for stateless protocols</li>
+<li><p>
+Use cases<div class="ulist">
+<ul>
+<li>Temporary TRACE logging to see what&#8217;s going on in a defective system, then disable TRACE again</li>
+<li>Insert a protocol that extracts relevant information about a cluster, stores this to a file and sends the file to
+support</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_use_of_probe_when_ip_multicasting_is_not_available">
+<h2>Use of probe when IP multicasting is not available</h2>
+<div class="ulist">
+<ul>
+<li><p>
+<code>probe.sh -addr &lt;address of any member&gt; &lt;diagnostics port (default: 7500)&gt;</code><div class="ulist">
+<ul>
+<li>This asks any member for the addresses of <em>all members</em> and then sends the probe request to all members in turn</li>
+</ul>
+</div></p></li>
+<li>Note that any member can also be queried via simple datagram packets, e.g.:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>[mac] /Users/bela/workshop/bin$ nc -u 192.168.1.3 7500
+uuids
+local_addr=A
+uuids=2 elements:
+B: ca335dc2-f30f-6e11-d13a-b029e3e9e2f1: 192.168.1.3:7801 (300 secs old)
+A: 9dd407ae-577d-68b1-4f1e-6623279bb6ed: 192.168.1.3:7800 (31 secs old)
+
+local_addr=A [9dd407ae-577d-68b1-4f1e-6623279bb6ed]
+cluster=draw
+view=[A|1] (2) [A, B]
+physical_addr=192.168.1.3:7800
+version=3.6.1.Final
+^C
+[mac] /Users/bela/workshop/bin$</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Ref: <a class="bare" href="http://www.jgroups.org/manual/index.html#Probe">http://www.jgroups.org/manual/index.html#Probe</a></li>
+</ul>
+</div>
+</section>
+<div aria-role="navigation">
+<a class="deck-prev-link" href="#" title="Previous">&#8592;</a>
+<a class="deck-next-link" href="#" title="Next">&#8594;</a>
+</div>
+<p aria-role="status" class="deck-status">
+<span class="deck-status-current"></span>
+/
+<span class="deck-status-total"></span>
+</p>
+<form action="." class="goto-form" method="get">
+<label for="goto-slide">Go to Slide:</label>
+<input id="goto-slide" list="goto-datalist" name="slidenum" type="text">
+<datalist id="goto-data-list"></datalist>
+<input type="submit" value="Go">
+</form>
+</div>
+<script src="deck.js/jquery.min.js"></script>
+<script src="deck.js/core/deck.core.js"></script>
+<script src="deck.js/extensions/scale/deck.scale.js"></script>
+<script src="deck.js/extensions/goto/deck.goto.js"></script>
+<script src="deck.js/extensions/menu/deck.menu.js"></script>
+<script src="deck.js/extensions/navigation/deck.navigation.js"></script>
+<script src="deck.js/extensions/status/deck.status.js"></script>
+<script src="deck.js/extensions/toc/deck.toc.js"></script>
+<div class="deck-toc"></div>
+<script>
+  (function($, deck, undefined) {
+    $.deck.defaults.keys['previous'] = [8, 33, 37, 39];
+    $.deck.defaults.keys['next'] = [13, 32, 34, 39];
+  
+    $.extend(true, $[deck].defaults, {
+        countNested: false
+    });
+  
+    $.deck('.slide');
+  })(jQuery, 'deck');
+</script>
+<style>
+  .slide.canvas-image {
+  -moz-background-size: cover;
+  -webkit-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+  display: -moz-box;
+  display: -webkit-box;
+  display: -ms-box;
+  display: box;
+  -moz-box-orient: vertical;
+  -webkit-box-orient: vertical;
+  -ms-box-orient: vertical;
+  box-orient: vertical;
+  -moz-box-align: start;
+  -webkit-box-align: start;
+  -ms-box-align: start;
+  box-align: start;
+  -moz-box-pack: start;
+  -webkit-box-pack: start;
+  -ms-box-pack: start;
+  box-pack: start;}
+  
+  .bottom-left {
+    left: 1%;
+    bottom: 20%; }
+  
+  .top-left {
+    left: 1%;
+    top: 20%; }
+  
+  .bottom-right {
+    right: 1%;
+    bottom: 20%; }
+  
+  .top-right {
+    right: 1%;
+    top: 20%; }
+  
+  .center-up {
+    right: 50%;
+    top: 1%;
+  }
+  
+  .center-down {
+    right: 50%;
+    bottom: 1%;
+  }
+  .canvas-image .canvas-caption p {
+    text-align: center;
+    padding-top: 0;
+    padding: 0;
+    -moz-transform: none;
+    -webkit-transform: none;
+    -o-transform: none;
+    -ms-transform: none;
+    transform: none;
+    display: inline;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    font-weight: bold;
+    font-size: 58px;
+    -webkit-box-shadow: 2px 2px 2px #000;
+    -moz-box-shadow: 2px 2px 2px #000;
+    box-shadow: 2px 2px 2px #000;
+    padding: 1rem;
+    color: white; }
+  kbd.keyseq { color: #555555; }
+  kbd:not(.keyseq) {
+    display: inline-block;
+    color: #222222;
+    font-size: 0.7em;
+    line-height: 1.4;
+    background-color: #F7F7F7;
+    border: 1px solid #ccc;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+    -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    margin: -0.15em 0.15em 0 0.15em;
+    padding: 0.2em 0.6em;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  kbd kbd:first-child { margin-left: 0; }
+  kbd kbd:last-child { margin-right: 0; }
+</style>
+</body>
+</html>

@@ -141,6 +141,17 @@ Internal:: Handles `INTERNAL` messages. Reserved for use by JGroups. Needed to d
 Timer:: Used to execute tasks (periodic or one-time), e.g. retransmission, expiry of connection pools, stability etc
 
 
+Processing regular messages
+---------------------------
+image::../images/RegularThreadPool.png[Regular thread pool,width="100%"]
+
+
+
+Processing OOB messages
+-----------------------
+image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
+
+
 
 
 Configuration of thread pools
@@ -196,16 +207,25 @@ Thread pool use
 ** Most threads will only add their message (or message batch) to the table and return
 
 
-Processing regular messages
----------------------------
-image::../images/RegularThreadPool.png[Regular thread pool,width="100%"]
 
 
 
-Processing OOB messages
------------------------
-image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
+Recommended configs
+-------------------
 
+[width="90%",cols="2,10",frame="topbot",options="header"]
+|====
+| Pool | Recommendation
+| OOB | No queue -> OOB messages are executed on a thread or dropped. +
+Set `min_size` to a small size (more threads are created if needed), `max_size` should be higher than the max number of OOB messages received
+at any given time
+|Regular| Queue is enabled and quite large, to handle message peaks. +
+Set `min_size` to the number of cluster nodes plus a few more (D), `max_size` to a slightly higher value. +
+In a cluster of N, we never have more than N threads passing messages up, so we need D additional threads to
+handle all other regular messages and add them to the retransmission tables. This is quick so D can be small.
+|Internal| Leave the default config (min=2,max=4), don't touch
+| Timer | Defaults (min=2,max=4,small queue) should be sufficient
+|====
 
 
 
@@ -334,25 +354,6 @@ probe.sh op=UDP.setOOBThreadPoolMaxThreads[15]
 * Now each request takes ~ 1s again
 
 
-Recommended configs
--------------------
-
-[width="90%",cols="2,10",frame="topbot",options="header"]
-|====
-| Pool | Recommendation
-| OOB | No queue -> OOB messages are executed on a thread or dropped. +
-Set `min_size` to a small size (more threads are created if needed), `max_size` should be higher than the max number of OOB messages received
-at any given time
-|Regular| Queue is enabled and quite large, to handle message peaks. +
-Set `min_size` to the number of cluster nodes plus a few more (D), `max_size` to a slightly higher value. +
-In a cluster of N, we never have more than N threads passing messages up, so we need D additional threads to
-handle all other regular messages and add them to the retransmission tables. This is quick so D can be small.
-|Internal| Leave the default config (min=2,max=4), don't touch
-| Timer | Defaults (min=2,max=4,small queue) should be sufficient
-|====
-
-
-
 
 
 
@@ -368,17 +369,17 @@ public interface RequestHandler {
 }
 ----
 
-* `RpcDispatcher.handle()` converts the message's contents into a method call,
-  invokes the method against the target object and returns the result. The return value
-  is then sent back to the caller.
+* In the case of RpcDispatcher, the `handle()` method converts the message's contents into a method call,
+  invokes the method against the target object and returns the result (or throws an exception). The return value
+  is then sent back to the sender of the message.
 
-* The invocation is _synchronous_, ie. done on the thread dispatching the
-  message from the network up to the application. The thread is
+* The invocation is _synchronous_, ie. done on the thread responsible for dispatching this
+  particular message from the network up the stack all the way into the application. The thread is therefore
   _busy_ for the duration of the method invocation.
 
 * If the invocation takes a while, e.g. because locks are acquired or the application waits on some I/O,
   another thread will be used for a different request. This can quickly lead to the thread pool being
-  exhausted or many messages getting queued if the pool has a queue.
+  exhausted or many messages getting queued if the pool has an associated queue.
 
 * Therefore a new way of dispatching messages to the application was devised; the asynchronous invocation API
 * A new interface `AsyncRequestHandler` (derived from `RequestHandler`) is introduced
@@ -393,9 +394,9 @@ public interface AsyncRequestHandler extends RequestHandler {
 }
 ----
 
-* `AsyncRequestHandler` adds a method taking a request message and a `Response` object.
-* The request contains the same information as before (e.g. a method call plus args)
-* `Response` is used to send a reply later, when processing is done.
+* `AsyncRequestHandler` adds an additional method taking a request message and a `Response` object.
+* The request message contains the same information as before (e.g. a method call plus args)
+* `Response` is used to send a reply at a later time, when processing is done.
 
 [source,java]
 ----
@@ -404,7 +405,7 @@ public interface Response {
 }
 ----
 
-* `Response` has information about the request (e.g. request ID), and has method `reply()` to
+* `Response` has information about the request (e.g. request ID and sender), and has method `reply()` to
   send a response. The `is_exception` parameter should be true if the reply is an exception, e.g.
   was thrown when `handle()` ran application code.
 
@@ -431,12 +432,12 @@ Use of the asynchronous invocation API
   `setRequestHandler()`, and implement `AsyncRequestHandler.handle()` by
   dispatching the processing to a thread pool.
 
-* The JGroups thread handling the request will immediately be released and can be used to process other messages.
+* The thread handling the request from will immediately be released and can be used to process other messages.
 
 * The response will be sent when the invocation of application code is done, and thus the thread is not blocked
-  on I/O, or trying to acquire locks that blocks in application code.
+  on I/O, or trying to acquire locks or anything else that blocks in application code.
 
-* To set the mode which is used, method `RpcDispatcher.asyncDispatching(boolean)` is used. This can be
+* To set the mode which is used, method `RpcDispatcher.asyncDispatching(boolean)` can be used. This can be
   changed even at runtime, to switch between sync and async invocation style.
 
 * Asynchrounous invocation is typically used in conjunction with an _application thread pool_. The application
@@ -444,18 +445,15 @@ Use of the asynchronous invocation API
 
 * Benefit: request dispatching (and ordering !) is now under application control
 
-
-
-Example: replicated web sessions
---------------------------------
-* If a cluster node A has 1000 web sessions, then replication of updates across the cluster generates messages from A.
-* Because JGroups delivers messages from the _same_ sender _sequentially_, even
-  updates to unrelated web sessions are delivered in strict order.
-* With asynchronous invocation, the application could devise a dispatching strategy which assigns updates to
-  different (unrelated) web sessions to any available thread from the pool, but queues updates to the same
-  session, and processes those by the same thread, to provide ordering of updates to the same session.
-** This would speed up overall processing, as updates to a web session 1 on A don't have to wait until all
-   updates to an unrelated web session 2 on A have been processed.
+* Example of where asynchronous invocation makes sense: replicated web sessions
+** If a cluster node A has 1000 web sessions, then replication of updates across the cluster generates messages from A.
+** Because JGroups delivers messages from the _same_ sender _sequentially_, even
+   updates to unrelated web sessions are delivered in strict order.
+** With asynchronous invocation, the application could devise a dispatching strategy which assigns updates to
+   different (unrelated) web sessions to any available thread from the pool, but queues updates to the same
+   session, and processes those by the same thread, to provide ordering of updates to the same session.
+*** This would speed up overall processing, as updates to a web session 1 on A don't have to wait until all
+    updates to an unrelated web session 2 on A have been processed.
 
 
 
@@ -577,8 +575,13 @@ Non blocking RSVP
 
 Generating custom addresses
 ---------------------------
-* Address generation is pluggable: an application can make JGroups use custom addresses.
-* To use custom addresses, `org.jgroups.stack.AddressGenerator` has to be implemented:
+* Address generation is pluggable: an application can define what kind of
+  addresses it uses. The default address type is `UUID`, and since some protocols use UUID, it is
+  recommended to provide custom classes as _subclasses of UUID_.
+* This can be used to pass additional data around with an address, for example information
+  about the location of the node to which the address is assigned
+* To use custom addresses, an implementation of `org.jgroups.stack.AddressGenerator`
+  has to be written:
 
 [source,java]
 ----
@@ -587,53 +590,56 @@ public interface AddressGenerator {
 }
 ----
 
-* The default address type is `UUID`
-* Use `ExtendedUUID` (subclass of `UUID`) as custom address.
-** Can be used to pass additional data around with an address, for example information
-   about the location of the node to which the address is assigned
-* Example: here we create an `ExtendedUUID` and add the hostname to it under key `host`:
+* For any class `CustomAddress`, it will need to get registered with `ClassConfigurator` in
+  order to marshal it correctly:
 
 [source,java]
 ----
-JChannel ch=new JChannel();
-ch.addAddressGenerator(new AddressGenerator() {
-    public Address generateAddress() {
-        ExtendedUUID retval=ExtendedUUID.randomUUID();
-            retval.put("host", getHostName().getBytes());
-            return retval;
-        }
-    });
-ch.connect("cluster");
+class CustomAddress extends UUID {
+    static {
+        ClassConfigurator.add((short)8900, CustomAddress.class);
+    }
+}
 ----
+
+NOTE:
+The ID should be chosen such that it doesn't collide with any IDs defined in `jg-magic-map.xml`.
+
+* Set the address generator in `JChannel: addAddressGenerator(AddressGenerator)`. This has to
+  be done _before_ the channel is connected.
 
 
 
 
 Controlling view generation
 ---------------------------
-* View generation is pluggable; application code can be called to create a view
+* View generation is pluggable; application code can be called to determine how a new view is created
 * The first member of a view is always the _coordinator_
 ** The application can therefore pick the coordinator
 ** Useful to
 *** Pin the coordinatorship to only certain 'beefy' servers
-*** Make sure that one of the previous coordinators becomes the new coordinator after a merge. This
-    reduces the frequency at which the coordinator moves around and increases stability for
-    singleton services.
+*** Make sure that only one of the previous coordinators becomes the new coordinator after a merge. This
+    reduces the frequency at which the coordinator moves around and thus increases stability for
+    singleton services (services which are started only on one node in a given cluster).
+
 * To do this, interface +MembershipChangePolicy+ has to be implemented
 
 [source,java]
 ----
 public interface MembershipChangePolicy {
-  List<Address> getNewMembership(Collection<Address> current,            // <1>
-                                 Collection<Address> joiners,
-                                 Collection<Address> leavers,
-                                 Collection<Address> suspects);
-  List<Address> getNewMembership(Collection<Collection<Address>> views); // <2>
+    List<Address> getNewMembership(Collection<Address> current_members,
+                                   Collection<Address> joiners,
+                                   Collection<Address> leavers,
+                                   Collection<Address> suspects);
+    List<Address> getNewMembership(Collection<Collection<Address>> subviews);
 }
 ----
-<1> Create a regular view: `current_members` is a list of the current members, `joiners`
+
+
+* The first method is called to create a regular view: `current_members` is a list of the current members, `joiners`
   of new members, `leavers` of members which want to leave and `suspects` of members which have crashed
-<2> Accepts a list of membership lists; each list is a subview that needs to get merged into a new `MergeView`
+* The second method accepts a list of membership lists; each list is a subview that needs to get
+  merged into a new `MergeView`
 
 
 
@@ -686,7 +692,7 @@ A sample MembershipChangePolicy
 
 [source,java]
 ----
-public List<Address> getNewMembership(Collection<Address> current,
+public List<Address> getNewMembership(Collection<Address> current_members,
                                       Collection<Address> joiners,
                                       Collection<Address> leavers,
                                       Collection<Address> suspects) {
@@ -717,6 +723,7 @@ public List<Address> getNewMembership(Collection<Address> current,
 
 
 
+
 Fork channels
 -------------
 * A fork channel is a light-weight channel, forked off of a main channel (`JChannel`)
@@ -734,8 +741,6 @@ Fork channels
 *** To do so, it can create a fork stack with `COUNTER` and a fork channel connecting to that stack, and it will now
     have distributed atomic counter functionality on its fork stack, not available in the main stack
 
-NOTE:
-Fork channels are exposed directly in WildFly 9
 
 
 
@@ -782,26 +787,35 @@ FORK configuration
 
 [source,xml]
 ----
-<FORK>
-    <fork-stacks>
-        <fork-stack id="counter">
-            <config>
-                <COUNTER bypass_bundling="true"/>
-            </config>
-        </fork-stack>
-        <fork-stack id="lock">
-            <config>
-                <CENTRAL_LOCK num_backups="2"/>
-                <STATS/>
-            </config>
-        </fork-stack>
-    </fork-stacks>
-</FORK>
+<FORK config="/home/bela/fork-stacks.xml" />
 ----
 
-* `FORK` defines 2 fork stacks: `"counter"` and `"lock"`
-* The stack definition is defined with `<fork-stack>` elements
+* `FORK` refers to an external file to configure its fork stacks:
+
+[source,xml]
+----
+<fork-stacks xmlns="fork-stacks">
+    <fork-stack id="counter">
+        <config>
+            <COUNTER bypass_bundling="true"/>
+        </config>
+    </fork-stack>
+
+    <fork-stack id="lock">
+         <config>
+             <CENTRAL_LOCK num_backups="2"/>
+             <STATS/>
+         </config>
+    </fork-stack>
+
+</fork-stacks>
+----
+
+* File `fork-stacks.xml` defines 2 fork stacks: `"counter"` and `"lock"`
+
+* Element `<config>` is a regular JGroups configuration
 ** For example, fork stack `"lock"` creates a stack with `CENTRAL_LOCK` and `STATS`
+
 * When `FORK` is initialized, it will create the 2 fork stacks
 * Fork channels can pick one of the 2 existing fork stacks to be created over,
   or they can dynamically create new fork stacks
@@ -1184,8 +1198,8 @@ Example: printing a view change
 
 [source,java]
 ----
-public Object down(Event evt) {  // <1>
-    switch(evt.getType()) {      // <2>
+public Object down(Event evt) { // <1>
+    switch(evt.getType()) {     // <2>
          case Event.VIEW_CHANGE: // <3>
              View view=(View)evt.getArg(); // <4>
              System.out.println("view = " + view);
