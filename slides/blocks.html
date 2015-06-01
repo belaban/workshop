@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+<meta content="Asciidoctor 1.5.0" name="generator">
+<meta content="Bela Ban belaban@yahoo.com" name="author">
+<title>Building blocks</title>
+<link href="deck.js/core/deck.core.css" rel="stylesheet">
+<link href="deck.js/extensions/scale/deck.scale.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/goto/deck.goto.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/menu/deck.menu.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/navigation/deck.navigation.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/status/deck.status.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/toc/deck.toc.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/style/web-2.0.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/transition/fade.css" media="screen" rel="stylesheet">
+<link href="deck.js/core/print.css" media="print" rel="stylesheet">
+<script src="deck.js/modernizr.custom.js"></script>
+</head>
+<body class="article">
+<div class="deck-container">
+<section class="slide" id="title-slide">
+<h1>Building blocks</h1>
+<span id="author">Bela Ban belaban@yahoo.com</span>
+<br>
+</section>
+<section class="slide" id="_abstractions_over_a_channel">
+<h2>Abstractions (over a channel)</h2>
+<div class="ulist">
+<ul>
+<li>Method invocations (RPCs) across a cluster</li>
+<li>Replicated and distributed hashmaps</li>
+<li>Distributed counters</li>
+<li>Distributed locks and</li>
+<li>Task execution across cluster nodes</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_method_invocations_across_a_cluster">
+<h2>Method invocations across a cluster</h2>
+<div class="paragraph"><p>In this section we&#8217;ll look at ways to invoke methods in cluster nodes, in blocking or non-blocking fashion</p></div>
+<hr>
+</section>
+<section class="slide" id="_rpcdispatcher">
+<h2>RpcDispatcher</h2>
+<div class="ulist">
+<ul>
+<li>Class <code>RpcDispatcher</code> (name derived from <strong>R</strong>emote <strong>P</strong>rocedure <strong>C</strong>alls) provides the capability of invoking
+methods in a single node (unicast invocation), or in all nodes of a cluster (multicast invocation)</li>
+<li>Invocations can be <em>synchronous</em> (blocking) or <em>non-synchronous</em> (non-blocking)</li>
+<li>Any Java method can be invoked</li>
+<li>With multicast invocations, a <code>RspList&lt;T&gt;</code> object is returned:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>public class RspList&lt;T&gt; implements Map&lt;Address,Rsp&lt;T&gt;&gt; {... }</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><code>RspList</code> is a map of <code>Rsp&lt;T&gt;</code> objects associated with their senders; there&#8217;s one entry for each cluster node:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">for(Rsp&lt;Integer&gt; rsp: rsps) {
+    if(rsp.hasException()) {
+        log.warn("exception for %s: %s", rsp.getSender(), rsp.getException());
+        continue;
+    }
+    if(rsp.wasSuspected()) {
+        System.out.printf("%s was suspected:\n", rsp.getSender());
+        continue;
+    }
+    if(!rsp.wasReceived()) {
+        System.out.printf("no rsp from %s (timeout)\n", rsp.getSender());
+        continue;
+    }
+    System.out.printf("result for %s: %d\n", rsp.getSender(), rsp.getValue());
+}</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_rsp_t">
+<h2>Rsp&lt;T&gt;</h2>
+<div class="ulist">
+<ul>
+<li>A response is of type <code>Rsp&lt;T&gt;</code>:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public class Rsp&lt;T&gt; {
+    public T         getValue() {...}
+    public boolean   hasException() {...}
+    public Throwable getException() {...}
+    public Address   getSender() {...}
+    public boolean   wasReceived() {...}
+    public boolean   wasSuspected() {...}
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Method <code>getValue()</code> returns the value, or <code>null</code> if no value was received (or the method returned <code>void</code>)</li>
+<li>If <code>hasException()</code> is true, <code>getException()</code> will return a non-null <code>Throwable</code></li>
+<li>Method <code>getSender()</code> returns the sender of this specific response</li>
+<li>Method <code>wasReceived()</code> returns true if the call completed successfully (even if it is a <code>void</code> method)</li>
+<li>Method <code>wasSuspected()</code> returns true if the member was suspected while waiting for its response</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_requestoptions">
+<h2>RequestOptions</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Every method invocation can be parameterized with an instance of <code>RequestOptions</code>. We can define<div class="ulist">
+<ul>
+<li><p>
+Response mode: this determines whether the call is blocking and - if yes - how long it should block. The modes are:<div class="dlist">
+<dl>
+<dt class="hdlist1"><code>GET_ALL</code></dt>
+<dd>
+<p>Block until responses from all members (minus the suspected ones) have been received.</p>
+</dd>
+<dt class="hdlist1"><code>GET_NONE</code></dt>
+<dd>
+<p>Wait for none. This makes the call non-blocking</p>
+</dd>
+<dt class="hdlist1"><code>GET_FIRST</code></dt>
+<dd>
+<p>Block until the first response (from anyone) has been received</p>
+</dd>
+<dt class="hdlist1"><code>GET_MAJORITY</code></dt>
+<dd>
+<p>Block until a majority of members have responded</p>
+</dd>
+</dl>
+</div></p></li>
+<li>Timeout: max time (ms) to block. If the call hasn&#8217;t completed after the timeout elapsed, a TimeoutException will be thrown.
+A timeout of 0 means to wait forever. Ignored if the call is non-blocking (mode=<code>GET_NONE</code>)</li>
+<li>Response filter: a <code>RspFilter</code> allows for filtering of responses and user-defined termination of
+a call. For example, if we expect responses from 10 members, but can return after having
+received 3 non-null responses, a <code>RspFilter</code> could be used.</li>
+<li>Flags: the various flags to be passed to the message (see advanced section)</li>
+<li>Exclusion list: here we can pass a list of members (addresses) that should be excluded. For example,
+if the view is <code>{A,B,C,D,E}</code>, and we set the exclusion list to A,C then the caller will wait for
+responses from everyone except A and C. Also, every recipient that&#8217;s in the exclusion list
+will discard the message.</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_rpcdispatcher_api">
+<h2>RpcDispatcher API</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public &lt;T&gt; RspList&lt;T&gt;
+       callRemoteMethods(Collection&lt;Address&gt; dests,
+                         String method_name, Object[] args, Class[] types,
+                         RequestOptions options) throws Exception;
+public &lt;T&gt; RspList&lt;T&gt;
+       callRemoteMethods(Collection&lt;Address&gt; dests, MethodCall method_call,
+                         RequestOptions options) throws Exception;
+
+public &lt;T&gt; T callRemoteMethod(Address dest,
+                              String method_name, Object[] args, Class[] types,
+                              RequestOptions options) throws Exception;
+public &lt;T&gt; T callRemoteMethod(Address dest, MethodCall call,
+                              RequestOptions options) throws Exception;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li><p>
+The <code>callRemoteMethods()</code> (multicast) methods are invoked with a list of target
+addresses. If null, the method will be invoked in all cluster nodes<div class="ulist">
+<ul>
+<li>The method can be given as (1) the method name, (2) the arguments and (3) the argument types, or a
+<code>MethodCall</code> (containing a <code>java.lang.reflect.Method</code> and argument) can be given instead.</li>
+</ul>
+</div></p></li>
+<li>A <code>RspList</code> is returned.</li>
+<li>The <code>callRemoteMethod()</code> (unicast) methods take almost the same parameters, except
+that there is only one destination address instead of a list.</li>
+<li>The <code>callRemoteMethod()</code> calls return the actual result (or type T), or throws an
+exception if the method threw an exception on the target member.</li>
+<li>Reflection is used to find the correct method in the target node according to the method name and
+number and types of supplied arguments. There is a runtime exception if a method cannot be resolved.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_rpcdispatcher_example">
+<h2>RpcDispatcher example</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public int print(int number) throws Exception {return number * 2;}  <b class="conum">(1)</b>
+
+RequestOptions opts=new RequestOptions(ResponseMode.GET_ALL, 5000); <b class="conum">(2)</b>
+JChannel channel=new JChannel();
+RpcDispatcher disp=new RpcDispatcher(channel, this);   <b class="conum">(3)</b>
+channel.connect("RpcDispatcherTestGroup");
+for(int i=0; i &lt; 10; i++) {
+    RspList rsp_list=disp.callRemoteMethods(null,      <b class="conum">(4)</b>
+                                            "print",
+                                            new Object[]{i},
+                                            new Class[]{int.class},
+                                            opts);
+    System.out.println("Responses: " + rsp_list);
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Define public method <code>print()</code></p>
+</li>
+<li>
+<p>Define a <code>RequestOptions</code> object with mode=synchronous and a timeout of 5 seconds</p>
+</li>
+<li>
+<p>Create an <code>RpcDispatcher</code> over the channel, <code>this</code> means all methods to be invoked are in the same class</p>
+</li>
+<li>
+<p>Invoke the call on all cluster nodes (<code>null</code>). The method name is <code>"print"</code>, the actual argument is an array of one
+element (<code>i</code>), and the formal parameters are defined with an array of class information. Finally, the RequestOptions instance
+previously created is passed to the call.</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_response_filters">
+<h2>Response filters</h2>
+<div class="ulist">
+<ul>
+<li>Response filters allow application code to drop responses, or to return from a blocking call before all responses
+have been received.</li>
+<li>The <code>RspFilter</code> interface looks as follows:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface RspFilter {
+    boolean isAcceptable(Object response, Address sender);
+    boolean needMoreResponses();
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Method <code>isAcceptable()</code> is given a response value and the address of the member which sent
+the response, and needs to decide whether the response is valid (returning true) or not
+(returning false).</li>
+<li>Method <code>needMoreResponses()</code> determines whether a call is done or not.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_response_filter_example">
+<h2>Response filter example</h2>
+<div class="paragraph"><p>The sample code below shows how to use a RspFilter:</p></div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">RspFilter filter=new RspFilter() {
+    int num=0;
+    public boolean isAcceptable(Object response, Address sender) {
+        boolean retval=(Integer)response &gt; 1; <b class="conum">(1)</b>
+        if(retval)
+            num++;
+        return retval;
+    }
+    public boolean needMoreResponses() {
+        return num &lt; 2;                       <b class="conum">(2)</b>
+    }
+};
+
+RequestOptions opts=RequestOptions.SYNC().setRspFilter(filter); <b class="conum">(3)</b>
+RspList rsps=disp.callRemoteMethods(null, "foo", null, null, opts);</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>The response filter acepts all integer values that are greater than 1. All accepted values increment a counter.</p>
+</li>
+<li>
+<p>The call returns as soon as (1) it has received 2 valid responses or (2) the timeout elapsed or (3) it received responses
+from all members.</p>
+</li>
+<li>
+<p>The RequestOptions object is passed the <code>RspFilter</code> instance.</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_asynchronous_calls_with_futures">
+<h2>Asynchronous calls with futures</h2>
+<div class="ulist">
+<ul>
+<li>When invoking a synchronous call, the calling thread is blocked until the response (or responses) has
+been received.</li>
+<li>A <em>future</em> allows a caller to return immediately and grab the result(s) later.</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public NotifyingFuture&lt;RspList&gt;
+       callRemoteMethodsWithFuture(Collection&lt;Address&gt; dests, MethodCall call,
+                                   RequestOptions opts) throws Exception;
+public &lt;T&gt; NotifyingFuture&lt;T&gt;
+       callRemoteMethodWithFuture(Address dest, MethodCall call,
+                                  RequestOptions opts) throws Exception;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>A <code>NotifyingFuture</code> extends <code>java.util.concurrent.Future</code>, with its regular methods such as <code>isDone()</code>,
+<code>get()</code> and <code>cancel()</code>. This is shown in the following code:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">Future&lt;Integer&gt; future=dispatcher.callRemoteMethodWithFuture(...); <b class="conum">(1)</b>
+int num=future.get(); <b class="conum">(2)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Here we invoke a unicast method, which completes immediately, returning a future</p>
+</li>
+<li>
+<p>The <code>get()</code> blocks until the result is available</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_lab_rpcdispatcher">
+<h2>Lab: RpcDispatcher</h2>
+<div class="ulist">
+<ul>
+<li>Change ChatDemo to invoke an RPC rather than send a JGroups message for each chat message</li>
+<li><p>
+The callback to be invoked should be <code>onMessage(String message)</code><div class="ulist">
+<ul>
+<li>Argument <code>message</code> should contain the sender&#8217;s name, or pass <code>sender</code> as an additional argument to the RPC</li>
+</ul>
+</div></p></li>
+<li>Run</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre><code>bin/run.sh org.lab.ChatDemoRpc -props config.xml -name A</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Extra credit: use async RPCs with futures</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_distributed_caching">
+<h2>Distributed caching</h2>
+<div class="paragraph"><p>In this section we&#8217;ll look at replicating or distributing data across a cluster. <em>Replication</em> means that all nodes
+have all the data, whereas <em>distribution</em> means that only selected nodes store a given piece of information.</p></div>
+<hr>
+</section>
+<section class="slide" id="_replicatedhashmap">
+<h2>ReplicatedHashMap</h2>
+<div class="ulist">
+<ul>
+<li>A key/value store implementing <code>java.util.concurrent.ConcurrentMap</code></li>
+<li><p>
+<code>ReplicatedHashMap</code> uses <em>full replication</em>; any data added to an instance will be replicated to all other
+instances in the cluster<div class="ulist">
+<ul>
+<li>Removing a key will remove it in all cluster instances</li>
+<li>Gets are always local and don&#8217;t involve network round trips</li>
+</ul>
+</div></p></li>
+<li>A new instance needs to acquire the state from an existing node (the coordinator)</li>
+<li><p>
+A cache can be configured to use blocking or non-blocking updates and - if blocking - define a max timeout to block<div class="ulist">
+<ul>
+<li>When blocking mode is used, the caller blocks until the update has been acked by all cluster instances</li>
+<li>Otherwise, the call returns immediately and the updates are sent asynchronously</li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_replicatedhashmap_api">
+<h2>ReplicatedHashMap: API</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public class ReplicatedHashMap&lt;K, V&gt; implements ReplicatedMap&lt;K,V&gt; {
+    public interface Notification&lt;K, V&gt; {   <b class="conum">(1)</b>
+        void entrySet(K key, V value);
+        void entryRemoved(K key);
+        void viewChange(View view, List&lt;Address&gt; joined, List&lt;Address&gt; left);
+        void contentsSet(Map&lt;K,V&gt; new_entries);
+        void contentsCleared();
+    }
+    public         ReplicatedHashMap(Channel channel) {..}       <b class="conum">(2)</b>
+    public void    setBlockingUpdates(boolean blocking_updates); <b class="conum">(3)</b>
+    public void    setTimeout(long timeout);                     <b class="conum">(4)</b>
+    public void    start(long state_timeout) throws Exception;   <b class="conum">(5)</b>
+    public void    stop();                                       <b class="conum">(6)</b>
+    public void    addNotifier(Notification n);                  <b class="conum">(7)</b>
+ // get(), put(), putIfAbsent(), remove() etc from ConcurrentHashMap <b class="conum">(8)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Notification interface; can be used to register for certain events, e.g. when a key/value pair has been added</p>
+</li>
+<li>
+<p>Creates a new instance over an existing channel</p>
+</li>
+<li>
+<p>Sets the updates to be blocking or non-blocking</p>
+</li>
+<li>
+<p>Sets the timeout (ms); ignored if non-blocking</p>
+</li>
+<li>
+<p>Starts the cache: this fetches the state from an existing member</p>
+</li>
+<li>
+<p>Stops the cache: this stops the underlying channel and leaves the cluster</p>
+</li>
+<li>
+<p>Registers a listener for <code>Notification</code> callbacks</p>
+</li>
+<li>
+<p>The get and update methods are derived from <code>ConcurrentMap</code>; refer to it for details</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_replicatedhashmap_sample_code">
+<h2>ReplicatedHashMap: sample code</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">ReplicatedHashMap&lt;String,Integer&gt; map;
+JChannel channel=new JChannel(props); <b class="conum">(1)</b>
+channel.connect("rhm-cluster");
+map=new ReplicatedHashMap&lt;&gt;(channel); <b class="conum">(2)</b>
+map.start(); <b class="conum">(3)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Creates a new <code>JChannel</code>. Note that the configuration needs to include a state transfer protocol (e.g. <code>STATE</code>), or
+else the channel creation will fail with an exception</p>
+</li>
+<li>
+<p>Creates a new ReplicatedHashMap over an existing (and connected) channel</p>
+</li>
+<li>
+<p>Fetches the state from an existing member (not done if this is the first member). If the state transfer fails,
+e.g. with a timeout, or there s no state transfer protocol configured, an exception will be thrown</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_replicatedhashmap_demo">
+<h2>ReplicatedHashMap: demo</h2>
+<div class="ulist">
+<ul>
+<li>Demo: <code>repl-hashmap.sh</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_replcache">
+<h2>ReplCache</h2>
+<div class="ulist">
+<ul>
+<li><p>
+A key/value store using <em>partial replication</em>: a given key/value pair is not stored on <em>all</em> nodes, but only on
+<em>selected</em> cluster nodes<div class="ulist">
+<ul>
+<li>The number of times a key is stored is configured via a <em>replication count</em>.</li>
+<li>When the cluster view changes, keys are rebalanced if needed, to maintain the replication count for that key</li>
+</ul>
+</div></p></li>
+<li><p>
+A put(K,V) will store K on replication count nodes<div class="ulist">
+<ul>
+<li><p>
+The nodes on which K is stored are computed using a <em>consistent hash function</em>.<div class="ulist">
+<ul>
+<li>This function tries to minimize rebalancing on a view change.</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>A get(K) on a node which doesn&#8217;t store K is redirected to the primary owner of K</li>
+<li>A new instance doesn&#8217;t do state transfer (like RHM above), but rebalancing might assign it some keys</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_replcache_api">
+<h2>ReplCache: API</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public class ReplCache&lt;K,V&gt; {
+    public interface HashFunction&lt;K&gt; {      <b class="conum">(1)</b>
+        List&lt;Address&gt; hash(K key, short repl_count);
+    }
+
+    public ReplCache(String props, String cluster_name);        <b class="conum">(2)</b>
+    public void setDefaultReplicationCount(short repl_count);   <b class="conum">(3)</b>
+    public void setHashFunction(HashFunction&lt;K&gt; hash_function); <b class="conum">(4)</b>
+    public void start() throws Exception;                       <b class="conum">(5)</b>
+    public void stop();                                         <b class="conum">(6)</b>
+    public void put(K k, V v, short repl_count, long timeout, boolean sync); <b class="conum">(7)</b>
+    public V    get(K key);                                     <b class="conum">(8)</b>
+    public void remove(K key, boolean synchronous);             <b class="conum">(9)</b>
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Interface which defines the consistent hash function to be used.</p>
+</li>
+<li>
+<p>Creates a new instance, creating a channel first.</p>
+</li>
+<li>
+<p>Sets a default replication count. Used when not explicitly passed to update methods</p>
+</li>
+<li>
+<p>Sets the consistent hash function. There&#8217;s a default if not set.</p>
+</li>
+<li>
+<p>Joins the cluster. This causes rebalancing if there are existing cluster members.</p>
+</li>
+<li>
+<p>Leaves the cluster. This causes rebalancing if there are existing cluster members.</p>
+</li>
+<li>
+<p>Adds data to the cache. If synchronous, <code>timeout</code> (ms) defines how long the caller is willing to block</p>
+</li>
+<li>
+<p>Returns a value for a given key K. If K is not local, this may result in a network round trip to the primary owner.</p>
+</li>
+<li>
+<p>Removes a key from all nodes which store it.</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_replcache_sample_code">
+<h2>ReplCache: sample code</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">ReplCache&lt;String,String&gt; cache=new ReplCache&lt;&gt;(props, cluster_name);
+cache.setCallTimeout(rpc_timeout);
+cache.start();</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_replcache_demo">
+<h2>ReplCache: demo</h2>
+<div class="ulist">
+<ul>
+<li>Demo: repl-cache.sh</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_difference_between_replicatedhashmap_and_replcache">
+<h2>Difference between ReplicatedHashMap and ReplCache</h2>
+<div class="ulist">
+<ul>
+<li>For large clusters or large data, RHM won&#8217;t scale (data-wise), as each node stores data from all other nodes
+&#8594; use ReplCache</li>
+<li>When the cluster is small or the data set is small &#8594; use RHM (all gets are local)</li>
+<li>RHM requires state transfer; ReplCache requires rebalancing</li>
+<li>Example: 5 node cluster, we need to store 10 items of 50MB each in the cluster</li>
+<li>RHM: each node stores 500MB, independent of cluster size</li>
+<li>ReplCache (repl_count=2): each node stores 2 * 10 * 50 / 5 = ~200MB on average (depends on the hashing function)</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_distributed_locks">
+<h2>Distributed locks</h2>
+<div class="paragraph"><p>Nodes can acquire cluster-wide locks.</p></div>
+<hr>
+</section>
+<section class="slide" id="_cluster_wide_locks">
+<h2>Cluster wide locks</h2>
+<div class="ulist">
+<ul>
+<li>Locks that can be accessed by any cluster node</li>
+<li><p>
+A lock is identified by a name<div class="ulist">
+<ul>
+<li>All nodes accessing a lock with the same name will block on the same lock</li>
+</ul>
+</div></p></li>
+<li><p>
+Locks implement <code>java.util.concurrent.lock.Lock</code><div class="ulist">
+<ul>
+<li><p>
+The same semantics are provided<div class="ulist">
+<ul>
+<li>The owner of a lock is always a thread in a node</li>
+<li>Different threads in the same node will compete for locks</li>
+<li><p>
+This can be turned off: lock owners can be entire nodes<div class="ulist">
+<ul>
+<li>All threads in the same node will then not block on the same lock</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+<li>Conditions are supported, too</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_lockservice">
+<h2>LockService</h2>
+<div class="ulist">
+<ul>
+<li><code>LockService</code> provides methods to get cluster wide locks:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public LockService(JChannel ch);       <b class="conum">(1)</b>
+public Lock getLock(String lock_name); <b class="conum">(2)</b></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Create a <code>LockService</code> instance on top of an existing channel. The channel needs to contain <code>CENTRAL_LOCK</code></p>
+</li>
+<li>
+<p>Get a lock with a given name</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">JChannel ch=new JChannel(props);
+LockService lock_service=new LockService(ch);
+ch.connect("lock-cluster");
+Lock lock=lock_service.getLock("mylock"); <b class="conum">(1)</b>
+lock.lock();                              <b class="conum">(2)</b>
+try {
+    // access a resource protected by the lock
+}
+finally {
+    lock.unlock();                        <b class="conum">(3)</b>
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Use the lock service to obtain a named lock</p>
+</li>
+<li>
+<p>Acquire the lock</p>
+</li>
+<li>
+<p>Release the lock</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_central_lock">
+<h2>CENTRAL_LOCK</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Protocol implementing the distributed locking functionality<div class="ulist">
+<ul>
+<li>Needs to be at the top of the stack</li>
+</ul>
+</div></p></li>
+<li>Locks are managed by the <em>coordinator</em></li>
+<li><p>
+All lock requests (lock(), unlock()) are sent to the coordinator<div class="ulist">
+<ul>
+<li>The coordinator keeps track of locks and their state (locked / unlocked / lock owner)</li>
+<li>This state can be replicated to another node (<code>num_backups</code>)</li>
+</ul>
+</div></p></li>
+<li><p>
+Property <code>use_thread_id_for_lock_owner</code> determines the lock owner<div class="ulist">
+<ul>
+<li><code>true</code>: threads in the same node accessing the same lock block each other</li>
+<li><code>false</code>: threads in the same node accessing the same lock don&#8217;t block each other</li>
+</ul>
+</div></p></li>
+<li>Config sample:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;config&gt;
+    &lt;UDP /&gt;
+    ...
+    &lt;pbcast.GMS print_local_addr="true" join_timeout="3000"
+                view_bundling="true"/&gt;
+    &lt;MFC max_credits="2M" min_threshold="0.4"/&gt;
+    &lt;FRAG2 frag_size="60K"  /&gt;
+    &lt;CENTRAL_LOCK num_backups="1"/&gt;
+&lt;/config&gt;</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_lockservice_demo">
+<h2>LockService demo</h2>
+<div class="ulist">
+<ul>
+<li>Demo: <code>lock.sh</code></li>
+<li>E.g.: <code>lock.sh -props /home/myhome/lock.xml -name A</code></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_distributed_locks_and_network_partitions">
+<h2>Distributed locks and network partitions</h2>
+<div class="ulist">
+<ul>
+<li>If we have <code>{A,B,C,D,E}</code> all locks are managed by <code>A</code></li>
+<li>Let&#8217;s assume we have a network split (<em>split brain</em>): <code>{A,B}</code> and <code>{C,D,E}</code></li>
+<li><code>A</code> continues managing the locks, but now <code>C</code> becomes lock coordinator for the second partition
+&#8594; The same lock can now be held by a member of <code>{A,B}</code> and by a member of <code>{C,D,E}</code> !</li>
+<li><p>
+Strategies to handle this:<div class="ulist">
+<ul>
+<li>Define a static membership majority (e.g. 3) and become read-only (release all locks and don&#8217;t acquire new ones)
+when the membership drops below 3</li>
+<li>Handle MergeViews: release and re-acquire all currently held locks</li>
+<li><p>
+Use a consensus based system, e.g. jgroups-raft: <a class="bare" href="https://github.com/belaban/jgroups-raft">https://github.com/belaban/jgroups-raft</a><div class="ulist">
+<ul>
+<li>Becomes unavailable when membership drops below a given majority</li>
+<li>Locks can only get acquired and released by majority agreement</li>
+<li>Persistent logs allow newly elected leaders to get current lock information</li>
+<li>Only <em>one</em> member holds a lock at any time</li>
+</ul>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_distributed_counters">
+<h2>Distributed counters</h2>
+<div class="paragraph"><p>Cluster wide atomic counters.</p></div>
+<hr>
+</section>
+<section class="slide" id="_counterservice">
+<h2>CounterService</h2>
+<div class="ulist">
+<ul>
+<li>Obtains named cluster wide atomic counters:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public class CounterService {
+    public CounterService(JChannel ch); <b class="conum">(1)</b>
+    public Counter getOrCreateCounter(String name, long initial_value); <b class="conum">(2)</b>
+    public void deleteCounter(String name); <b class="conum">(3)</b>
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Creates a <code>CounterService</code> instance over an existing channel</p>
+</li>
+<li>
+<p>Returns an existing counter, or creates a new one if none exists</p>
+</li>
+<li>
+<p>Deletes a counter instance (on the coordinator)</p>
+</li>
+</ol>
+</div>
+<div class="paragraph"><p>NOTE:
+<code>CounterService</code> requires <code>COUNTER</code> to be somewhere near the top of the stack</p></div>
+</section>
+<section class="slide" id="_counter">
+<h2>Counter</h2>
+<div class="ulist">
+<ul>
+<li>Get and set a named counter to a value</li>
+<li>Atomic compare-and-set and incr/decr operations</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="java language-java">public interface Counter {
+    public long get();                                      <b class="conum">(1)</b>
+    public void set(long new_value);                        <b class="conum">(2)</b>
+    public boolean compareAndSet(long expect, long update); <b class="conum">(3)</b>
+    public long incrementAndGet();                          <b class="conum">(4)</b>
+    public long decrementAndGet();                          <b class="conum">(5)</b>
+    public long addAndGet(long delta);                      <b class="conum">(6)</b>
+}</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<ol>
+<li>
+<p>Gets the current value of the counter</p>
+</li>
+<li>
+<p>Sets the counter to a new value</p>
+</li>
+<li>
+<p>Atomically updates the counter using a CAS operation</p>
+</li>
+<li>
+<p>Atomically increments the counter and returns the new value</p>
+</li>
+<li>
+<p>Atomically decrements the counter and returns the new value</p>
+</li>
+<li>
+<p>Atomically adds the given value to the current value</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="slide" id="_counterservicedemo">
+<h2>CounterServiceDemo</h2>
+<div class="ulist">
+<ul>
+<li><code>counter.sh</code> / <code>counter.bat</code></li>
+<li>Config:</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;config&gt;
+    &lt;UDP /&gt;
+    ...
+    &lt;pbcast.GMS print_local_addr="true" join_timeout="3000"
+                view_bundling="true"/&gt;
+    &lt;MFC max_credits="2M" min_threshold="0.4"/&gt;
+    &lt;FRAG2 frag_size="60K"  /&gt;
+    &lt;COUNTER num_backups="1"/&gt;
+&lt;/config&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>Regarding merging, the same caveats as for distributed locks hold for distributed counters</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_distributed_task_execution">
+<h2>Distributed task execution</h2>
+<div class="paragraph"><p>Execution of tasks on different nodes in the cluster.</p></div>
+<hr>
+</section>
+<section class="slide" id="_goal">
+<h2>Goal</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Oftentimes, tasks need to be executed across a distributed system, reasons are:<div class="ulist">
+<ul>
+<li>We don&#8217;t want to overload a single host</li>
+<li>If a task is long running and/or requires a lot of CPU/memory, we want to distribute the tasks across a cluster to
+harness the processing power and memory provided by individual cluster nodes</li>
+</ul>
+</div></p></li>
+<li>Requirement: jobs / tasks need to be able to be broken into sizable chunks, that can be distributed in parallel</li>
+<li>If a node processing a task T crashes, T needs to be processed by some other node</li>
+<li>No single point of failure</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_design">
+<h2>Design</h2>
+<div class="ulist">
+<ul>
+<li><p>
+Cluster of nodes, each node can submit tasks (to be executed by some other node in the cluster)<div class="ulist">
+<ul>
+<li>Every node is a peer: it can both <em>submit</em> and <em>handle</em> tasks</li>
+<li>In a real application, clients could connect to <em>any</em> node, e.g. via TCP or RMI, and submit
+tasks to that node, which would then distribute it to some other node (or handle it itself)</li>
+</ul>
+</div></p></li>
+<li><p>
+When submitting a task, we pick a random integer which is then mapped to the rank of a node in the cluster<div class="ulist">
+<ul>
+<li>E.g. using <code>modulo</code> or a consistent hash</li>
+</ul>
+</div></p></li>
+<li>The task is then multicast (EXECUTE) across the cluster</li>
+<li>Every node adds the task to a hashmap consisting of tasks and their submitters' addresses</li>
+<li><p>
+Every node now compares the rank shipped with the task to its own rank<div class="ulist">
+<ul>
+<li>It it doesn&#8217;t match &#8594; nothing is done</li>
+<li>Else &#8594; the node needs to process the task. It does so and returns the result to the submitter</li>
+</ul>
+</div></p></li>
+<li><p>
+When the submitter receives the response (RESULT), it multicasts a REMOVE message across the cluster<div class="ulist">
+<ul>
+<li>Upon reception of REMOVE(T), every node removes T from its hashmap</li>
+</ul>
+</div></p></li>
+<li><p>
+If a node X crashes (or leaves gracefully), we know which tasks were assigned to it by looking up the tasks
+in the hashmap, keyed by X<div class="ulist">
+<ul>
+<li>All tasks which are still present in the hashmap have not yet been processed and need to be re-executed,
+this time by a different node</li>
+<li>This is done by comparing the rank shipped with the task to the node&#8217;s rank and executing it if a node&#8217;s
+own rank matches it</li>
+</ul>
+</div></p></li>
+<li>If a node M crashes after having submitted a few tasks but not yet having received the results,
+the slaves remove all tasks submitted by M, because M won&#8217;t need the results anymore.</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_example">
+<h2>Example</h2>
+<div class="ulist">
+<ul>
+<li>The cluster consists of nodes A, B, C and D</li>
+<li>Clients can access one of them</li>
+<li>A task submitted for example to B by a client might assign 23 to the task</li>
+<li>B then multicasts an EXECUTE(23, TASK) message to all nodes in the cluster, and every node adds task #23 to its cache</li>
+<li>However, the only node processing task #23 is A (to which 23 happens to map to),
+which then sends the result as a RESULT(23, OBJ) to B</li>
+<li>B returns the result OBJ to the client and multicasts a REMOVE(23) message to the cluster,
+which causes all nodes to remove task #23 from their caches.</li>
+<li>Had A crashed during processing of task #23, some other node would have taken over,
+processed the result and sent it back to B</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_demo">
+<h2>Demo</h2>
+<div class="ulist">
+<ul>
+<li><p>
+<code>task.sh</code> / <code>task.bat</code><div class="ulist">
+<ul>
+<li>Start a few instances</li>
+<li>Submit a long running job T</li>
+<li>Identify the host H on which T is executed</li>
+<li>Kill H &#8594; T should now be executed by some other node</li>
+</ul>
+</div></p></li>
+<li>Details: <a href="https://github.com/belaban/TaskDistribution"><a class="bare" href="https://github.com/belaban/TaskDistribution">https://github.com/belaban/TaskDistribution</a></a></li>
+</ul>
+</div>
+</section>
+<div aria-role="navigation">
+<a class="deck-prev-link" href="#" title="Previous">&#8592;</a>
+<a class="deck-next-link" href="#" title="Next">&#8594;</a>
+</div>
+<p aria-role="status" class="deck-status">
+<span class="deck-status-current"></span>
+/
+<span class="deck-status-total"></span>
+</p>
+<form action="." class="goto-form" method="get">
+<label for="goto-slide">Go to Slide:</label>
+<input id="goto-slide" list="goto-datalist" name="slidenum" type="text">
+<datalist id="goto-data-list"></datalist>
+<input type="submit" value="Go">
+</form>
+</div>
+<script src="deck.js/jquery.min.js"></script>
+<script src="deck.js/core/deck.core.js"></script>
+<script src="deck.js/extensions/scale/deck.scale.js"></script>
+<script src="deck.js/extensions/goto/deck.goto.js"></script>
+<script src="deck.js/extensions/menu/deck.menu.js"></script>
+<script src="deck.js/extensions/navigation/deck.navigation.js"></script>
+<script src="deck.js/extensions/status/deck.status.js"></script>
+<script src="deck.js/extensions/toc/deck.toc.js"></script>
+<div class="deck-toc"></div>
+<script>
+  (function($, deck, undefined) {
+    $.deck.defaults.keys['previous'] = [8, 33, 37, 39];
+    $.deck.defaults.keys['next'] = [13, 32, 34, 39];
+  
+    $.extend(true, $[deck].defaults, {
+        countNested: false
+    });
+  
+    $.deck('.slide');
+  })(jQuery, 'deck');
+</script>
+<style>
+  .slide.canvas-image {
+  -moz-background-size: cover;
+  -webkit-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+  display: -moz-box;
+  display: -webkit-box;
+  display: -ms-box;
+  display: box;
+  -moz-box-orient: vertical;
+  -webkit-box-orient: vertical;
+  -ms-box-orient: vertical;
+  box-orient: vertical;
+  -moz-box-align: start;
+  -webkit-box-align: start;
+  -ms-box-align: start;
+  box-align: start;
+  -moz-box-pack: start;
+  -webkit-box-pack: start;
+  -ms-box-pack: start;
+  box-pack: start;}
+  
+  .bottom-left {
+    left: 1%;
+    bottom: 20%; }
+  
+  .top-left {
+    left: 1%;
+    top: 20%; }
+  
+  .bottom-right {
+    right: 1%;
+    bottom: 20%; }
+  
+  .top-right {
+    right: 1%;
+    top: 20%; }
+  
+  .center-up {
+    right: 50%;
+    top: 1%;
+  }
+  
+  .center-down {
+    right: 50%;
+    bottom: 1%;
+  }
+  .canvas-image .canvas-caption p {
+    text-align: center;
+    padding-top: 0;
+    padding: 0;
+    -moz-transform: none;
+    -webkit-transform: none;
+    -o-transform: none;
+    -ms-transform: none;
+    transform: none;
+    display: inline;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    font-weight: bold;
+    font-size: 58px;
+    -webkit-box-shadow: 2px 2px 2px #000;
+    -moz-box-shadow: 2px 2px 2px #000;
+    box-shadow: 2px 2px 2px #000;
+    padding: 1rem;
+    color: white; }
+  kbd.keyseq { color: #555555; }
+  kbd:not(.keyseq) {
+    display: inline-block;
+    color: #222222;
+    font-size: 0.7em;
+    line-height: 1.4;
+    background-color: #F7F7F7;
+    border: 1px solid #ccc;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+    -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    margin: -0.15em 0.15em 0 0.15em;
+    padding: 0.2em 0.6em;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  kbd kbd:first-child { margin-left: 0; }
+  kbd kbd:last-child { margin-right: 0; }
+</style>
+</body>
+</html>

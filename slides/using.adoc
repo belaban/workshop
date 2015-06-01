@@ -14,6 +14,17 @@ Using JGroups: overview and API
 :status:
 
 
+Disclaimer
+----------
+Red Hat supports the JGroups versions packaged in Red Hat JBoss Enterprise Application Platform and
+Red Hat JBoss Data Grid for clustering use cases in these products.
+
+For supported JGroups configurations, please refer to the documentation for these products or ask GSS.
+
+Red Hat does not support use of JGroups directly from application code or as a standalone module.
+The objective of this workshop/training is to provide deeper knowledge of JGroups internals, it does not imply
+Red Hat support for this material.
+
 
 What is it ?
 ------------
@@ -28,18 +39,6 @@ What is it ?
 ** Reliable _one-to-many_ or _one-to-one_ communication
 * Nodes get notifications when others join or leave (or crash)
 * Runs on Android, too
-
-
-Goals for JGroups
------------------
-* Keep JGroups small, lean & mean and don't lose focus of the scope (reliable group comm)
-* I'm happier if I can remove something than if I have to add something
-* "A designer knows he has achieved perfection not when there is nothing left to add, but when there is nothing left
-   to take away" (Antoine de Saint-Exupery)
-* I like KISS
-* I'm fighting dependency orgies seen in a lot of projects today
-* JGroups has 0 (runtime) dependencies and I want to keep it that way
-
 
 
 

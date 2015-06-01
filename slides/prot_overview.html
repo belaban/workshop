@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+<meta content="Asciidoctor 1.5.0" name="generator">
+<meta content="Bela Ban belaban@yahoo.com" name="author">
+<title>Overview of the most common protocols</title>
+<link href="deck.js/core/deck.core.css" rel="stylesheet">
+<link href="deck.js/extensions/scale/deck.scale.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/goto/deck.goto.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/menu/deck.menu.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/navigation/deck.navigation.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/status/deck.status.css" media="screen" rel="stylesheet">
+<link href="deck.js/extensions/toc/deck.toc.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/style/web-2.0.css" media="screen" rel="stylesheet">
+<link href="deck.js/themes/transition/fade.css" media="screen" rel="stylesheet">
+<link href="deck.js/core/print.css" media="print" rel="stylesheet">
+<script src="deck.js/modernizr.custom.js"></script>
+</head>
+<body class="article">
+<div class="deck-container">
+<section class="slide" id="title-slide">
+<h1>Overview of the most common protocols</h1>
+<span id="author">Bela Ban belaban@yahoo.com</span>
+<br>
+</section>
+<section class="slide" id="_transport_protocols">
+<h2>Transport protocols</h2>
+<div class="ulist">
+<ul>
+<li>A <em>transport protocol</em> refers to the protocol at the bottom of the protocol stack which is
+responsible for sending messages to and receiving messages from the network. There are a
+number of transport protocols in JGroups. They are discussed in the following sections.</li>
+<li>A typical protocol stack configuration using UDP is shown below</li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_udp_xml">
+<h2>udp.xml</h2>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="xml language-xml">&lt;config&gt;
+    &lt;UDP mcast_port="${jgroups.udp.mcast_port:45588}"
+         ip_ttl="8"
+         mcast_recv_buf_size="5M"
+         mcast_send_buf_size="5M"
+         enable_diagnostics="true"
+
+         timer.min_threads="2"
+         timer.max_threads="4"
+         timer.keep_alive_time="3000"
+         timer.queue_max_size="500"
+
+         thread_pool.min_threads="2"
+         thread_pool.max_threads="8"
+         thread_pool.keep_alive_time="5000"
+         thread_pool.queue_max_size="10000"
+         thread_pool.rejection_policy="discard"
+
+         oob_thread_pool.min_threads="1"
+         oob_thread_pool.max_threads="8"
+         oob_thread_pool.keep_alive_time="5000"
+         oob_thread_pool.queue_enabled="false"
+         oob_thread_pool.rejection_policy="discard"/&gt;
+
+    &lt;PING /&gt;
+    &lt;MERGE3 max_interval="30000"
+            min_interval="10000"/&gt;
+    &lt;FD_SOCK/&gt;
+    &lt;FD_ALL/&gt;
+    &lt;VERIFY_SUSPECT timeout="1500"  /&gt;
+    &lt;BARRIER /&gt;
+    &lt;pbcast.NAKACK2 xmit_interval="500"
+                    use_mcast_xmit="false"
+                    discard_delivered_msgs="true"/&gt;
+    &lt;UNICAST3 xmit_interval="500"/&gt;
+    &lt;pbcast.STABLE desired_avg_gossip="50000"
+                   max_bytes="4M"/&gt;
+    &lt;pbcast.GMS print_local_addr="true" join_timeout="2000"
+                view_bundling="true"/&gt;
+    &lt;UFC max_credits="2M"
+         min_threshold="0.4"/&gt;
+    &lt;MFC max_credits="2M"
+         min_threshold="0.4"/&gt;
+    &lt;FRAG2 frag_size="60K"  /&gt;
+    &lt;RSVP resend_interval="2000" timeout="10000"/&gt;
+    &lt;pbcast.STATE_TRANSFER /&gt;
+&lt;/config&gt;</code></pre>
+</div>
+</div>
+</section>
+<section class="slide" id="_protocols">
+<h2>Protocols</h2>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">UDP</dt>
+<dd>
+<p>Transport protocol using IP multicasting to send messages to the entire cluster,
+or individual nodes. Other transports include <code>TCP</code> and <code>TUNNEL</code>.</p>
+</dd>
+<dt class="hdlist1">PING</dt>
+<dd>
+<p>Discovery protocol. It uses IP multicast (by default) to find initial members.
+Once found, the current coordinator can be determined and a JOIN request is sent
+to join the cluster.</p>
+</dd>
+<dt class="hdlist1">MERGE3</dt>
+<dd>
+<p>Will merge sub-clusters back into one cluster, kicks in after a network partition healed.</p>
+</dd>
+<dt class="hdlist1">FD_SOCK</dt>
+<dd>
+<p>Failure detection based on sockets (in a ring form between members). Generates notification
+if a member fails</p>
+</dd>
+<dt class="hdlist1">FD / FD_ALL</dt>
+<dd>
+<p>Failure detection based on heartbeats. Generates notifications if a member fails</p>
+</dd>
+<dt class="hdlist1">VERIFY_SUSPECT</dt>
+<dd>
+<p>Double-checks whether a suspected member is dead,
+otherwise the suspicion generated from the protocol below is discarded</p>
+</dd>
+<dt class="hdlist1">BARRIER</dt>
+<dd>
+<p>Needed to transfer state; blocks messages that modify the shared state until a
+digest has been taken, then unblocks all threads. <em>Not needed if no state transfer protocol is present.</em></p>
+</dd>
+<dt class="hdlist1">pbcast.NAKACK2</dt>
+<dd>
+<p>Ensures (a) message reliability and (b) FIFO order. Reliability guarantees that a message
+will be received. If not, the receiver(s) request retransmission. FIFO guarantees that
+all messages from sender P are received in the order in which P sent them</p>
+</dd>
+<dt class="hdlist1">UNICAST3</dt>
+<dd>
+<p>Same as NAKACK for unicasts: messages from sender P will not be lost (retransmission if
+necessary) and will be in FIFO order (conceptually similar to TCP/IP)</p>
+</dd>
+<dt class="hdlist1">pbcast.STABLE</dt>
+<dd>
+<p>Deletes messages that have been seen by all members</p>
+</dd>
+<dt class="hdlist1">pbcast.GMS</dt>
+<dd>
+<p>Membership protocol. Responsible for joining/leaving members and installing new views.</p>
+</dd>
+<dt class="hdlist1">UFC</dt>
+<dd>
+<p>Unicast Flow Control. Provides flow control between 2 members.</p>
+</dd>
+<dt class="hdlist1">MFC</dt>
+<dd>
+<p>Multicast Flow Control. Provides flow control between a sender and all cluster members.</p>
+</dd>
+<dt class="hdlist1">FRAG2</dt>
+<dd>
+<p>Fragments large messages into smaller ones and reassembles them at the receiver. For multicast and unicast messages</p>
+</dd>
+<dt class="hdlist1">STATE_TRANSFER</dt>
+<dd>
+<p>Ensures that state is correctly transferred from an existing member (usually the
+coordinator) to a new member.</p>
+</dd>
+</dl>
+</div>
+</section>
+<section class="slide" id="_transport_protocols_udp_tcp">
+<h2>Transport protocols (UDP, TCP)</h2>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">bind_addr</dt>
+<dd>
+<p>Determines the network interface to bind to, e.g. <code>bind_addr=192.168.1.5</code>. The following values
+are also recognized:</p>
+<div class="ulist">
+<ul>
+<li><code>global</code>: picks a global IP address if available. If not, falls back to a <code>site-local</code> IP address</li>
+<li><code>site_local</code>: picks a site local (non routable) IP address, e.g. from the <code>192.168.0.0</code> or <code>10.0.0.0</code> address range.</li>
+<li><code>link_local</code>: picks a link-local IP address, from <code>169.254.1.0</code> through <code>169.254.254.255</code>.</li>
+<li><code>non_loopback</code>: picks <em>any</em> non loopback address.</li>
+<li><code>loopback</code>: picks a loopback address, e.g. <code>127.0.0.1</code>.</li>
+<li><code>match-interface</code>: picks an address which matches a pattern against the interface name,
+e.g. <code>match-interface:eth.\*</code></li>
+<li><code>match-host</code>: picks an address which matches a pattern against the host name,
+e.g. <code>match-host:linux.\*</code></li>
+<li><code>match-address</code>: picks an address which matches a pattern against the host address,
+e.g. <code>match-address:192.168.\*</code></li>
+</ul>
+</div>
+</dd>
+<dt class="hdlist1">bind_port</dt>
+<dd>
+<p>The port to listen on. If not set, the port will be picked by the OS. If the port is in use,
+JGroups will increment it until it finds a free port.
+Example: <code>bind_addr="10.5.5.5" bind_port="7800"</code> results in a node&#8217;s address being <code>10.5.5.5:7800</code>.
+The second node started on the same host will use <code>10.5.5.5:7801</code>.</p>
+</dd>
+<dt class="hdlist1">enable_diagnostics</dt>
+<dd>
+<p>Opens a multicast port which <code>probe.sh</code> can use to fetch information from a given node.
+The multicast address and port can be set with <code>diagnostics_addr</code> and <code>diagnostics_port</code>.</p>
+</dd>
+</dl>
+</div>
+<div class="paragraph"><p>NOTE:
+Try it out: <code>run.sh -Djgroups.bind_addr=X org.lab.ChatDemo -props config.xml -name A</code></p></div>
+</section>
+<section class="slide" id="_udp">
+<h2>UDP</h2>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">mcast_addr</dt>
+<dd>
+<p>The multicast address to be used. If multiple clusters are running, use separate values for
+<code>mcast_addr</code> / <code>mcast_port</code> and cluster name (<code>JChannel.connect(cluster_name)</code>)</p>
+</dd>
+<dt class="hdlist1">mcast_port</dt>
+<dd>
+<p>The port to be used for multicasts.</p>
+</dd>
+</dl>
+</div>
+</section>
+<section class="slide" id="_tcpping">
+<h2>TCPPING</h2>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">initial_hosts</dt>
+<dd>
+<p>A list of <em>all</em> members in a cluster, e.g. <code>192.168.1.1[7800],192.168.1.2[7800],192.168.1.3[7800]</code></p>
+<div class="ulist">
+<ul>
+<li>Note that <code>bind_port</code> in the transport needs to be <code>7800</code></li>
+</ul>
+</div>
+</dd>
+</dl>
+</div>
+</section>
+<section class="slide" id="_fd">
+<h2>FD</h2>
+<div class="ulist">
+<ul>
+<li><p>
+All members form a logical circle, where each member pings the member to its right for liveness<div class="ulist">
+<ul>
+<li><p>
+Example: in a cluster <code>{A,B,C}</code>, A pings B, B pings C and C pings A.<div class="dlist">
+<dl>
+<dt class="hdlist1">timeout</dt>
+<dd>
+<p>The interval (ms) at which heartbeats are sent to the neighbor to the right.</p>
+</dd>
+<dt class="hdlist1">max_tries</dt>
+<dd>
+<p>The max number of missed heartbeats for a node to get suspected. So if <code>timeout=3000</code> and
+<code>max_tries=3</code>, then it will take 9 seconds for A to suspect B if A didn&#8217;t receive any heartbeats (or messages)
+from B in that time frame.</p>
+</dd>
+<dt class="hdlist1">msg_counts_as_heartbeat</dt>
+<dd>
+<p>If heartbeats are missed, but messages are received from B, B won&#8217;t get suspected by
+A (if true).</p>
+</dd>
+</dl>
+</div></p></li>
+</ul>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_fd_all">
+<h2>FD_ALL</h2>
+<div class="ulist">
+<ul>
+<li>Every node multicasts heartbeats at a given <code>interval</code> and collects heartbeats from other nodes, setting
+a timestamp for P when a heartbeat from P has been received</li>
+<li><p>
+Every <code>timeout_check_interval</code> the timestamps are checked for expiry, and expired members are suspected.<div class="dlist">
+<dl>
+<dt class="hdlist1">timeout</dt>
+<dd>
+<p>Max time (in ms) after which a node is suspected if the associated timestamp hasn&#8217;t been reset.</p>
+</dd>
+<dt class="hdlist1">interval</dt>
+<dd>
+<p>The interval (in ms) at which a node multicasts heartbeats</p>
+</dd>
+<dt class="hdlist1">timeout_check_interval</dt>
+<dd>
+<p>The interval (in ms) at which timestamps are check for expiry</p>
+</dd>
+<dt class="hdlist1">msg_counts_as_heartbeat</dt>
+<dd>
+<p>A message from P resets P&#8217;s timestamp (if true)</p>
+</dd>
+</dl>
+</div></p></li>
+</ul>
+</div>
+</section>
+<section class="slide" id="_gms">
+<h2>GMS</h2>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">join_timeout</dt>
+<dd>
+<p>The max time (in ms) to try joining a cluster. If it elapses, a new attempt is started.</p>
+</dd>
+</dl>
+</div>
+</section>
+<div aria-role="navigation">
+<a class="deck-prev-link" href="#" title="Previous">&#8592;</a>
+<a class="deck-next-link" href="#" title="Next">&#8594;</a>
+</div>
+<p aria-role="status" class="deck-status">
+<span class="deck-status-current"></span>
+/
+<span class="deck-status-total"></span>
+</p>
+<form action="." class="goto-form" method="get">
+<label for="goto-slide">Go to Slide:</label>
+<input id="goto-slide" list="goto-datalist" name="slidenum" type="text">
+<datalist id="goto-data-list"></datalist>
+<input type="submit" value="Go">
+</form>
+</div>
+<script src="deck.js/jquery.min.js"></script>
+<script src="deck.js/core/deck.core.js"></script>
+<script src="deck.js/extensions/scale/deck.scale.js"></script>
+<script src="deck.js/extensions/goto/deck.goto.js"></script>
+<script src="deck.js/extensions/menu/deck.menu.js"></script>
+<script src="deck.js/extensions/navigation/deck.navigation.js"></script>
+<script src="deck.js/extensions/status/deck.status.js"></script>
+<script src="deck.js/extensions/toc/deck.toc.js"></script>
+<div class="deck-toc"></div>
+<script>
+  (function($, deck, undefined) {
+    $.deck.defaults.keys['previous'] = [8, 33, 37, 39];
+    $.deck.defaults.keys['next'] = [13, 32, 34, 39];
+  
+    $.extend(true, $[deck].defaults, {
+        countNested: false
+    });
+  
+    $.deck('.slide');
+  })(jQuery, 'deck');
+</script>
+<style>
+  .slide.canvas-image {
+  -moz-background-size: cover;
+  -webkit-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+  display: -moz-box;
+  display: -webkit-box;
+  display: -ms-box;
+  display: box;
+  -moz-box-orient: vertical;
+  -webkit-box-orient: vertical;
+  -ms-box-orient: vertical;
+  box-orient: vertical;
+  -moz-box-align: start;
+  -webkit-box-align: start;
+  -ms-box-align: start;
+  box-align: start;
+  -moz-box-pack: start;
+  -webkit-box-pack: start;
+  -ms-box-pack: start;
+  box-pack: start;}
+  
+  .bottom-left {
+    left: 1%;
+    bottom: 20%; }
+  
+  .top-left {
+    left: 1%;
+    top: 20%; }
+  
+  .bottom-right {
+    right: 1%;
+    bottom: 20%; }
+  
+  .top-right {
+    right: 1%;
+    top: 20%; }
+  
+  .center-up {
+    right: 50%;
+    top: 1%;
+  }
+  
+  .center-down {
+    right: 50%;
+    bottom: 1%;
+  }
+  .canvas-image .canvas-caption p {
+    text-align: center;
+    padding-top: 0;
+    padding: 0;
+    -moz-transform: none;
+    -webkit-transform: none;
+    -o-transform: none;
+    -ms-transform: none;
+    transform: none;
+    display: inline;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    font-weight: bold;
+    font-size: 58px;
+    -webkit-box-shadow: 2px 2px 2px #000;
+    -moz-box-shadow: 2px 2px 2px #000;
+    box-shadow: 2px 2px 2px #000;
+    padding: 1rem;
+    color: white; }
+  kbd.keyseq { color: #555555; }
+  kbd:not(.keyseq) {
+    display: inline-block;
+    color: #222222;
+    font-size: 0.7em;
+    line-height: 1.4;
+    background-color: #F7F7F7;
+    border: 1px solid #ccc;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+    -webkit-box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px white inset;
+    margin: -0.15em 0.15em 0 0.15em;
+    padding: 0.2em 0.6em;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  kbd kbd:first-child { margin-left: 0; }
+  kbd kbd:last-child { margin-right: 0; }
+</style>
+</body>
+</html>
