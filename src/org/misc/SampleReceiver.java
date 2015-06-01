@@ -9,12 +9,21 @@ import org.jgroups.View;
  * @since x.y
  */
 public class SampleReceiver extends ReceiverAdapter {
+    private final String name;
+
+    public SampleReceiver(String name) {
+        this.name = name;
+    }
+
+    public SampleReceiver() {
+        this.name = "";
+    }
 
     public void receive(Message msg) {
-        System.out.println("-- received from " + msg.src() + ": " + msg.getObject());
+        System.out.println(this.name + " -- received from " + msg.src() + ": " + msg.getObject());
     }
 
     public void viewAccepted(View view) {
-        System.out.println("-- view = " + view);
+        System.out.println(this.name + " -- view = " + view);
     }
 }

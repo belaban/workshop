@@ -9,7 +9,7 @@ println "JGroups version: " + Version.description
 def mult(x) {x*x}
 
 
-def createChannel(String name) {ch=new JChannel("config.xml").name(name); ch.setReceiver(new SampleReceiver()); ch}
+def createChannel(String name) {ch=new JChannel("config.xml").name(name); ch.setReceiver(new SampleReceiver(name)); ch}
 
 def register(JChannel ch) {JmxConfigurator.registerChannel(ch, Util.getMBeanServer(), "jgroups", ch.getClusterName(), true)}
 
