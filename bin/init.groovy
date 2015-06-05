@@ -5,6 +5,7 @@ import org.jgroups.jmx.*;
 import org.misc.*;
 
 println "JGroups version: " + Version.description
+println "Bind addr:" + System.getenv("BIND_ADDR")
 
 def mult(x) {x*x}
 
