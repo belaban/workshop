@@ -23,5 +23,6 @@ conf/MANIFEST.MF
 target/
 lib/
 deck.js
+*.swp
 
 
