@@ -95,6 +95,7 @@ Buffers
 * NIC input buffers: `/sbin/ifconfig txqueuelen 5000` (Linux)
 
 
+////
 Flow control
 ------------
 * Multicast flow control: `MFC`, unicast flow control: `UFC`
@@ -104,8 +105,9 @@ Flow control
 * However: if `max_credits` and `min_threshold` are too large, then the purpose of flow control is defeated
 ** Receivers might still run out of memory as they're getting more messages than they can handle
 * Suggestion: test with load that's slightly higher than expected load, watch memory use over time
+////
 
-
+////
 Transport resources
 -------------------
 * Thread pool buffers (regular, OOB, incoming, timer), queues
@@ -114,6 +116,7 @@ Transport resources
 * Hands off the internal pool (used by JGroups only) !
 * Timer pool should not be changed either, unless we expect a lot of timer tasks, or long running tasks
 * This leaves us with the default and OOB pools
+////
 
 Transport: default thread pool
 ------------------------------
@@ -126,7 +129,6 @@ Transport: default thread pool
 ** Set min-threads to N
 ** Set max-threads to N+2 (2 spare threads)
 ** Enable a queue to catch traffic peaks
-
 
 
 Transport: OOB thread pool
@@ -143,7 +145,7 @@ Transport: OOB thread pool
 * Thread stack size: uses memory, make sure to size this as well
 
 
-
+////
 Ethernet flow control 802.3x
 ----------------------------
 * Good for `UDP`, bad for `TCP`
@@ -158,6 +160,7 @@ Interrupt coalescing
 * Less 'context switching'
 * Slightly worse latency
 * Example: `/usr/sbin/ethtool -C eth0 rx-usecs 75`
+////
 
 
 Jumbo frames
@@ -211,6 +214,7 @@ Retransmission intervals in NAKACK2 and UNICAST3
 * If the interval is too high, retransmission may not be able to retransmit all missing messages (see next topic) in one go
 
 
+////
 Maximum size of retransmission requests
 ---------------------------------------
 * In `NAKACK2` and `UNICAST3`, if too many messages are missing, a retransmit request message may become too big
@@ -218,6 +222,7 @@ Maximum size of retransmission requests
 * Both protocols therefore only request for retransmission of the oldest N messages, such that the size of the retransmit
   request doesn't exceed the max datagram packet size
 * The max size of a retransmit request can be configured: `max_xmit_req_size`
+////
 
 
 STABLE
