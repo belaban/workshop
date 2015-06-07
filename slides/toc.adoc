@@ -66,6 +66,43 @@ include::./blocks.adoc["Building blocks"]
 
 
 
+Day 3: A closer look at protocols
+----------------------------------
+* Discovery
+** PING, TCPPING
+
+* Merging
+** MERGE3
+
+* Failure detection
+** FD, FD_ALL, FD_SOCK, FD_HOST
+
+* Reliable message transmission and ordering
+** NAKACK2, UNICAST3, SEQUENCER, RSVP
+
+* Message stability
+** STABLE
+
+* Cluster membership
+** GMS
+
+* Flow control
+** MFC, UFC
+
+* State transfer
+** STATE, STATE_SOCK
+
+* Security
+** AUTH, ENCRYPT, (SASL)
+
+* Misc
+** FRAG, COMPRESS, STOMP
+
+include::./protocols.adoc["Protocols"]
+
+
+
+
 
 Day 3-4: Advanced
 ------------------
@@ -114,40 +151,6 @@ include::./advanced.adoc["Advanced"]
 
 
 
-
-Day 4: A closer look at protocols
-----------------------------------
-* Discovery
-** PING, TCPPING
-
-* Merging
-** MERGE3
-
-* Failure detection
-** FD, FD_ALL, FD_SOCK, FD_HOST
-
-* Reliable message transmission and ordering
-** NAKACK2, UNICAST3, SEQUENCER, RSVP
-
-* Message stability
-** STABLE
-
-* Cluster membership
-** GMS
-
-* Flow control
-** MFC, UFC
-
-* State transfer
-** STATE, STATE_SOCK
-
-* Security
-** AUTH, ENCRYPT, (SASL)
-
-* Misc
-** FRAG, COMPRESS, STOMP
-
-include::./protocols.adoc["Protocols"]
 
 
 

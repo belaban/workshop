@@ -52,8 +52,8 @@ What are we going to do this week ?
 * Start at 9am every day, end: Friday noon
 * Mon: API and overview of protocols (introductory, to relax)
 * Tue: building blocks (boring but necessary)
-* Wed: Advanced (hard)
-* Thu: Advanced and protocols (harder)
+* Wed: protocols and advanced (hard)
+* Thu: Advanced (harder)
 * Fri: Admin (easy & fun)
 * This is a rough schedule
 ** We can dive into any topic in more detail if folks ask for it

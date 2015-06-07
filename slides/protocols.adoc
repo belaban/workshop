@@ -184,7 +184,7 @@ Failure detection
 Reliable transmission and ordering
 ----------------------------------
 * Sender S assigns monotonically increasing sequence numbers (seqnos) to messages
-* Receiver R receives messages from P and delivers them (up the stack) in seqno order
+* Receiver R receives messages from S and delivers them (up the stack) in seqno order
 * Negative acks: the receiver asks a sender to retransmit a message if a gap has been detected, e.g. `S5` -> `S6`
   -> `S8`: here, message `7` from `S` is missing so `R` asks `S` to resend message `7`.
 * Positive acks: the sender continues to periodically retransmit a message `M` until the receiver `R` has acked

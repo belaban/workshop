@@ -252,7 +252,7 @@ Top JGroups problems
 
 
 
-Problem #12: AWS
+Problem #13: AWS
 ----------------
 * Large packets sizes in EC2 are dropped
 ** The problem was that large packets using the default stack configuration for `FRAG2` (60k) were sometimes being dropped
@@ -265,7 +265,7 @@ Problem #12: AWS
 * Solution: use `FRAG2` sizes of <= 32k if you are running in `UDP` mode under EC2.
 
 
-Problem #11: last message dropped in `NAKACK2`
+Problem #12: last message dropped in `NAKACK2`
 ---------------------------------------------
 * Last message dropped issue
 * Solution: use `RSVP` to ack a batch of work, or set `resend_last_seqno` in `NAKACK2`
@@ -273,13 +273,23 @@ Problem #11: last message dropped in `NAKACK2`
 
 
 
-Problem #10: `receive()` and `viewAccepted()` callbacks
+Problem #11: `receive()` and `viewAccepted()` callbacks
 ------------------------------------------------------
 * Invoking blocking RPCs or doing something long or blocking in these callbacks
 * Because JGroups calls these callbacks on a thread from the incoming thread pool, all messages behind this one are stuck
   until the callback returns
 * Solution: use a separate thread is some callback code needs to block, invoke a blocking RPC, or perform a long task
 
+
+Problem #10: reusing a message (the Sebastian problem)
+------------------------------------------------------
+[source,java]
+----
+Message msg=new Message(null, "hello");
+for(int i=0; i < 10; i++)
+   channel.send(msg)
+----
+* Spot the problem ?
 
 
 Problem #9: MacOS

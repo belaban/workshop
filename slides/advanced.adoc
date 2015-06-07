@@ -1279,6 +1279,7 @@ Debugging
   suspect and exclude P
 ** Disable FD_ALL, FD
 ** FD_SOCK is fine
+* Alternatively stop only the current thread (config in debugger)
 
 
 
