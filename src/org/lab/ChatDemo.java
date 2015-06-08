@@ -54,7 +54,7 @@ public class ChatDemo extends ReceiverAdapter {
                 if(line.startsWith("quit") || line.startsWith("exit")) {
                     break;
                 }
-                Message msg=new Message(null, null, line);
+                Message msg=new Message(null, line);
                 channel.send(msg);
             }
             catch(Exception e) {
