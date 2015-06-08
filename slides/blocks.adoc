@@ -192,6 +192,7 @@ RpcDispatcher and `receive()`
 * If an application sets a receiver itself, this will steal all messages from
   the RpcDispatcher and it will never receive a method invocation
 * Overriding a receiver with another one will log a warning
+* Sample code: `MethodLookupExample`
 
 
 Response filters
