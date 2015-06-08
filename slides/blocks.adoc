@@ -177,6 +177,22 @@ element (`i`), and the formal parameters are defined with an array of class info
 previously created is passed to the call.
 
 
+Method lookup
+-------------
+* Use an impl of `MethodLookup` for efficient RPC marshalling
+* Sends IDs (shorts) rather than method metadata across the wire
+* A simple `add(3,4)` uses 125 bytes on the wire with `MethodCall(Method)` and 18 with
+  `MethodCall(short)`
+
+
+RpcDispatcher and `receive()`
+-----------------------------
+* RpcDispatcher requires `receive()` to be called, and therefore calls
+  `JChannel.setReceiver()`
+* If an application sets a receiver itself, this will steal all messages from
+  the RpcDispatcher and it will never receive a method invocation
+* Overriding a receiver with another one will log a warning
+
 
 Response filters
 ----------------
