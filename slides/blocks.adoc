@@ -211,7 +211,7 @@ public interface RspFilter {
 * Method `isAcceptable()` is given a response value and the address of the member which sent
 the response, and needs to decide whether the response is valid (returning true) or not
 (returning false).
-          
+* The response value can be an exception if the method invocation threw an exception
 * Method `needMoreResponses()` determines whether a call is done or not.
 
 
