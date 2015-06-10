@@ -429,6 +429,9 @@ Problem #1: members don't find each other
 ** Disable the firewall, to see if this helps (e.g. `sudo iptables -F` on Linux).
 ** If this is the issue, open ports for JGroups (`UDP.bind_port`, `FD_SOCK`, `STATE_SOCK`) and re-enable the firewall
 
+* SELinux
+** Restrictive vs. permissive
+
 * Switch dropping packets
 ** Especially between VLANs. Check the switch configuration
 

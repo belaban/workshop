@@ -352,7 +352,11 @@ handle all other regular messages and add them to the retransmission tables. Thi
 |====
 
 
-
+Thread pool sizing
+------------------
+* Disable the queue
+* Keep track of the average and max active threads
+* Set min to average and enable the queue again to be at least max active threads to cover spikes
 
 
 
