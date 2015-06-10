@@ -5,6 +5,7 @@ import org.jgroups.Message;
 import org.jgroups.View;
 import org.jgroups.annotations.Property;
 import org.jgroups.conf.ClassConfigurator;
+import org.jgroups.conf.PropertyConverter;
 import org.jgroups.stack.Protocol;
 import org.jgroups.util.MessageBatch;
 
@@ -16,8 +17,31 @@ import org.jgroups.util.MessageBatch;
 public class PRINT_BYTES extends Protocol {
     protected static final short ID=2015;
 
+    public enum Flags {one, two, three};
+
     @Property(description="Suppresses printing to stdout if false")
     protected boolean do_print=true;
+
+    @Property(description="bla",converter=MyConverter.class)
+    protected Flags flags;
+
+    public static class MyConverter implements PropertyConverter {
+
+        public Object convert(Object obj,Class<?> propertyFieldType,String propertyName,String propertyValue,boolean check_scope) throws Exception {
+            switch(propertyValue) {
+                case "one":
+                    return Flags.one;
+                case "two":
+                    return Flags.two;
+                default:
+                    return Flags.three;
+            }
+        }
+
+        public String toString(Object value) {
+            return value.toString();
+        }
+    }
 
     static {
         ClassConfigurator.addProtocol(ID, PRINT_BYTES.class);
