@@ -332,7 +332,7 @@ Encryption and authentication
 | Name | Implementation
 | ENCRYPT | Encryption on the sender and decryption on the receiver(s)
 | AUTH | Admission of new cluster members only when authentication succeeds.
-| SASL | SASL based encryption (authentication not yet available)
+| SASL | SASL based authentication
 |====
 * Ref: http://www.jgroups.org/manual/index.html#Security
 
