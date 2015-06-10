@@ -150,7 +150,7 @@ Failure detection
 -----------------
 * Failure detection checks for crashed or unresponsive members and _suspects them_
 ** It _doesn't remove suspected members_ (that's the task of `GMS`)
-* Noe that members which leave _gracefully_ (e.g. via `JChannel.disconnect()`) are never handled by failure detection
+* Note that members which leave _gracefully_ (e.g. via `JChannel.disconnect()`) are never handled by failure detection
 * Implementations:
 
 [width="100%",cols="2,10", frame="topbot",options="header"]
