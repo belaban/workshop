@@ -4,6 +4,8 @@ import org.jgroups.JChannel;
 import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
+import org.jgroups.jmx.JmxConfigurator;
+import org.jgroups.util.Util;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -41,6 +43,7 @@ public class ChatDemo extends ReceiverAdapter {
             channel.name(name);
         channel.setReceiver(this);
         channel.connect("ChatCluster");
+        JmxConfigurator.registerChannel(channel,Util.getMBeanServer(),"jgroups-relay2",channel.getClusterName(),true);
         eventLoop();
         channel.close();
     }
