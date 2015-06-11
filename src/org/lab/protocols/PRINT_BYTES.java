@@ -28,6 +28,8 @@ public class PRINT_BYTES extends Protocol {
     public static class MyConverter implements PropertyConverter {
 
         public Object convert(Object obj,Class<?> propertyFieldType,String propertyName,String propertyValue,boolean check_scope) throws Exception {
+            if(propertyValue == null)
+                return Flags.one;
             switch(propertyValue) {
                 case "one":
                     return Flags.one;
@@ -75,7 +77,7 @@ public class PRINT_BYTES extends Protocol {
                     int num_bytes=msg.getLength();
                     if(num_bytes > 0)
                         System.out.printf("-- sending %d bytes\n", num_bytes);
-                    // System.out.println("headers are " + msg.getHeaders());
+                    System.out.println("headers are " + msg.printHeaders());
                 }
                 break;
         }
