@@ -518,6 +518,7 @@ Sending messages synchronously (RSVP)
 * While JGroups guarantees that a message will eventually be delivered at all non-faulty members,
   sometimes this might take a while
 ** We don't know when a message has been delivered at all nodes
+** (Alternative: use RpcDispatcher and blocking RPCs)
 * This can be changed by setting flag `Message.RSVP` in a message
 ** The send blocks until all members have acknowledged reception (or delivery) of the message
    (excluding members which crashed or left meanwhile).
