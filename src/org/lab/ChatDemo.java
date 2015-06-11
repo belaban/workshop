@@ -43,7 +43,7 @@ public class ChatDemo extends ReceiverAdapter {
             channel.name(name);
         channel.setReceiver(this);
         channel.connect("ChatCluster");
-        JmxConfigurator.registerChannel(channel,Util.getMBeanServer(),"jgroups-relay2",channel.getClusterName(),true);
+        JmxConfigurator.registerChannel(channel,Util.getMBeanServer(),"relay2",channel.getClusterName(),true);
         eventLoop();
         channel.close();
     }
