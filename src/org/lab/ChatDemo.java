@@ -78,7 +78,7 @@ public class ChatDemo extends ReceiverAdapter {
                 continue;
             }
             if(args[i].equals("-send_replies")) {
-                send_replies=true;
+                send_replies=Boolean.getBoolean(args[++i]);
                 continue;
             }
             help();
@@ -89,6 +89,6 @@ public class ChatDemo extends ReceiverAdapter {
     }
 
     protected static void help() {
-        System.out.println("ChatDemo [-props XML config] [-name name] [-send_replies]");
+        System.out.println("ChatDemo [-props XML config] [-name name] [-send_replies true|false]");
     }
 }
