@@ -1255,6 +1255,37 @@ public void up(MessageBatch batch) {
 ----
 
 
+Register dynamically to JMX
+---------------------------
+* Add the following code to `PRINT_BYTES` protocol
+
+[source,java]
+----
+private boolean is_registered = false;
+
+@ManagedOperation(description = "Register dynamically to jmx")
+public synchronized void register(boolean register) {
+	try {
+		if (register && !is_registered) {
+			JmxConfigurator.registerChannel(this.getProtocolStack().getChannel(), Util.getMBeanServer(), this.getTransport().getClusterName());
+			is_registered = true;
+		} else {
+			if (is_registered) {
+				JmxConfigurator.unregisterChannel(this.getProtocolStack().getChannel(), Util.getMBeanServer(), this.getTransport().getClusterName());
+				is_registered = false;
+			}
+		}
+	} catch (Exception e) {
+		log.warn(e.getMessage(), e);
+	}
+}
+----
+* You can now call the managed operation to register/unregister dynamically the JGroups Channel 
+  to the JMX MBeanServer using probe.sh
+----
+probe.sh op=PRINT_BYTES.register[true]
+----
+
 Running the demo
 ----------------
 * Add `PRINT_BYTES` to `config.xml`:
