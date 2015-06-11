@@ -66,7 +66,7 @@ public class ChatDemo extends ReceiverAdapter {
     public static void main(String[] args) throws Exception {
         String  props="config.xml";
         String  name=null;
-        boolean send_replies=false;
+        boolean send_replies=true;
 
         for(int i=0; i < args.length; i++) {
             if(args[i].equals("-props")) {
