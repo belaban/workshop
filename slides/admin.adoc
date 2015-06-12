@@ -444,8 +444,8 @@ Problem #1: members don't find each other
 Logging
 -------
 * JGroups has no runtime dependencies on any logging framework (j.u.l. is used by default)
-* At startup, JGroups looks for log4j2, log4j, j.u.l. (in this order)
-** To force use of JDK logging, even if the log4j(2) JARs are present, `-Djgroups.use.jdk_logger=true` can be used
+* At startup, JGroups looks for log4j2, j.u.l. (in this order)
+** To force use of JDK logging, even if the log4j2 JARs are present, `-Djgroups.use.jdk_logger=true` can be used
 * Custom loggers can be used instead of the ones supported by default. To do this, interface
 `CustomLogFactory` has to be implemented:
 
