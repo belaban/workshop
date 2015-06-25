@@ -3,6 +3,8 @@ import org.jgroups.util.*;
 import org.jgroups.blocks.*;
 import org.jgroups.jmx.*;
 import org.misc.*;
+import java.nio.*;
+import java.nio.channels.*;
 
 println "JGroups version: " + Version.description
 println "Bind addr:" + System.getenv("BIND_ADDR")
