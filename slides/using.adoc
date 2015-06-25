@@ -247,7 +247,7 @@ Time for some interactivity !
 * Start a Groovy shell:
 ** `cd workshop/bin`
 ** Modify `run.sh` or `run.bat`: set `BIND_ADDR` to the IP of the network interface to be used)
-** `./groovy-shell.sh` (or `groovy-shell.bat`) or `groovy-console.sh` (`groovy-console.bat`)
+** `./groovy-shell.sh` (or `groovy-shell.bat`)
 * Create a channel:
 ----
   groovy:000> ch=new JChannel("config.xml").name("A");
