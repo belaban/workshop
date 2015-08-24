@@ -341,10 +341,10 @@ Recommended configs
 |====
 | Pool | Recommendation
 | OOB | No queue -> OOB messages are executed on a thread or dropped. +
-Set `min_size` to a small size (more threads are created if needed), `max_size` should be higher than the max number of OOB messages received
+Set `min_size` to a small size (more threads are created if needed), `max_threads` should be higher than the max number of OOB messages received
 at any given time
 |Regular| Queue is enabled and quite large, to handle message peaks. +
-Set `min_size` to the number of cluster nodes plus a few more (D), `max_size` to a slightly higher value. +
+Set `min_threads` to the number of cluster nodes plus a few more (D), `max_threads` to a slightly higher value. +
 In a cluster of N, we never have more than N threads passing messages up, so we need D additional threads to
 handle all other regular messages and add them to the retransmission tables. This is quick so D can be small.
 |Internal| Leave the default config (min=2,max=4), don't touch
