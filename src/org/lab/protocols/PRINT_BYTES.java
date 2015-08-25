@@ -3,6 +3,7 @@ package org.lab.protocols;
 import org.jgroups.Event;
 import org.jgroups.Message;
 import org.jgroups.View;
+import org.jgroups.annotations.MBean;
 import org.jgroups.annotations.ManagedOperation;
 import org.jgroups.annotations.Property;
 import org.jgroups.conf.ClassConfigurator;
@@ -17,6 +18,7 @@ import org.jgroups.util.Util;
  * @author Bela Ban
  * @since x.y
  */
+@MBean(description="Demo protocol")
 public class PRINT_BYTES extends Protocol {
     protected static final short ID=2015;
 
