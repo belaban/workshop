@@ -408,7 +408,7 @@ public interface Response {
 }
 ----
 
-* `Response` has information about the request (e.g. request ID), and has method `reply()` to
+* `Response` has information about the request (e.g. request ID), and has method `send()` to
   send a response. The `is_exception` parameter should be true if the reply is an exception, e.g.
   was thrown when `handle()` ran application code.
 
