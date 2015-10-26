@@ -408,7 +408,7 @@ public interface Response {
 }
 ----
 
-* `Response` has information about the request (e.g. request ID), and has method `reply()` to
+* `Response` has information about the request (e.g. request ID), and has method `send()` to
   send a response. The `is_exception` parameter should be true if the reply is an exception, e.g.
   was thrown when `handle()` ran application code.
 
@@ -1236,7 +1236,7 @@ case Event.MSG:
 
 Printing the received bytes
 ---------------------------
-* We have to override methods `up(Event)` and `up(MessageBatch`
+* We have to override methods `up(Event)` and `up(MessageBatch)`
 * `up(Event)` is more or less the same code as `down(Event)`
 * `up(MessageBatch)`:
 
@@ -1303,7 +1303,7 @@ Running the demo
 * Extra credit
 . Maintain the number of sent messages / bytes in variables and expose them with `@ManagedAttribute`
 . Disable and re-enable printing of messages via probe.sh
-. Print the headers (`Message.getHeaders()`)
+. Print the headers (`Message.printHeaders()`)
 . Dynamically remove `PRINT_BYTES` via `probe.sh remove-protocol ...`
 
 
