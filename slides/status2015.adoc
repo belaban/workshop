@@ -85,8 +85,34 @@ a message
 JGroups 3.6.5
 -------------
 
+=== TCP_NIO2: new transport
+* See below
 
+=== FORK: support state transfer
+* All fork channels will get their individual states when `JChannel.getState()` is called
 
+=== LockService.tryLock() can hang forever
+* Caused by an incorrect conversion from nanos to millis
+
+=== Table: longs wrap around incorrectly
+* `Table` is a core class and is used by `NAKACK2` and `UNICAST3`
+* `Long` wrap-around incorrect: messages are lost
+* Very unlikely: adding 100 million messages/sec to a table would fill it in 15 years
+** Unless some smart-ass dude injects a seqno of `Long.MAX_VALUE-100`... :-)
+* Fixed by replacing `if(seq1 < seq2) ...` and `if(seq2 >= seq1) ...` by `if(seq1 - seq2 < 0) ...`
+  and `if(seq2 - seq1 >= 0) ...`
+* Unit test is `TableTest.testSeqnoOverflow()`
+
+=== OpenStack discovery protocol failure
+* `SWIFT_PING` failed with OpenStack "Kilo"
+* Reason: OpenStack Identity API switched from using XML to JSON
+
+=== S3_PING / FILE_PING improvements
+* When members are killed ungracefully
+
+=== GossipRouter: use NIO building blocks to rewrite
+* TcpClient, NioClient, TcpServer, NioServer
+* These classes are also used to implement `TCP_NIO2`
 
 
 
@@ -94,7 +120,44 @@ JGroups 3.6.5
 JGroups 3.6.6
 -------------
 
+=== TCP_NIO2: fixed 2 critical bugs
+* Non-blocking sending of message batches and reusing of the bundler's buffer caused message corruption
+* Messages keep piling up because the selector doesn't have a registration for `OP_READ` / `OP_WRITE`
+** Cause: `SelectionKey.interestOps(ops)` is not thread safe, therefore concurrent registrations / de-registrations
+   could lead to dropped registrations
+
+
 
 
 JGroups 3.6.7
 -------------
+
+=== Back to using a MulticastSocket (instead of a DatagramSocket) to send multicast messages
+* Fixes ip_ttl issue on Windows (exception when using IPv6)
+* Performance is the same
+* No need to change routing table on MacOS anymore
+
+=== SASL and merging
+* Merging wasn't handled
+
+
+
+
+JGroups workshops
+-----------------
+* 4 workshops: Berlin (16 people), Rome (15 people), NYC (22) and Mountain View (4)
+* 20 paying customers (money used to partially fund F2Fs)
+* 2 workshops in 2016 ?
+
+
+
+
+
+TCP_NIO2
+--------
+
+
+
+JGroups 4.0
+-----------
+
