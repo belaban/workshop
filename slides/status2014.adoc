@@ -1,549 +1,139 @@
 
 
-Status JGroups 2012-2014
-========================
+Status JGroups 2014
+===================
 :author:    Bela Ban
 :backend:   slidy
 :max-width: 45em
 :icons:
 
-* Status JGroups 2012-2013
-** 3.2, 3.3, 3.4, 3.5
-* Work planned for 2014 and beyond
-** 4.0
-* Large scale
-** 2000+ nodes
-** Google Compute Engine
+Agenda
+------
+* 3.6.0, 3.6.1
+* Cluster tests on Google Compute Engine
+* 4.0.0
+* Workshop
+* Docker
+* vert.x plugin
+* jgroups-raft
+* etcd / Zookeeper
 
 
-JGroups 3.2
------------
-* Used in EAP 6.2.0
-* Current version: 3.2.12.Final
 
 
-
-
-RELAY2: multi-site clustering
------------------------------
-
-* https://issues.jboss.org/browse/JGRP-1433[JGRP-1433],
-  http://issues.jboss.org/browse/JGRP-1401[JGRP-1401],
-  https://issues.jboss.org/browse/JGRP-1521[JGRP-1521],
-  https://issues.jboss.org/browse/JGRP-1519[JGRP-1519],
-  https://issues.jboss.org/browse/JGRP-1525[JGRP-1525]
-
-* Provides clustering between multiple sites
-** Successor to RELAY (which allowed for only 2 sites)
-* RELAY2 is added to the of the stack and relays both multicast and
-  unicast messages between sites (local clusters) 
-* For documentation go to
-  http://www.jgroups.org/manual-3.x/html/user-advanced.html#Relay2Advanced
-
-
-
-I8N logging
------------
-* https://issues.jboss.org/browse/JGRP-1475[JGRP-1475]
-* Use of ResourceBundles to internationalize certain warn and error
-  messages
-** I'm not convinced a Czech support engineer needs to see French
-warning messages...
-* The +JGroups/conf/jg-messages*.properties+ files contain the
-  translations
-** Currently, only English and German are supported, but any language
-  can be supported by adding +messages_fr.properties+ to the classpath
-* Code reduction
-[source,java]
-  if(log.isTraceEnabled())
-      log.trace(local_addr + ": sent msg " + seqno);
-
-* replaced by
-[source,java]
-  log.trace("%s: sent msg %d", local_addr, seqno);
-
-
-Suppress identical log warnings
--------------------------------
-* https://issues.jboss.org/browse/JGRP-1518[JGRP-1518]
-* Sometimes we get a lot of log messages about the same problem,
-  e.g. messages from a non-member, from a different cluster or from a
-  member running a different version of JGroups 
-** If we get 20'000 messages from a non-member, we'd log 20'000 warnings...
-* We can now suppress indentical warnings for a given period of time
-  (60s by default), so the logs don't get blown up beyond proportion
-
-
-
-
-
-
-JGroups 3.3
------------
-
-Message batching
-----------------
-* https://issues.jboss.org/browse/JGRP-1564[JGRP-1564],
-  https://issues.jboss.org/browse/JGRP-1581[JGRP-1581] 
-* On the receiver, message bundles are passed up in the form of _message batches_. Advantage:
-  the cost of passing up messages is amortized; ie. locks
-  are acquired only *once per batch* instead of *once per message*.
-** Not exposed at the channel level; no +receive(MessageBatch)+
-* Example:
-[source,java]
-    public void up(MessageBatch batch) {
-        for(Message msg: batch) {
-            FragHeader hdr=(FragHeader)msg.getHeader(this.id);
-            if(hdr != null) { // needs to be defragmented
-                Message assembled_msg=unfragment(msg,hdr);
-                if(assembled_msg != null)
-                    batch.replace(msg, assembled_msg);
-                else
-                    batch.remove(msg);
-            }
-        }
-        if(!batch.isEmpty())
-            up_prot.up(batch);
-    }
-
-
-Message batching and performance
---------------------------------
-* Unless +ignore_dont_bundle=false+, messages marked as +DONT_BUNDLE+ will get bundled
-* On the receiver, all messages marked as +DONT_BUNDLE+ and +OOB+ are removed and
-  delivered on a separate thread
-** Regular messages marked as +DONT_BUNDLE+ will *not* be delivered on a separate
-   thread as they need to be delivered in order
-** E.g. if we receive a batch +A[1-4]+, +A:5+ and +A[6-9]+, message +A:5+ cannot be delivered
-   before +A:6+, so it doesn't make any sense to deliver it on a separate thread
-* So if 3 different threads on A invoke sync RPCs (even on different keys), this will
-  result in messages +A:1+, +A:2+ and +A:3+.
-** At the receiver, +A:3+ has to wait until +A:1+ and +A:2+ have been processed
--> Either use the Async Invocation API to deliver the 3 RPCs in parallel (if possible)
-   or mark the RPCs as +DONT_BUNDLE|OOB+
-* This is not necessarily a feature of message batching; we'd have the same behavior
-  with single messages
-
-
-
-Async Invocation API
---------------------
-* https://issues.jboss.org/browse/JGRP-1587[JGRP-1587]
-* This allows the recipient of a message in MessageDispatcher or RpcDispatcher to make the delivering thread return
-  immediately (making it available for other requests) and to send the response later
-* Advantages
-** It is the _application_ which now decides how to deliver messages (e.g. sequentially
-   or in parallel), and _not JGroups_. The  application knows this better than JGroups
-   anyway.
-** No clogging of the JGroups thread pools
-* Example: Infinispan RPCs accessing different key sets could be delivered concurrently
-* Documentation is here: http://www.jgroups.org/manual-3.x/html/user-building-blocks.html#AsyncInvocation.
-
-
-UNICAST3
---------
-* https://issues.jboss.org/browse/JGRP-1589[JGRP-1589]
-* New unicast protocol combining the advantages of +UNICAST+ and +UNICAST2+. It has the immediately delivery
-  characteristics of +UNICAST+ and the speed of +UNICAST2+ and is the default unicast protocol in 3.3
-* Characteristics
-** Reduces ack-based traffic while still acking messages quickly (solves
-   last-message-lost problem)
-*** Message batches are acked as a whole, e.g. batch 20-60 acks only 60
-** Prevents problems with concurrent closing and message sending on the same
-   connection by flushing pending messages  before closing a connection
-** Reduces memory requirements at the sender by quickly purging messages received by the receiver
-** Provides selective retransmission (request from receiver to sender)
-*** There's not more than 1 ack per +xmit_interval+ period
-* For details: https://github.com/belaban/JGroups/blob/master/doc/design/UNICAST3.txt
-
-
-New thread pool for JGroups-internal messages only
---------------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1599[JGRP-1599]
-* Added a new thread pool to be used by JGroups only
-  (+internal_thread_pool.enabled=true|false+)
-* This prevents OOB messages sent by applications to clog the pool and slow internal
-  messages such as heartbeats or flow control credits down 
-
-
-RELAY2 fixes and enhancements
------------------------------
-* https://issues.jboss.org/browse/JGRP-1517[JGRP-1517],
-  https://issues.jboss.org/browse/JGRP-1528[JGRP-1528], 
-  https://issues.jboss.org/browse/JGRP-1542[JGRP-1542],
-  https://issues.jboss.org/browse/JGRP-1543[JGRP-1543],
-  https://issues.jboss.org/browse/JGRP-1547[JGRP-1547],
-  https://issues.jboss.org/browse/JGRP-1629[JGRP-1629],
-  https://issues.jboss.org/browse/JGRP-1623[JGRP-1623]
-* When a coordinator crashes, messages are buffered until the new
-  coordinator takes over. JGRP-1517 ensures that resending the
-  buffered messages occurs before new messages are sent
-* JGRP-1528 forwards messages in batches rather than individually, not blocking senders
-* JGRP-1542 copies flags of relayed messages, so flags such as OOB are preserved.
-* JGRP-1543 provides site-unreachable notifications, so callers know that a site is unreachable.
-* JGRP-1547 provides timing stats for forwarding of messages
-* JGRP-1629 adds the ability to insert a RELAY2 protocol to an already connected stack
-
-
-
-PDC
----
-* https://issues.jboss.org/browse/JGRP-1541[JGRP-1541]
-* A new protocol to cache discovery responses on disk, suitable for use with (e.g.)
-  TCPPING.
-* Ref: http://belaban.blogspot.ch/2012/11/persisting-discovery-responses-with.html
-
-
-SUPERVISOR
-----------
-* https://issues.jboss.org/browse/JGRP-1557[JGRP-1557]
-* New protocol which can auto-correct (or log) things at runtime, based on rules
-* Ref: http://belaban.blogspot.ch/2013/01/supervisor-detecting-faults-and-fixing.html
-
-
-Log4j2 is now the default logging framework used
-------------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1585[JGRP-1585]
-* Log4j is still supported, but log4j2 is preferred (more efficient and less
-  blocking)
-* Less useless logging code if(log.isCrapEnabled())
-** Exception: heavily executed code (there is a small perf penalty)
-
-
-
-Pick NIC based on pattern matching
-----------------------------------
-* https://issues.jboss.org/browse/JGRP-1606[JGRP-1606]
-* E.g. +UDP.match_interface="eth*"+
-
-
-MPerfRpc
---------
-* https://issues.jboss.org/browse/JGRP-1625[JGRP-1625]
-* New performance test for RPCs
-
-
-
-//TP: simplified +transfer-queue+ bundler
-//---------------------------------------
-//* https://issues.jboss.org/browse/JGRP-1540[JGRP-1540]
-//* The new bundler (enabled by default) is simpler and more efficient than the previous ones
-//* It queues messages until a max size has been reached, or until no more messages are
-//  available in the queue, and then sends the queued messages as a message bundle
-//* The advantage is that we now don't need the +DONT_BUNDLE+ message flag anymore, as either
-//  the bundle will fill quickly, or no more message is available and so we send the
-//  message(s) quickly
-//* This is important for sync RPCs.
-//* Note that +DONT_BUNDLE+ messages are now bundled, too, so if bundling is to be avoided, the
-//  +DONT_BUNDLE+ flag has to be used *and* +ignore_dont_bundle+ set to false
-
-
-3 bundlers
-----------
-* +sender-sends-with-timer+ ("old")
-* +transfer-queue+ ("new")
-* +sender-sends+ ("latest")
-
-+sender-sends-with-timer+
--------------------------
-* Sends a message bundle if time has elapsed or queued msgs have exceeded max size
-* High latency but good throughput
-** Not good for sync RPCs: use +DONT_BUNDLE+ flag
-
-image:../images/sender-sends-with-timer.png["sender-sends"]
-
-
-
-
-+transfer-queue+
-----------------
-* Messages are placed in a bounded queue; senders block if it is full
-* Dedicated thread to pull and send messages
-** A message (bundle) is sent when max size is exceeded or queue is empty
-*** Single messages are sent quickly; +DONT_BUNDLE+ is not needed
-* Thread contention for access to the queue when we have many sender threads
-
-
-image:../images/transfer-queue.png["transfer-queue"]
-
-
-+sender-sends+ (3.5)
---------------------
-* A sender thread is used to send the message bundle when max size has been
-   exceeded or no other thread is present
-* Similar to transfer-queue in latency and throughput
-* +DONT_BUNDLE+ is not used anymore
-
-image:../images/sender-sends.png["sender-sends"]
-
-
-
-
-Message bundling with +sender-sends+ or +transfer-queue+
---------------------------------------------------------
-* Messages are sent when
-** max size is exceeded, or
-** no other message is in the queue (+transfer-queue+), or
-** no other sender thread is present (+sender-sends+)
-
-image:../images/SenderSendsBundler.png["sender-sends bundler"]
-
-
-
-Message bundling and delivery
------------------------------
-* All messages are bundled at the sender (ignoring +DONT_BUNDLE+)
-* At the receiver, we receive single messages or message batches (bundles)
-* The correct thread pool is found and single msgs or batches are passed up
-* Before OOB or OOB_INTERNAL batches are passed up, we remove messages
-  tagged with +DONT_BUNDLE|OOB+ and deliver them in separate threads
-* OOB batches (no +DONT_BUNDLE+) are delivered before regular batches
-* All messages of an OOB batch are delivered by the same thread
-** If we want delivery of each message in an OOB batch by a separate thread,
-   use +DONT_BUNDLE|OOB+
-
-
-
-
-
-
-Performance of the bundlers
----------------------------
-[cols="5,1,10",options="header"]
-|========================================
-| Name | Latency | Throughput
-| +sender-sends-with-timer+ | high | high, decreases with more threads
-| +transfer-queue+ | low | high, decreases with many threads
-| +sender-sends+ | low | low for 1 thread, increases with more threads
-|========================================
-* With TCP as transport, Nagling should be disabled (TCP.tcp_nodelay=true) for low latency
-* Performance test numbers: https://issues.jboss.org/browse/JGRP-1717
-* We need to re-run the Infinispan perf tests
-
-
-Performance characteristics of the bundlers
--------------------------------------------
-* For single threads, +sender-sends+ is the worst, +transfer-queue+ the best
-** Single threads always end up sending a single message with +sender-sends+
-** With +transfer-queue+, _message bundles_ are sent which is faster
-** Like Nagling (TCP_NODELAY): single threads have a better perf if it is on
-** Discussion: sender sends 1000 messages
-*** Flag 1-999 with MORE_MSGS_COMING flag
-*** Never send a single message if this flag is set
-*** Send message (bundle) when flag is absent
-**** Requires the notion of a _batch_ (present in Infinispan?)
-* For 2 and more threads, +sender-sends+ is about the same as +transfer-queue+,
-  +sender-sends-with-timer+ is the best
-* For many threads (10 and more), +sender-sends+ has the best performance
-** More perf investigation is needed here...
-* Eventually I want to remove +sender-sends-with-timer+
-* Note that +DONT_BUNDLE+ messages are now bundled, too, so if bundling is to be avoided, the
-  +DONT_BUNDLE+ flag has to be used *and* +ignore_dont_bundle+ set to false
-
-
-
-
-
-
-New Timer implementation
-------------------------
-* https://issues.jboss.org/browse/JGRP-1553[JGRP-1553]
-* Efficient, faster and simpler than the previous implementations
-* This is the default now
-
-
-STABLE: reduction of time until stability
------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1570[JGRP-1570],
-  https://issues.jboss.org/browse/JGRP-1595[JGRP-1595]
-* With increasing cluster size, it took much longer to achieve stability, as the time to
-  send out a STABLE message was scaled with the cluster size
-* This is not done anymore, and we have now by default enabled
-  +send_stable_msgs_to_coord_only+
-* Members send their STABLE messages to the current coordinator only instead of
-  multicasting them to all members
-** This cuts traffic, especially with TCP
-
-
-
-
-
-
-
-JGroups 3.4.2
+JGroups 3.6.0
 -------------
-* 3.4.1 used in EAP 7.x (not yet released)
-* Current version: 3.4.2.Final
+
+=== UDP: ip_ttl is ignored
+* `ip_ttl` is ignored (always 1)
+* Regression in 3.5.0 because we now use `DatagramSocket` rather than `MulticastSocket` to send multicasts
+** Needed because we need the sender's real address (not `232.5.5.5` !) to discard selected traffic
+* https://issues.jboss.org/browse/JGRP-1880
+
+=== RELAY2 doesn't work over FORK
+* https://issues.jboss.org/browse/JGRP-1865
+
+=== mcast
+* Replacement for McastSender/ReceiverTest
+* https://issues.jboss.org/browse/JGRP-1832
+
+=== Docker images for JGroups
+* Discussed later
+* https://issues.jboss.org/browse/JGRP-1840
+
+=== RSVP: option not to block caller
+* RSVP by default blocks the caller until the ack has been received
+* Message flag `RSVP_NB` (Non-Blocking) returns immediately, but keeps resending the beacon
+* Further optimizations (1 beacon for all callers)
+* https://issues.jboss.org/browse/JGRP-1851
+
+
+=== NAKACK2 / UNICAST3: size of retransmit message is not limited
+* When too many messages are retransmitted, the retransmit message itself could become too big and could get dropped
+* Also, asking a sender to retransmit a lot of messages can compound a problem (e.g. GC or network bandwidth issue)
+* Solution:
+** Retransmit only the N oldest messages
+** Use of a bitset for the missing messages
+*** The size of the FixedBitSet is computed as highest-received - highest-deliverable, e.g. 550-499 == 51.
+*** This would create a FixedBitSet with offset=550 and 1 long (can represent 64 seqnos).
+*** The number of messages to ask for retransmission is computed as follows:
+**** TP.max_bundle_size * 8, e.g. 64'000 / 8 * 64 = 512'000.
+**** This means that we can store 8'000 longs in 64'000 bytes, and each long can represent 64 seqnos.
+**** In this case, the max size of the FixedBitSet should therefore be 512'000.
+**** This can be configured (`max_xmit_req_size`)
+* https://issues.jboss.org/browse/JGRP-1868
+
+=== UNICAST3
+* Optimizations and traffic reduction for edge cases
+* https://issues.jboss.org/browse/JGRP-1874
+* https://issues.jboss.org/browse/JGRP-1875
+
+
+=== Bind address 0.0.0.0 throws exception
+* Prevents misconfiguration
+* Caused mostly by running WildFly with `-b 0.0.0.0`
+* https://issues.jboss.org/browse/JGRP-1885
+
+=== CENTRAL_LOCK: make the node the lock owner, not the thread
+* Lock owner is by default a thread, so threads in the same node compete for locks
+* If this is enabled, then threads don't compete for the same locks
+** Lock granularity is on the node level, not thread level
+* Needed by the vert.x JGroups plugin
+* https://issues.jboss.org/browse/JGRP-1886
+
+=== JChannel initialization was synchronized
+* Unneeded when not using a shared transport
+* Slowed down Infinispan unit tests which created many channels in parallel
+* https://issues.jboss.org/browse/JGRP-1887
 
 
 
-Pluggable policy for picking coordinator
-----------------------------------------
-* https://issues.jboss.org/browse/JGRP-592[JGRP-592]
-* View and merge-view creation is now pluggable; this means that an application can
-  determine which member is the coordinator
-** Might be useful to implement cluster singletons in Wildfly
-* Documentation: http://www.jgroups.org/manual/html/user-advanced.html#MembershipChangePolicy.
+
+JGroups 3.6.1
+-------------
+
+=== FD_HOST: reduction of false suspicions
+* FD_HOST is used to detect entire host failures, e.g. when we have multiple nodes running on the same host
+* https://issues.jboss.org/browse/JGRP-1898
 
 
-RELAY2: allow for more than one site master
--------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1649[JGRP-1649]
-* If we have a lot of traffic between sites, having more than 1 site master
-increases performance and reduces stress on the single site master
+=== Discovery returned after 16 responses
+* Might lead to split cluster groups on startup and unneeded merging later
+* https://issues.jboss.org/browse/JGRP-1899
 
 
-Fork channels: private light-weight channels
---------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1613[JGRP-1613]
-* This allows multiple light-weight channels to be created over the same (base) channel
-* The fork channels are private to the app which creates them and the app can also add
-  protocols over the default stack
-* These protocols are also private to the app.
-* Doc: http://www.jgroups.org/manual/html/user-advanced.html#ForkChannel
-* Blog: http://belaban.blogspot.ch/2013/08/how-to-hijack-jgroups-channel-inside.html
+=== TCPPING: static discovery does not have to list all members anymore
+* Frequently requested feature
+* The coordinator can now send member information to all other members
+* Can be enabled in configuration (`send_cache_on_join`)
+* Can also be triggered via JMX (`sendCacheInformation()`)
+* https://issues.jboss.org/browse/JGRP-1903
 
 
-
-Kerberos based authentication
------------------------------
-* https://issues.jboss.org/browse/JGRP-1657[JGRP-1657]
-* New AUTH plugin contributed by Martin Swales
-* Experimental, needs more work
-
-
-Probe now works with TCP too
-----------------------------
-* https://issues.jboss.org/browse/JGRP-1568[JGRP-1568]
-* If multicasting is not enabled, probe.sh can be started as follows:
-    +probe.sh -addr 192.168.1.5 -port 12345+
-, where +192.168.1.5:12345+ is the physical address:port of a node.
-* Probe will ask that node for the addresses of all other members and then send the
-  request to all members
+=== NAKACK2: retransmit the last missing message sooner
+* We don't want to wait for STABLE to kick in
+** STABLE requires consensus from all members to reach stability
+* Can be set with `resend_last_seqno`
+* If enabled, multicasts the highest sent seqno every `xmit_interval` ms
+* Shuts up after `resend_last_seqno_max_times` times when no new messages have been sent
+* https://issues.jboss.org/browse/JGRP-1904
 
 
 
-UNICAST3: ack messages sooner
------------------------------
-* https://issues.jboss.org/browse/JGRP-1664[JGRP-1664]
-* A message would get acked after delivery, not reception
-* This was changed, so that long running app code would not delay acking the message,
-  which could lead to unneeded retransmission by the sender
-
-
-Compress Digest and MutableDigest
----------------------------------
-* https://issues.jboss.org/browse/JGRP-1317[JGRP-1317],
-  https://issues.jboss.org/browse/JGRP-1354[JGRP-1354], 
-  https://issues.jboss.org/browse/JGRP-1391[JGRP-1391],
-  https://issues.jboss.org/browse/JGRP-1690[JGRP-1690]
-* When a digest and a view are the same, the +members+ field of the digest points to
-  the +members+ field of the view, resulting in reduced memory use.
-** The members are marshalled only once.
-* View and MergeView now use arrays rather than lists to store
-  membership and subgroups
-* Delta views: when we have a cluster of 1000 nodes, and new nodes X and Y join while
-  B, C and D leave, JGroups used to send a new view of 1001 members to *all* current
-  members and to X and Y
-** Now the full view is only sent to the new joiners X and Y
-** A so called _delta view_ is sent to all existing (1000) members
-** A delta view has a ref to the previous view and contains only the joiners and
-   leavers
-** Every member which receives a delta view computes the new view based on the prev
-   view and the deltas
-*** This reduces view based traffic *dramatically* for large clusters
-
-
-Large clusters
---------------
-* https://issues.jboss.org/browse/JGRP-1700: uses a bitset rather than a list for STABLE msgs, reducing memory consumption
-* https://issues.jboss.org/browse/JGRP-1704: don't print the full list of members
-* https://issues.jboss.org/browse/JGRP-1705: suppression of fake merge-views
-* https://issues.jboss.org/browse/JGRP-1710: move contents of GMS headers into message body (otherwise packet at
-  transport gets too big)
-* https://issues.jboss.org/browse/JGRP-1713: ditto for VIEW-RSP in MERGE3
-* https://issues.jboss.org/browse/JGRP-1714: move large data in headers to message body
-
-
-
-Moved to Ivy for dependency management
+Cluster tests on Google Compute Engine
 --------------------------------------
-[source,xml]
-<?xml version="1.0" encoding="UTF-8"?>
-<ivy-module version="2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
-    <info organisation="org.jgroups" module="jgroups" revision="3.5.0.Alpha1"/>
-    <dependencies>
-        <dependency org="biz.aQute"                name="bnd"             rev="1.50.0"/>
-        <dependency org="bouncycastle"             name="bcprov-jdk15"    rev="140"/>
-        <dependency org="org.jboss.byteman"        name="byteman"         rev="2.1.4"/>
-        <dependency org="org.jboss.byteman"        name="byteman-bmunit"  rev="2.1.4"/>
-        <dependency org="org.jboss.byteman"        name="byteman-install" rev="2.1.4"/>
-        <dependency org="org.jboss.byteman"        name="byteman-submit"  rev="2.1.4"/>
-        <dependency org="log4j"                    name="log4j"           rev="1.2.14"/>
-        <dependency org="org.apache.logging.log4j" name="log4j-api"       rev="2.0-beta9"/>
-        <dependency org="org.apache.logging.log4j" name="log4j-core"      rev="2.0-beta9"/>
-        <dependency org="xalan"                    name="serializer"      rev="2.7.1"/>
-        <dependency org="xalan"                    name="xalan"           rev="2.7.1"/>
-        <dependency org="org.testng"               name="testng"          rev="6.8.7"/>
-        <dependency org="com.beust"                name="jcommander"      rev="1.5"/>
-    </dependencies>
-</ivy-module>
-
-
-
-
-
-JGroups 3.5
------------
-
-
-Bundler improvements
---------------------
-
-* New bundler_type names
-** +sender-sends-with-timer+, +transfer-queue+
-** New bundler +sender-sends+
-** See previous discussion
-
-* Send batch of 1 as a single message
-** https://issues.jboss.org/browse/JGRP-1726[JGRP-1726]
-** Sending a single message is a bit more efficient than sending a message batch of 1
-
-* Ignore DONT_BUNDLE flag
-** https://issues.jboss.org/browse/JGRP-1737[JGRP-1737]
-** Bundles all messages on the sender, even ones marked with DONT_BUNDLE
-*** On the receiver, removes messages marked with DONT_BUNDLE and OOB
-   and sends them up as separate messages on a separate thread via the
-   thread pool
-** Requires a recent bundler (transfer-queue, sender-sends)
-
-
-Threads processed by the internal thread pool should not do work stealing
--------------------------------------------------------------------------
-* https://issues.jboss.org/browse/JGRP-1732[JGRP-1732]
-* Even internal threads used to do work stealing
-** When done, an internal thread tried to remove messages from the message table
-   and pass them up
-** Now this is not done anymore
-** The point is that internal threads should only do internal work and nothing else
-* This prevents the internal thread pool from getting exhausted
-
-
-
-Fixed regression between 3.2 and 3.3/3.4
-----------------------------------------
-* https://issues.jboss.org/browse/JGRP-1716[JGRP-1716]
-* Single messages are now parsed by the thread pool again rather than by
-  the receiving thread
-
-
-
-Enable diagnostics dynamically
-------------------------------
-* https://issues.jboss.org/browse/JGRP-1747[JGRP-1747]
-* Even with diagnostics disabled in the config, there's a method call
-  that can turn diagnostics on via JMX or byteman
+* Large cluster testing due to a generous donation by Google
+* Introduction: http://belaban.blogspot.ch/2014/04/running-jgroups-on-google-compute-engine.html
+* 1000 JGroups cluster: http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html
+** Perf test: UPerf
+** Roughly *3'800 reqs/sec/node* (20'000 reqs/node, 20% writes, 80% reads, 25 sender threads/node, 1k requests)
+** Record JGroups cluster size: 2286 nodes
+* 500 node JDG cluster: http://belaban.blogspot.ch/2014/07/new-record-for-large-jdg-cluster-500.html
+** 2'300 reqs/sec/node
+* Results:
+** `GOOG_PING` was written
+** Numbers for perf tests on large clusters
+** Discovery protocol was improved (static info for cloud based cluster discovery)
 
 
 
@@ -556,112 +146,139 @@ JGroups 4.0
 ** Reducing of buffer copying
 ** Scattering and gathering
 ** Selector model for UDP and TCP ?
+* See status slides for 2014
+* Postponsed until 2015
+** Large disruptive change for JGroups and Infinispan
+** Workshop and RAFT have higher priority
 
 
-NIO.2: goals
-------------
-* Reduce buffer copying
-** Native buffers
-** Gathering writes
-*** Infinispan passes its buffer directly to the network socket
-** Scattering reads
-*** The buffer read from the network socket is passed directly to Infinispan
-* Non-blocking
-** Reduces threads needed
-*** Currently TCP uses a 1 thread-per-connection model
-** Not relevant for UDP
-* Selector based model
-** Common selection based model for all transports (UDP and TCP)
-** Parallel use of (multiple?) UDP and TCP transports
-*** Flag to select transport type (e.g. select TCP for unicast messages)
+JGroups workshop
+----------------
+* Internal and public workshop on JGroups
+* Modules for
+** API and use
+** Building blocks (distributed locks, counters etc)
+** Advanced
+** Protocols
+** Admin
+** Labs (optional)
+* A la carte mix-and-match, e.g.
+** 3 day workshop with API, Building blocks and Admin, plus 2 days of consulting, on-site
+* Availability: spring 2015
+** To be held 2x in Europe and 2x in the US in 2015
+* https://github.com/belaban/workshop
+
+
+Docker
+------
+* Docker image containing JGroups and a few scripts to start demos: https://registry.hub.docker.com/u/belaban/jgroups/
+* Blog: http://belaban.blogspot.ch/2014/10/jgroups-and-docker.html
+* GitHub: https://github.com/belaban/jgroups-docker
+* To run: `docker run -it belaban/jgroups`:
+----
+Welcome to JGroups !
+********************
+
+Please read the README.md file for detailed instructions on how to run
+the demos.
+
+The following demos can be run (run them in multiple containers):
+
+* chat [-name name]
+
+* lock [-name name]
+
+* count [-name name]
+
+
+Questions can be asked on the users or dev mailing lists:
+https://sourceforge.net/p/javagroups/mailman.
+
+Enjoy !
+
+Bela Ban
+
+
+[jgroups@64e1c5a3afa1 ~]$
+----
+
+
+vert.x clustering plugins
+-------------------------
+* Fabio wrote 2 clustering plugins for vert.x: Infinispan based and JGroups based
+* Goal: to replace Hazelcast, which is shipped by default by vert.x
+* Presentation Fabio
+
+
+RAFT consensus in JGroups: jgroups-raft
+---------------------------------------
+
+=== Why
+* Experiment with consensus in the face of network partitions
+* Possibly use in Infinispan: **C**A**P**
+* JGroups-internal services might benefit, too: distributed counter and locks, sequencer (?)
+** Sacificing availability for consistency
+* At the other side of C**AP** (eventual consistency)
+** Sacrificing consistency _temporarily_ for availability
+* Implementation of etcd / ZooKeeper interfaces
+
+=== What
+* RAFT is a consensus based algorithm for replicated state machines
+** Consensus used for leader election and committing of changes
+* Fixed size cluster (e.g. of 5): `{A,B,C,D,E}`
+* _Leaders_ and _followers_; leaders are elected by majority votes (3) (and highest commit log)
+** There's always only *a single leader* in a cluster
+** All requests are handled by the leader
+** Minority partitions (e.g. 2 or less) become unavailable; client requests are rejected
+* Leader `A` receives a client request and appends it to its persistent log
+* `A` then sends a message to followers `B`, `C`, `D` and `E` which append the change to their logs
+* When A receives an ack from 2 other members (majority == 3), it _commits_ the change and applies it to its
+  attached _state machine_
+* `A` periodically sends its highest commit ID (also acting as a heartbeat) to all followers, who then commit as well
+* When the followers update their commit index, they also apply the changes to their state machines
+* Similar to `SEQUENCER` (total order), except that `SEQUENCER` can have multiple coordinators in case of network partitions
+
+
+=== Difference to 2PC
+* In 2PC, _all_ TX participants have to ack the prepare
+* In RAFT, only a majority needs to ack
+** Slow members don't slow everybody else down
+* Members which are completely out of sync, or new joiners without a log get sync'ed via snapshot installation
+** Similar to state transfer
+
+
+=== How
+* Implementation of the RAFT consensus algorithm [1] in JGroups
+* Separate project *jgroups_raft* [2], might get merged into JGroups at some point
+* New protocols `ELECTION`, `RAFT` and `CLIENT` (client redirection to the current leader)
+* `StateMachine` interface, demo implementation `ReplicatedStateMachine` and demo `ReplicatedStateMachineDemo`
+* Persistent `Log` interface with impls based on MapDB (JDBM4) and LevelDB (default) (Ugo)
+* Demo
+
+=== Status
+* Version 0.1 (alpha quality)
+* Includes log appending, log compaction and snapshotting
+* No dynamic view installation yet
+** Static cluster with static majority
+* Can be used to experiment with RAFT consensus
+* OK for etcd development
+
+
+=== Todo list
+* Use JGroups' failure detection and view installation to replace part of the current code (less code)
+* Full unit test coverage
+* Dynamic view installation
 
 
 
-Current buffer handling
------------------------
-image:../images/CurrentArch.png["Current architecture"] 
+=== References
+* [1] http://raftconsensus.github.io/
+* [2] https://github.com/belaban/jgroups-raft
+* [3] https://github.com/belaban/jgroups-raft/tree/master/doc
 
 
-
-NIO.2 buffer handling
----------------------
-image:../images/NIOArch.png["NIO.2 architecture"] 
-
-
-NIO.2: buffer handling
-----------------------
-* Buffer reuse
-** When can a buffer be released and filled with new data ?
-*** Example: JGroups creates a buffer, reads data into it, passes
-    +buf/offset/length+ to Infinispan
-*** If Infinispan returns immediately and reads the buffer in a different
-    thread (e.g. using the Async Invocation API), the buffer cannot be reused
-    by JGroups immediately
-**** Release API ?
-** Should we create new buffers for every read/write or reuse buffers ?
-*** Buffers might grow when receiving large messages
-*** Penalty for creation of native buffers (slow)
-* Make the choice of native versus heap buffers configurable ?
-* RDMA
-** Use of native buffers should suppress buffer copying on the same box
-*** Currently only implemented for TCP (Oracle's JVM)
-
-
-NIO.2: API changes
-------------------
-* API changes
-** How does Infinispan pass a ref to its buffer to JGroups ?
-*** For gathering writes
-** Use of +(Byte)Buffer+ rather than +byte[] buffer+ ?
-** Use with RpcDispatcher 
-*** +(Request,Response)Marshaller+
-** Streamable
-*** Use of an adapter class (+ByteBuffer(Output,Input)Stream+) ?
-
-
-NIO.2: selector model
----------------------
-* 1 selector thread, thread pools for processing of reads and writes
-* UDP and TCP sockets are simply registered with the same selector
-* Messages can be sent over different transports
-** Message flag to select
-*** Defaults: multicasts=UDP, unicasts=TCP
-* Issues to investigate
-** Do we really need non-blocking for UDP ?
-
-
-Infiniband support
-------------------
-* Available for TCP only (no code changes): Sockets Direct Protocol (SDP)
-** Solaris and Linux supported by Oracle's JVM
-** Define in a config file which connections should bypass TCP and directly use Infiniband
-** Use system prop to enable:
-[literal]
-  java -Dcom.sun.sdp.conf=sdp.conf -Djava.net.preferIPv4Stack=true  ExampleApplication
-
-* Non-transparent support
-** JNI to RDMA API (Verbs/OFED API)
-** Not really an option; I don't want any C code in JGroups
-** I'd rather wait for a Java API for Infiniband in the JDK
-*** If there's none, then this shows that there's no demand for Infiniband/Java 
-
-* We should test Infinispan over Infiniband (DIST mode)
-* http://docs.oracle.com/javase/tutorial/sdp/sockets
-
-
-
-Large clusters
---------------
-* Largest cluster is 1500+ nodes
-** http://belaban.blogspot.ch/2013/09/new-record-for-large-jgroups-cluster.html
-* This resulted in many improvements (see previous slides) from which smaller
-  clusters also benefit
-* The goal is 2000+
-
-
-Google Compute Engine
----------------------
-* 1000 USD credits to test large JGroups cluster
-** Credits expire June 2014, so I have to tackle this soonish
-
-
+Implementation of etcd over jgroups-raft
+----------------------------------------
+* Fabio, Ugo
+* Presentation Fabio/Ugo
+* Possibly provide Zookeeper API ?
