@@ -27,4 +27,74 @@ JGroups 3.6.2
 
 
 
+JGroups 3.6.3
+-------------
 
+=== MERGE3 improvements
+* Subgroups were incorrect
+* Reduced number of rounds to merge edge-case splits
+* Edge cases captured with unit tests
+
+=== FILE_PING: option to remove zombie files
+* Useful for all cloud discovery protocols (subclasses)
+
+
+
+JGroups 3.6.4
+-------------
+
+=== SASL improvements
+
+=== AZURE_PING
+* Moved into its own GitHub repo due to dependencies (Rado)
+
+=== FD_SOCK / FD: members are never unsuspected
+* When a member Q is suspected by P, P periodically multicasts a `SUSPECT(Q)` until a new view (without Q) is installed
+* This doesn't stop when Q is _unsuspected_
+* OK in FD_ALL
+
+=== Discovery: option to run each request in a separate thread
+* Useful when using `TCP` as transport and the first couple of nodes (e.g. `A` - `C`) in
+  `initial_hosts=A,B,C,D,E,F` are unresponsive or dead
+
+=== Support IPv6 in AUTH
+* Fixed membership would not recognize port `7800` in `fe80:0:0:0:20c:29ff:fe4d:e0c4%0:7800`
+** Address without port is `fe80`
+
+=== FORK: call life cycle methods
+* Methods `start()`, `stop()` and `destroy()` of protocols in the fork stack are not called.
+* Needed to add some ref-counting to call them on `ForkChannel.connect()/disconnect()/close()`. Also: destroy all
+  fork stacks and their protocols on `FORK.destroy()`.
+
+=== RELAY2: messages are lost
+* When TransferQueueBundler (or any other bundler) receives messages (at the same time) to destinations `X` and
+`SiteUUID("name", X)`, then they get sent in the same bundle, which is incorrect: one of the destinations will drop
+a message
+** Cause: missing impl of `equals()` and `hashCode()` in `SiteUUID`
+
+=== TCP: unneeded copy of single message
+* When receiving a single message (compared to a batch), there's an unneeded copy of the message in TCP
+
+=== Probe: ping multiple clusters
+* `probe.sh -addr 224.0.75.75 -addr 228.5.5.5`
+* `java org.jgroups.tests.Probe -addr ff0e::0:75:75 -addr 192.168.1.3`
+
+
+
+
+JGroups 3.6.5
+-------------
+
+
+
+
+
+
+
+JGroups 3.6.6
+-------------
+
+
+
+JGroups 3.6.7
+-------------
