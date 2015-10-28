@@ -229,6 +229,234 @@ How ?
 
 
 
-JGroups 4.0
------------
+JGroups 4.0 and NIO.2
+---------------------
+* Problems ... problems ... problems !
+
+
+Main advantages of NIO.2
+------------------------
+* _Non-blocking_ messaging (accept, connect, write, read)
+** DONE: `TCP_NIO2`
+* Zero-copy writes and reads
+** *Problems* !!
+* on-heap ByteBuffers / off-heap ByteBuffers
+** *Problems* !!
+* Datagram channels
+** *Problems* !!
+
+
+Problem #1: size of ByteBuffer
+------------------------------
+* *Overhead of 48 bytes (without payload !)*
+```
+[belasmac] /Users/bela$ jol-size.sh java.nio.ByteBuffer
+
+Running 64-bit HotSpot VM.
+Using compressed oop with 3-bit shift.
+Using compressed klass with 3-bit shift.
+Objects are 8 bytes aligned.
+
+java.nio.ByteBuffer object internals:
+ OFFSET  SIZE    TYPE DESCRIPTION                    VALUE
+      0    12         (object header)                N/A
+     12     4     int Buffer.mark                    N/A
+     16     8    long Buffer.address                 N/A
+     24     4     int Buffer.position                N/A
+     28     4     int Buffer.limit                   N/A
+     32     4     int Buffer.capacity                N/A
+     36     4     int ByteBuffer.offset              N/A
+     40     1 boolean ByteBuffer.isReadOnly          N/A
+     41     1 boolean ByteBuffer.bigEndian           N/A
+     42     1 boolean ByteBuffer.nativeByteOrder     N/A
+     43     1         (alignment/padding gap)        N/A
+     44     4  byte[] ByteBuffer.hb                  N/A
+Instance size: 48 bytes (estimated, the sample instance is not available)
+Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
+```
+
+Problem #2: DirectByteBuffer
+----------------------------
+* *Overhead of 64 bytes*:
+```
+[belasmac] /Users/bela$ jol-size.sh java.nio.DirectByteBuffer
+
+Running 64-bit HotSpot VM.
+Using compressed oop with 3-bit shift.
+Using compressed klass with 3-bit shift.
+Objects are 8 bytes aligned.
+
+java.nio.DirectByteBuffer object internals:
+ OFFSET  SIZE           TYPE DESCRIPTION                    VALUE
+      0    12                (object header)                N/A
+     12     4            int Buffer.mark                    N/A
+     16     8           long Buffer.address                 N/A
+     24     4            int Buffer.position                N/A
+     28     4            int Buffer.limit                   N/A
+     32     4            int Buffer.capacity                N/A
+     36     4            int ByteBuffer.offset              N/A
+     40     1        boolean ByteBuffer.isReadOnly          N/A
+     41     1        boolean ByteBuffer.bigEndian           N/A
+     42     1        boolean ByteBuffer.nativeByteOrder     N/A
+     43     1                (alignment/padding gap)        N/A
+     44     4         byte[] ByteBuffer.hb                  N/A
+     48     4 FileDescriptor MappedByteBuffer.fd            N/A
+     52     4         Object DirectByteBuffer.att           N/A
+     56     4        Cleaner DirectByteBuffer.cleaner       N/A
+     60     4                (loss due to the next object alignment)
+Instance size: 64 bytes (estimated, the sample instance is not available)
+Space losses: 1 bytes internal + 4 bytes external = 5 bytes total
+
+```
+
+
+Current org.jgroups.Message
+---------------------------
+
+[source,java]
+----
+public class Message {
+    protected int offset, length; // 4+4 bytes
+    protected byte[] buf;         // 4 bytes for ref
+}
+----
+* Total size for payload: 12 bytes excluding actual bytes
+
+
+Possible design using ByteBuffers
+---------------------------------
+
+[source,java]
+----
+public class Message {
+    protected JGroupsBuffer buf; // interface
+}
+----
+
+[source,java]
+----
+public interface JGroupsBuffer {
+    int getOffset();
+    int getLength();
+    byte[] getBuf();
+    ByteBuffer getByteBuffer();
+}
+----
+
+* Implementations:
+
+[source,java]
+----
+public class Buffer implements JGroupsBuffer {
+    private final byte[] buf;
+    private final int offset;
+    private final int length;
+}
+----
+
+and
+
+[source,java]
+----
+public class ByteBuf implements JGroupsBuffer {
+    protected ByteBuffer buf;
+}
+----
+
+
+Size of existing Message
+------------------------
+* *Existing Message: 40 bytes*:
+
+```
+ OFFSET  SIZE    TYPE DESCRIPTION                    VALUE
+      0     4         (object header)                01 00 00 00 (00000001 00000000 00000000 00000000) (1)
+      4     4         (object header)                00 00 00 00 (00000000 00000000 00000000 00000000) (0)
+      8     4         (object header)                c2 e2 01 f8 (11000010 11100010 00000001 11111000) (-134094142)
+     12     4     int Message.offset                 0
+     16     4     int Message.length                 0
+     20     2   short Message.flags                  0
+     22     1    byte Message.transient_flags        0
+     23     1         (alignment/padding gap)        N/A
+     24     4 Address Message.dest_addr              null
+     28     4 Address Message.src_addr               null
+     32     4  byte[] Message.buf                    null
+     36     4 Headers Message.headers                (object)
+Instance size: 40 bytes (reported by Instrumentation API)
+Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
+```
+
+Size of new Message with Buffer
+-------------------------------
+* *New Message: 32 bytes*:
+```
+ OFFSET  SIZE          TYPE DESCRIPTION                    VALUE
+      0     4               (object header)                01 00 00 00 (00000001 00000000 00000000 00000000) (1)
+      4     4               (object header)                00 00 00 00 (00000000 00000000 00000000 00000000) (0)
+      8     4               (object header)                c2 e2 01 f8 (11000010 11100010 00000001 11111000) (-134094142)
+     12     2         short Message.flags                  0
+     14     1          byte Message.transient_flags        0
+     15     1               (alignment/padding gap)        N/A
+     16     4       Address Message.dest_addr              null
+     20     4       Address Message.src_addr               null
+     24     4 JGroupsBuffer Message.buf                    null
+     28     4       Headers Message.headers                (object)
+Instance size: 32 bytes (reported by Instrumentation API)
+Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
+```
+
+* *Buffer: 24 bytes*
+```
+OFFSET  SIZE   TYPE DESCRIPTION                    VALUE
+      0    12        (object header)                N/A
+     12     4    int Buffer.offset                  N/A
+     16     4    int Buffer.length                  N/A
+     20     4 byte[] Buffer.buf                     N/A
+Instance size: 24 bytes (estimated, the sample instance is not available)
+```
+
+* Total: *56 bytes (+ 16 bytes (40%) per message)*
+
+
+Size of new Message with ByteBuf
+--------------------------------
+* New Message (see above): 32 bytes
+* *`ByteBuf`: 16 bytes*
+```
+OFFSET  SIZE       TYPE DESCRIPTION                    VALUE
+      0     4            (object header)                01 00 00 00 (00000001 00000000 00000000 00000000) (1)
+      4     4            (object header)                00 00 00 00 (00000000 00000000 00000000 00000000) (0)
+      8     4            (object header)                c2 e2 01 f8 (11000010 11100010 00000001 11111000) (-134094142)
+     12     4 ByteBuffer ByteBuf.buf                    null
+Instance size: 16 bytes (reported by Instrumentation API)
+Space losses: 0 bytes internal + 0 bytes external = 0 bytes total
+```
+
+* *New message size with `HeapByteBuffer`: 32 + 16 + 48 = 96 bytes: +56 bytes (+140%)*
+* *New message size with `DirectByteBuffer`: 32 + 16 + 64 = 112 bytes: +72 bytes (+180%)*
+
+* This does not take into account that we probably need an array of ByteBuffers,
+  for gathering writes and scattering reads... -> even bigger
+
+
+
+Comment David
+-------------
+  I think your analysis is pretty complete and accurate.  The Oracle JDK team has shown little interest in enhancing this area at all, so I wouldn't count on anything from them.
+  [...] I think if you were going to look into NIO, then TCP should be your focus.  NIO.2 does not add much in this area, [...].
+  I wouldn't be losing any sleep over not using NIO.2 in general though.
+
+
+
+Near-term roadmap
+-----------------
+* Complete and release 3.6.7
+** Testing and perftest investigation `TCP_NIO2`
+* JGroups 4.0
+** API changes
+** Make it completely non-blocking (e.g. RpcDispatcher and lambdas)
+* Multiple transports
+* Investigate shared memory transport
+* RDMA (JNI?)
+
 
