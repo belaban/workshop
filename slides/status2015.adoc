@@ -129,8 +129,8 @@ JGroups 3.6.6
 
 
 
-JGroups 3.6.7
--------------
+JGroups 3.6.7 (wip)
+-------------------
 
 === Back to using a MulticastSocket (instead of a DatagramSocket) to send multicast messages
 * Fixes ip_ttl issue on Windows (exception when using IPv6)
@@ -155,6 +155,32 @@ JGroups workshops
 
 TCP_NIO2
 --------
+
+=== What is it ?
+* A new _non-blocking_ TCP transport based on NIO.2
+* Replaces `TCP_NIO` (deprecated a long time ago)
+* The (medium term) goal is to replace `TCP` as well
+* Brand new, don't use in production yet (wait for 2-3 minor releases)
+** But please experiment, benchmark etc
+** Perf with `UPerf` and `MPerf` slightly better than `TCP`, but slower running the Infinispan testsuite
+   (still need to investigate)
+
+
+=== Features
+* Never blocks on reads, writes, accepts or connects
+** We've had quite a few problems with threads blocked in TCP writes in the past
+* Dramatic reduction of threads required: from `(N-1)*2` -> `1`
+** _One_ thread for _all_ peer nodes (`TCP`: 2 threads per peer node)
+* Still requires `N-1` TCP connections (like `TCP`)
+
+
+=== How ?
+* The only blocking call is `select()` -> called by the (*one*) thread in `TCP_NIO2`
+* Accepts, connects and writes are handled directly by the selector thread, reads are passed to the transport's thread pool
+* Built by using reusable classes `TcpServer`, `NioServer`, `TcpClient` and `NioClient`
+** Goal: mix blocking/non-blocking clients and blocking/non-blocking servers
+** Used to rewrite `GossipRouter` (now very scalable), `TCPGOSSIP` (`RouterStub`), `TUNNEL`
+
 
 
 
