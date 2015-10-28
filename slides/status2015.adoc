@@ -492,10 +492,13 @@ Shared memory transport
 ** Consumers don't know when data is ready to be read: possing approach?
 * Using a ring buffer in shared memory where the read pointer could only advance when all members to which a message
   was sent have acked reception of the message
+** Sounds complex, need to investigate more
 
 
 Multiple transports
 -------------------
+* UDP, TCP and shared mem transports in the same stack
+* Investigation hasn't started yet
 
 
 Comment David on NIO.2
