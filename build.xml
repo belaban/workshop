@@ -149,6 +149,7 @@
         <run-asciidoc dir="${basedir}/slides" input="protocols.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="using.adoc"/>
         <run-asciidoc dir="${basedir}/slides" input="summary.adoc"/>
+        <run-asciidoc dir="${basedir}/slides" input="status2015.adoc"/>
     </target>
 
 
