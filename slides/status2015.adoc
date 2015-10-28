@@ -498,6 +498,8 @@ Shared memory transport
 Multiple transports
 -------------------
 * UDP, TCP and shared mem transports in the same stack
+* Defaults, e.g. multicast messages use `UDP`, unicasts `TCP`
+** Can be overriden per message, with message flags
 * Investigation hasn't started yet
 
 
@@ -515,6 +517,7 @@ Conclusion
    to become non-blocking end-to-end
 * Going from a `byte[]` buffer to a `Buffer` interface and accompanying implementations for byte arrays and `ByteBuffers`
   requires huge changes, and increases the memory footprint of messages.
+** Not even sure this will be faster !
 * *More work required to become completely non-blocking*
 * *Zero-copy will not be tackled for now*
 
