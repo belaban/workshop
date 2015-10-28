@@ -439,9 +439,52 @@ Space losses: 0 bytes internal + 0 bytes external = 0 bytes total
   for gathering writes and scattering reads... -> even bigger
 
 
+DatagramChannels and NIO.2
+--------------------------
+* DatagramChannels have to be _connected_ for gathering writes and scattering reads to work
+* `ch.connect(X)` means that `ch` can only send to dest `X` or receive from `X`, e.g. `232.5.5.5`
+* This would work for sending of multicasts, but not for
+** reception of mcast packets as the addresses are the senders' addresses (and these vary)
+** sending and reception of unicast messages as each dest/sender address might be different
+* David Lloyd created a BZ against openjdk (in 2008) to provide GWs/SRs for unconnected DatagramChannels (still open)
+** https://bugs.openjdk.java.net/browse/JDK-6696470
+** Hannes Sowa said this would be simple to implement...
+* *Conclusion: we cannot do GW/SR with DatagramChannels -> no zero copy in UDP*
 
-Comment David
--------------
+
+DatagramChannels and NIO.2 II
+-----------------------------
+* Scattering reads requires fixed-size buffers, or else it won't work
+* If we read the metadata first (e.g. number, type (heap,direct) and size of following buffers), then allocate buffers
+  and try to read the buffers next, this won\'t work -> the first read reads the *entire datagram* and then discards
+  the unread bytes
+** Unlike TCP where this works as the unread bytes are left in the channel
+* *Conclusion: we cannot do scattering reads on DatagramChannel*
+** On top of not being able to do scattering reads over _unconnected_ DatagramChannels
+
+
+Direct buffers
+--------------
+* Off-heap buffers, managed by the application
+* The myth is that they don\'t cause any copying on send
+* That's wrong, as the kernel will still perform copying (both in TCP and UDP) [Hannes]
+** TCP needs to keep buffers around until they're acked, and can therefore not immediately reuse them, so it copies
+   the buffers to be on the safe side
+** System calls `splice`/`vmsplice` could be used for zero-copy but this isn't done in openjdk
+** Nobody knows if/whether/when this will be implemented
+* However, copying is really fast in the Linux kernel (Hannes) and also in the JVM
+
+
+Direct buffers and memory management
+------------------------------------
+* Direct buffers have to be released at some point
+* E.g. when `STABLE` frees messages that have been received everywhere
+* Complex memory management: who own memory and who calls `release()` ?
+* De-fragmentation will probably need to create a copy on the receive path
+
+
+Comment David on NIO.2
+----------------------
   I think your analysis is pretty complete and accurate.  The Oracle JDK team has shown little interest in enhancing this area at all, so I wouldn't count on anything from them.
   [...] I think if you were going to look into NIO, then TCP should be your focus.  NIO.2 does not add much in this area, [...].
   I wouldn't be losing any sleep over not using NIO.2 in general though.
