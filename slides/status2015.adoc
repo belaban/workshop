@@ -483,6 +483,27 @@ Direct buffers and memory management
 * De-fragmentation will probably need to create a copy on the receive path
 
 
+Conclusion
+----------
+* Non-blocking is more important than zero-copying
+** Non-blocking is almost done with `TCP_NIO2`. More changes are needed (e.g. RpcDispatcher)
+   to become non-blocking end-to-end
+* Going from a `byte[]` buffer to a `Buffer` interface and accompanying implementations for byte arrays and `ByteBuffers`
+  requires huge changes, and increases the memory footprint of messages.
+** Not even sure this will be faster !
+* *More work required to become completely non-blocking*
+* *Zero-copy will not be tackled for now*
+
+
+Comment David on NIO.2
+----------------------
+  I think your analysis is pretty complete and accurate.  The Oracle JDK team has shown little interest in enhancing this area at all, so I wouldn't count on anything from them.
+  [...] I think if you were going to look into NIO, then TCP should be your focus.  NIO.2 does not add much in this area, [...].
+  I wouldn't be losing any sleep over not using NIO.2 in general though.
+
+
+
+
 Shared memory transport
 -----------------------
 * Goal: use shared memory to send messages to members on the same host (bypassing TC/IP)
@@ -503,23 +524,6 @@ Multiple transports
 * Investigation hasn't started yet
 
 
-Comment David on NIO.2
-----------------------
-  I think your analysis is pretty complete and accurate.  The Oracle JDK team has shown little interest in enhancing this area at all, so I wouldn't count on anything from them.
-  [...] I think if you were going to look into NIO, then TCP should be your focus.  NIO.2 does not add much in this area, [...].
-  I wouldn't be losing any sleep over not using NIO.2 in general though.
-
-
-Conclusion
-----------
-* Non-blocking is more important than zero-copying
-** Non-blocking is almost done with `TCP_NIO2`. More changes are needed (e.g. RpcDispatcher)
-   to become non-blocking end-to-end
-* Going from a `byte[]` buffer to a `Buffer` interface and accompanying implementations for byte arrays and `ByteBuffers`
-  requires huge changes, and increases the memory footprint of messages.
-** Not even sure this will be faster !
-* *More work required to become completely non-blocking*
-* *Zero-copy will not be tackled for now*
 
 
 Near-term roadmap
