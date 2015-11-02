@@ -510,7 +510,7 @@ Shared memory transport
 * `FileChannel.map()` maps shared memory to a file channel interface
 * However, since `FileChannel` doesn't implement `SelectableChannel`, we cannot register it with a `Selector` -> no
   notifications when contents have changed
-** Consumers don't know when data is ready to be read: possing approach?
+** Consumers don't know when data is ready to be read: polling approach?
 * Using a ring buffer in shared memory where the read pointer could only advance when all members to which a message
   was sent have acked reception of the message
 ** Sounds complex, need to investigate more
