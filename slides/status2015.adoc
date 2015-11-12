@@ -538,3 +538,34 @@ Near-term roadmap
 * RDMA (JNI?)
 
 
+Breakout session
+----------------
+* Infinispan perf Radargun
+
+
+Sync RPCs sent as OOB
+---------------------
+* By default, JGroups will _batch_ OOB messages
+* Batches are delivered _sequentially_
+* If a batch contains 3 PUT requests P1, P2, P3
+** P3 will only be executed after P1 and P2
+** Unless Infinispan's internal thread pool delivers P1-P3 in parallel (Infinispan 7.2?)
+* Batching can be excluded for msgs by setting `OOB | DONT_BUNDLE`
+* Should JGroups _not_ deliver OOB batches sequentially?
+** E.g. by passing the msgs in an OOB batch to the thread pools _individually_?
+* Note that regular messages can be batched as they need to be delivered sequentially (in send order) anyway
+
+
+put-while-holding-the-lock
+--------------------------
+* Forget about the lock for now, we don't care about TXs
+* A PUT(K,V):
+** Invokes a sync PUT(K,V) RPC on the primary owner of K
+** The primary owner _synchronously_ updates the backup owner(s)
+* This is 4x the latency
+* A PUT to all owners could be done in parallel and would be ~ 2x latency
+
+
+Infinispan plugin for Radargun
+------------------------------
+* Still up to snuff?
