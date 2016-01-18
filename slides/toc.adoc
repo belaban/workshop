@@ -39,7 +39,7 @@ Day 1: Overview, architecture, API, protocols
 ** Closing a channel
 * Protocols
 ** What do the most frequently used protocols do ?
-*** UDP/TCP, PING/TCPPING, FD_SOCK/FD/FD_ALL, NAKACK, UNICAST, STABLE,
+*** UDP/TCP/TCP_NIO2, PING/TCPPING, FD_SOCK/FD/FD_ALL, NAKACK, UNICAST, STABLE,
 GMS, UFC/MFC, FRAG, STATE_TRANSFER
 ** What are the configuration options ?
 
@@ -68,6 +68,9 @@ include::./blocks.adoc["Building blocks"]
 
 Day 3: A closer look at protocols
 ----------------------------------
+* Transports
+** UDP, TCP, TCP_NIO2
+
 * Discovery
 ** PING, TCPPING
 
@@ -109,7 +112,7 @@ Day 3-4: Advanced
 * Message flags (OOB, DONT_BUNDLE, NO_FC etc)
 
 * The transport
-** Regular, OOB and internal thread pools
+** Regular, OOB and internal thread pools: configuration
 ** Customization (replacing thread pool, thread and socket factories)
 
 * Message bundling and message batching
