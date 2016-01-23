@@ -377,6 +377,29 @@ of the cluster (including itself).
 ----
 
 
+A note about buffer reuse
+-------------------------
+* Typical (incorrect) code:
+
+[source,java]
+----
+protected void sendFile() throws Exception {
+    FileInputStream in=new FileInputStream(filename);
+    byte[] buf=new byte[8096];
+    for(;;) {
+        int bytes=in.read(buf);
+        if(bytes == -1)
+            break;
+        channel.send(new Message(null, buf, 0, bytes));
+    }
+}
+----
+* Buffer `buf` is reused and can get overwritten with new data while JGroups
+** queues the message in a bundler and sends multiple messages as a message batch
+** possibly retransmits the message if not received by the receiver(s); retransmitting the changed buffer
+* Correct: move `buf` into the for loop
+
+
 
 Getting the group's state
 -------------------------
