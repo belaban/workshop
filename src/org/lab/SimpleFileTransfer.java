@@ -10,15 +10,15 @@ import java.util.concurrent.ConcurrentHashMap;
 
 
 public class SimpleFileTransfer extends ReceiverAdapter {
-    protected String   filename;
-    protected JChannel channel;
+    protected String                   filename;
+    protected JChannel                 channel;
     protected Map<String,OutputStream> files=new ConcurrentHashMap<>();
-    protected static final short ID=3500;
+    protected static final short       ID=3500;
 
-    private void start(String name, String filename) throws Exception {
-        ClassConfigurator.add((short)3500, FileHeader.class);
+    private void start(String props, String name, String filename) throws Exception {
+        ClassConfigurator.add(ID, FileHeader.class);
         this.filename=filename;
-        channel=new JChannel("/home/bela/fast.xml").name(name);
+        channel=new JChannel(props).name(name);
         channel.setReceiver(this);
         channel.connect("FileCluster");
         eventLoop();
@@ -33,14 +33,12 @@ public class SimpleFileTransfer extends ReceiverAdapter {
 
     protected void sendFile() throws Exception {
         FileInputStream in=new FileInputStream(filename);
-
         try {
             for(;;) {
                 byte[] buf=new byte[8096];
                 int bytes=in.read(buf);
                 if(bytes == -1)
                     break;
-                // System.out.printf("sending {%d %d %d}\n", buf[0], buf[1], buf[2]);
                 sendMessage(buf, 0, bytes, false);
             }
         }
@@ -54,23 +52,15 @@ public class SimpleFileTransfer extends ReceiverAdapter {
 
 
     public void receive(Message msg) {
-        // System.out.printf("received %s from %s\n", Util.printBytes(msg.getLength()), msg.src());
-
-        byte[] buf=msg.getRawBuffer();
-
-        if(buf != null)
-            System.out.printf("received {%d %d %d}\n", buf[0], buf[1], buf[2]);
-
         FileHeader hdr=(FileHeader)msg.getHeader(ID);
         if(hdr == null)
             return;
         OutputStream out=files.get(hdr.filename);
         try {
             if(out == null) {
-                File tmp=new File(hdr.filename);
-                String fname=tmp.getName();
-                fname="/tmp/" + fname;
-                out=new FileOutputStream(fname);
+                String output_filename=new File(hdr.filename).getName();
+                output_filename="/tmp/" + output_filename; // change this is /tmp doesn't exist
+                out=new FileOutputStream(output_filename);
                 System.out.printf("-- creating file %s\n", hdr.filename);
                 files.put(hdr.filename, out);
             }
@@ -79,7 +69,6 @@ public class SimpleFileTransfer extends ReceiverAdapter {
                 Util.close(files.remove(hdr.filename));
             }
             else {
-                System.out.printf("appending %d bytes\n", msg.getLength());
                 out.write(msg.getRawBuffer(), msg.getOffset(), msg.getLength());
             }
         }
@@ -140,10 +129,36 @@ public class SimpleFileTransfer extends ReceiverAdapter {
 
 
     public static void main(String[] args) throws Exception {
-        if(args.length != 2) {
-            System.out.printf("%s <name> <filename>\n", SimpleFileTransfer.class.getSimpleName());
+        String props="config.xml", filename=null;
+        String name=null;
+        for(int i=0; i < args.length; i++) {
+            if(args[i].equals("-props")) {
+                props=args[++i];
+                continue;
+            }
+            if(args[i].equals("-name")) {
+                name=args[++i];
+                continue;
+            }
+            if(args[i].equals("-file")) {
+                filename=args[++i];
+                continue;
+            }
+            help();
             return;
         }
-        new SimpleFileTransfer().start(args[0], args[1]); // name and file
+        if(filename == null) {
+            help();
+            return;
+        }
+
+        new SimpleFileTransfer().start(props, name, filename);
     }
+
+    protected static void help() {
+        System.out.printf("%s [-help] [-props config] [-name name] -file filename\n",
+                          SimpleFileTransfer.class.getSimpleName());
+    }
+
+
 }
