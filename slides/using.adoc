@@ -377,6 +377,29 @@ of the cluster (including itself).
 ----
 
 
+A note about buffer reuse
+-------------------------
+* Typical (incorrect) code:
+
+[source,java]
+----
+protected void sendFile() throws Exception {
+    FileInputStream in=new FileInputStream(filename);
+    byte[] buf=new byte[8096];
+    for(;;) {
+        int bytes=in.read(buf);
+        if(bytes == -1)
+            break;
+        channel.send(new Message(null, buf, 0, bytes));
+    }
+}
+----
+* Buffer `buf` is reused and can get overwritten with new data while JGroups
+** queues the message in a bundler and sends multiple messages as a message batch
+** possibly retransmits the message if not received by the receiver(s); retransmitting the changed buffer
+* Correct: move `buf` into the for loop
+
+
 
 Getting the group's state
 -------------------------
@@ -517,3 +540,15 @@ Lab ChatDemo: writing a simple chat application
 .. Store the last N messages in memory as state and perform a state transfer on startup
 .. Expose contents and length of state via JMX
 .. Make N configurable via a property "max_history"
+
+
+Lab SimpleFileTransfer: transfer small or large files to everyone in the cluster
+--------------------------------------------------------------------------------
+* Look at the lab
+** Yes, we don't know about headers yet, but assume they're just something added to a message
+* Can't we use JGroups' fragmentation/defragmentation to send a large message?
+* Change the lab to send 1 big message (300MB or so) instead of chunks
+** Make sure you point your bind address to localhost (127.0.0.1), or else you'll overwhelm the wifi...
+* What changes?
+* How many fragments do we generate?
+

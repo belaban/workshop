@@ -668,6 +668,39 @@ Inserting a protocol at runtime
    support
 
 
+Getting RPC stats
+-----------------
+* Use `probe.sh rpcs-enable-details` to turn on and `probe.sh rpcs-disable-details` to turn off
+* `probe.sh rpcs rpcs-details` dumps stats on RPCs, e.g.
+----
+#1 (481 bytes):
+local_addr=C [ip=127.0.0.1:55535, version=3.6.8-SNAPSHOT, cluster=uperf, 4 mbr(s)]
+uperf: sync  multicast RPCs=0
+uperf: async unicast   RPCs=0
+uperf: async multicast RPCs=0
+uperf: sync  anycast   RPCs=67480
+uperf: async anycast   RPCs=0
+uperf: sync  unicast   RPCs=189064
+rpcs-details=
+D: async: 0, sync: 130434, min/max/avg (ms): 0.13/924.88/2.613
+A: async: 0, sync: 130243, min/max/avg (ms): 0.11/926.35/2.541
+B: async: 0, sync: 63346, min/max/avg (ms): 0.14/73.94/2.221
+
+#2 (547 bytes):
+local_addr=A [ip=127.0.0.1:65387, version=3.6.8-SNAPSHOT, cluster=uperf, 4 mbr(s)]
+uperf: sync  multicast RPCs=5
+uperf: async unicast   RPCs=0
+uperf: async multicast RPCs=0
+uperf: sync  anycast   RPCs=67528
+uperf: async anycast   RPCs=0
+uperf: sync  unicast   RPCs=189200
+rpcs-details=
+<all>: async: 0, sync: 5, min/max/avg (ms): 2.11/9255.10/4917.072
+C: async: 0, sync: 130387, min/max/avg (ms): 0.13/929.71/2.467
+D: async: 0, sync: 63340, min/max/avg (ms): 0.13/63.74/2.469
+B: async: 0, sync: 130529, min/max/avg (ms): 0.13/929.71/2.328
+----
+
 
 Use of probe when IP multicasting is not available
 --------------------------------------------------
