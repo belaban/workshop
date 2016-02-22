@@ -46,7 +46,7 @@ public class MethodLookupExample {
         disp.setMethodLookup(lookup::get);
         ch.connect("demo");
 
-        for(int i=1; i < 10; i++) {
+        for(int i=1; i <= 10; i++) {
 
             MethodCall call=new MethodCall((short)1,i);
             RspList<Integer> rsps=disp.callRemoteMethods(null,call,

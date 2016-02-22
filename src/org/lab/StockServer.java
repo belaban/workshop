@@ -6,6 +6,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Simple non-replicated stock server. Typically accessed by clients.
+ */
 public class StockServer {
     private final Map<String,Double> stocks=new HashMap<>();
 
