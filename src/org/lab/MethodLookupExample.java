@@ -2,7 +2,6 @@ package org.lab;
 
 import org.jgroups.JChannel;
 import org.jgroups.blocks.MethodCall;
-import org.jgroups.blocks.MethodLookup;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.RpcDispatcher;
 import org.jgroups.util.RspList;
@@ -44,12 +43,7 @@ public class MethodLookupExample {
     protected void start() throws Exception {
         ch=new JChannel("config.xml").name("A");
         disp=new RpcDispatcher(ch, this);
-        disp.setMethodLookup(new MethodLookup() {
-            public Method findMethod(short id) {
-                return lookup.get(id);
-            }
-        });
-
+        disp.setMethodLookup(lookup::get);
         ch.connect("demo");
 
         for(int i=1; i < 10; i++) {

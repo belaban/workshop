@@ -36,7 +36,7 @@ public class ReplicatedStockServer extends ReceiverAdapter {
 
     private void start(String props) throws Exception {
         channel=new JChannel(props);
-        disp=new RpcDispatcher(channel, this, this, this);
+        disp=new RpcDispatcher(channel, this).setMembershipListener(this);
         channel.connect("stocks");
         disp.start();
         channel.getState(null, 30000); // fetches the state from the coordinator
