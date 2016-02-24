@@ -142,11 +142,8 @@ JChannel
 JChannel ch=new JChannel("/home/bela/udp.xml").name("A");
 
 // Add a receiver to receive messages:
-ch.setReceiver(new ReceiverAdapter() {
-    public void receive(Message msg) {
-        System.out.printf("msg from %s: %s\n", msg.getSrc(), msg.getObject());
-    }
-});
+ch.setReceiver(msg ->
+        System.out.printf("msg from %s: %s\n", msg.src(), msg.getObject()));
 
 // Join the cluster "demo-cluster":
 ch.connect("demo-cluster");
@@ -267,7 +264,7 @@ Joining a cluster
 
 [source,java]
 ----
-public void connect(String cluster_name) throws Exception;
+public Channel connect(String cluster_name) throws Exception;
 ----
 * `cluster_name` is the name of the cluster to be joined
 ** All channels that call `connect()` with the same name form a cluster
@@ -360,10 +357,10 @@ Sending messages
 
 [source,java]
 ----
-public void send(Message msg) throws Exception; // <1>
-public void send(Address dst, Serializable obj) throws Exception; // <2>
-public void send(Address dst, byte[] buf) throws Exception; // <3>
-public void send(Address dst, byte[] buf, int off, int len) throws Exception; // <4>
+public Channel send(Message msg) throws Exception; // <1>
+public Channel send(Address dst, Serializable obj) throws Exception; // <2>
+public Channel send(Address dst, byte[] buf) throws Exception; // <3>
+public Channel send(Address dst, byte[] buf, int off, int len) throws Exception; // <4>
 ----
 <1> Accepts a message as parameter. The message's destination should either be the address of the
 receiver (unicast) or null (multicast). When the destination is null, the message will be sent to all members
@@ -411,7 +408,7 @@ with `getState()`:
 
 [source,java]
 ----
-public void getState(Address target, long timeout) throws Exception;
+public Channel getState(Address target, long timeout) throws Exception;
 ----
 
 * This method requests the state from the coordinator (target == null)
@@ -490,7 +487,7 @@ Leaving a cluster
 
 [source,java]
 ----
-public void disconnect();
+public Channel disconnect();
 ----
 
 * It will have no effect if the channel is already in the disconnected or closed state

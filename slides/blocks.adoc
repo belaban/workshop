@@ -47,22 +47,43 @@ public class RspList<T> implements Map<Address,Rsp<T>> {... }
 
 [source,java]
 ----
-for(Rsp<Integer> rsp: rsps) {
+for(Map.Entry<Address,Rsp<Integer>> entry: rsps.entrySet()) {
+    Address sender=entry.getKey();
+    Rsp<Integer> rsp=entry.getValue();
     if(rsp.hasException()) {
-        log.warn("exception for %s: %s", rsp.getSender(), rsp.getException());
+        System.out.printf("exception for %s: %s", sender, rsp.getException());
         continue;
     }
     if(rsp.wasSuspected()) {
-        System.out.printf("%s was suspected:\n", rsp.getSender());
+        System.out.printf("%s was suspected:\n", sender);
         continue;
     }
     if(!rsp.wasReceived()) {
-        System.out.printf("no rsp from %s (timeout)\n", rsp.getSender());
+        System.out.printf("no rsp from %s (timeout)\n", sender);
         continue;
     }
-    System.out.printf("result for %s: %d\n", rsp.getSender(), rsp.getValue());
+   System.out.printf("result for %s: %d\n", sender, rsp.getValue());
 }
 ----
+
+
+Print the received values only:
+-------------------------------
+
+[source,java]
+----
+rsps.entrySet()
+    .stream()
+    .filter(e -> {
+                  Rsp<Integer> val=e.getValue();
+                  return !val.hasException() &&
+                         !val.wasSuspected() &&
+                          val.wasReceived();
+                 })
+    .forEach(e -> System.out.printf("sender: %s, rsp: %d\n",
+                                     e.getKey(), e.getValue().getValue()));
+----
+
 
 
 Rsp<T>
@@ -96,7 +117,6 @@ RequestOptions
   `GET_ALL`:: Block until responses from all members (minus the suspected ones) have been received.
   `GET_NONE`:: Wait for none. This makes the call non-blocking
   `GET_FIRST`:: Block until the first response (from anyone) has been received
-  `GET_MAJORITY`:: Block until a majority of members have responded
 ** Timeout: max time (ms) to block. If the call hasn't completed after the timeout elapsed, a TimeoutException will be thrown.
    A timeout of 0 means to wait forever. Ignored if the call is non-blocking (mode=`GET_NONE`)
 ** Response filter: a `RspFilter` allows for filtering of responses and user-defined termination of
@@ -187,8 +207,7 @@ Method lookup
 
 RpcDispatcher and `receive()`
 -----------------------------
-* RpcDispatcher requires `receive()` to be called, and therefore calls
-  `JChannel.setReceiver()`
+* RpcDispatcher requires `receive()` to be called, and therefore calls `JChannel.setReceiver()`
 * If an application sets a receiver itself, this will steal all messages from
   the RpcDispatcher and it will never receive a method invocation
 * Overriding a receiver with another one will log a warning
@@ -255,21 +274,23 @@ Asynchronous calls with futures
 
 [source,java]
 ----
-public NotifyingFuture<RspList>
+public CompletableFuture<RspList>
        callRemoteMethodsWithFuture(Collection<Address> dests, MethodCall call,
                                    RequestOptions opts) throws Exception;
-public <T> NotifyingFuture<T>
+public <T> CompletableFuture<T>
        callRemoteMethodWithFuture(Address dest, MethodCall call,
                                   RequestOptions opts) throws Exception;
 ----
 
-* A `NotifyingFuture` extends `java.util.concurrent.Future`, with its regular methods such as `isDone()`,
-  `get()` and `cancel()`. This is shown in the following code:
+* A CompletableFuture can be used as shown in the following code:
             
 [source,java]
 ----
 Future<Integer> future=dispatcher.callRemoteMethodWithFuture(...); // <1>
 int num=future.get(); // <2>
+// or
+CompletableFuture<RspList<Integer>> future=disp.callRemoteMethodsWithFuture(...);
+future.whenComplete((result,ex) -> System.out.printf("result=%s, ex=%s\n", result, ex));
 ----
 <1> Here we invoke a unicast method, which completes immediately, returning a future
 <2> The `get()` blocks until the result is available
