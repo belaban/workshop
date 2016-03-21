@@ -72,14 +72,8 @@ Print the received values only:
 
 [source,java]
 ----
-rsps.entrySet()
-    .stream()
-    .filter(e -> {
-                  Rsp<Integer> val=e.getValue();
-                  return !val.hasException() &&
-                         !val.wasSuspected() &&
-                          val.wasReceived();
-                 })
+rsps.entrySet().stream()
+    .filter(e -> e.getValue().wasReceived())
     .forEach(e -> System.out.printf("sender: %s, rsp: %d\n",
                                      e.getKey(), e.getValue().getValue()));
 ----
@@ -290,7 +284,7 @@ Future<Integer> future=dispatcher.callRemoteMethodWithFuture(...); // <1>
 int num=future.get(); // <2>
 // or
 CompletableFuture<RspList<Integer>> future=disp.callRemoteMethodsWithFuture(...);
-future.whenComplete((result,ex) -> System.out.printf("result=%s, ex=%s\n", result, ex));
+future.whenComplete((r,ex) -> System.out.printf("result=%s, ex=%s\n", r, ex));
 ----
 <1> Here we invoke a unicast method, which completes immediately, returning a future
 <2> The `get()` blocks until the result is available
@@ -522,9 +516,6 @@ CENTRAL_LOCK
 * All lock requests (lock(), unlock()) are sent to the coordinator
 ** The coordinator keeps track of locks and their state (locked / unlocked / lock owner)
 ** This state can be replicated to another node (`num_backups`)
-* Property `use_thread_id_for_lock_owner` determines the lock owner
-** `true`: threads in the same node accessing the same lock block each other
-** `false`: threads in the same node accessing the same lock don't block each other
 * Config sample:
 
 [source,xml]

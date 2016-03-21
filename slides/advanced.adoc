@@ -41,24 +41,23 @@ Message msg=new Message(null, "hello").setFlag(Message.Flag.OOB).name("A");
 
 Provided message flags
 ----------------------
-Message.OOB:: Marks a message as _out-of-band_. OOB messages don't not provide any ordering guarantees,
-              although they're are reliable (no loss) and are delivered only once.
+Message.OOB: Marks a message as _out-of-band_. OOB messages don't not provide any ordering guarantees,
+             although they're are reliable (no loss) and are delivered only once.
 
-Message.DONT_BUNDLE:: Causes the transport not to bundle the message, but to send it immediately.
+Message.DONT_BUNDLE: Causes the transport not to bundle the message, but to send it immediately.
 
-Message.NO_FC:: Bypasses any flow control protocols.
+Message.NO_FC: Bypasses any flow control protocols.
 
-Message.NO_RELIABILITY:: Bypasses reliable protocols; makes the message unreliable. An unreliable message has no
-                         ordering constraints, may get dropped or delivered multiple times.
+Message.NO_RELIABILITY: Bypasses reliable protocols; makes the message unreliable. An unreliable message has no
+                       ordering constraints, may get dropped or delivered multiple times.
 
-Message.NO_TOTAL_ORDER:: If we use a total order configuration with `SEQUENCER`, then we
-                         can bypass `SEQUENCER` (if we don't need total order for a given message) by tagging the message
-                         with `NO_TOTAL_ORDER`.
+Message.NO_TOTAL_ORDER: If we use a total order configuration with `SEQUENCER`, then we
+                         can bypass `SEQUENCER` (if we don't need total order for a given message) with this flag
 
-Message.RSVP:: When this flag is set, a message send will block until the receiver (unicast) or receivers
+Message.RSVP: When set, a message send will block until the receiver (unicast) or receivers
                (multicast) have acked reception of the message, or until a timeout occurs.
 
-Message.DONT_LOOPBACK:: When set, a message is multicast, but not looped back up the stack.
+Message.DONT_LOOPBACK: When set, a message is multicast, but not looped back up the stack.
                         Useful when a sender doesn't want to receive its own multicast. +
                         Note that this is a _transient flag_, so `Message.setTransientFlag()` has
                         to be used instead of `Message.setFlag()`
@@ -101,7 +100,7 @@ The transport
 
 Available transports
 --------------------
-* Currently `UDP` and `TCP`
+* Currently `UDP`, `TCP` and `TCP_NIO2`
 * UDP uses _IP multicasting_
 ** A message to N cluster nodes is sent *once*, as a datagram packet to a multicast (class D) address
 *** Class D addresses: `224.0.0.1` - `239.255.255.255` (`224.0.0.x` reserved for host / router pings)
@@ -114,6 +113,15 @@ Available transports
 * Recommendation: don't use TCP for large clusters, or clusters with a lot of traffic
 ** But: I've run a 1000 node TCP cluster on Google Compute Engine... :-)
 *** http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html
+
+
+TCP_NIO2
+--------
+* New transport based on non-blocking IO
+* Uses a single thread to handle connections, sends and receives
+** As optimization, we can have multiple receiver threads
+* More scalable than `TCP`
+* Default TCP-based transport in the future
 
 
 The transport
@@ -174,13 +182,16 @@ Thread pool behavior
 ** Else create an additional thread if we're below `max_threads`
 * If the queue is full (or disabled) or we've reached `max_threads` and all threads are busy -> consult the rejection policy
 
-run:: Pass the message up on the receiver's thread. If there's a risk that the thread might block, or take a long time,
+run: Pass the message up on the receiver's thread. If there's a risk that the thread might block, or take a long time,
       this hampers the ability of the receiver to quickly remove packets and might thus lead to queue overflow
       (or a 0 TCP write window, _blocking the sender_)
-discard:: Discard the message. JGroups retransmission will later retransmit the message, but dropping a message is
+
+discard: Discard the message. JGroups retransmission will later retransmit the message, but dropping a message is
           good as it tells the sender to slow down a bit (via the flow control protocols)
-abort:: same as discard, but throw an exception
-discardoldest:: Discards the oldest message first
+
+abort: same as discard, but throw an exception
+
+discardoldest: Discards the oldest message first
 
 
 Thread pool use
@@ -387,6 +398,7 @@ public interface RequestHandler {
 * Therefore a new way of dispatching messages to the application was devised; the asynchronous invocation API
 * A new interface `AsyncRequestHandler` (derived from `RequestHandler`) is introduced
 
+
 AsyncRequestHandler
 -------------------
 
@@ -408,8 +420,8 @@ public interface Response {
 }
 ----
 
-* `Response` has information about the request (e.g. request ID), and has method `send()` to
-  send a response. The `is_exception` parameter should be true if the reply is an exception, e.g.
+* `Response` has information about the request (e.g. request ID), and `send()` send a response.
+  The `is_exception` parameter should be true if the reply is an exception, e.g.
   was thrown when `handle()` ran application code.
 
 * The advantage of the new API is that it can be used asynchronously. The default
@@ -499,7 +511,6 @@ ENDLOOP
 * This collects many messages into a batch until the `max_bundle_size` has been reached, but sends individual messages
   immediately
 * E.g. message P1-5 are sent at time T1, and P6 at time T20: this create a batch for P1-5 and a single message for P6
-* Message batching can be overridden with flag `DONT_BUNDLE`
 
 
 Message batching on the receiver
@@ -511,6 +522,11 @@ Message batching on the receiver
 ** Locks are acquired once for a batch (say of 10) rather than 10 times -> less context switching
 ** `NAKACK` / `UNICAST`: add N messages into the retransmission table *in one step* rather than *N steps*
 ** The destination and sender addresses are sent *only once rather than N times*
+* API for reception of a batch:
+[source,java]
+----
+public void receive(MessageBatch batch);
+----
 
 
 Sending messages synchronously (RSVP)
@@ -554,8 +570,7 @@ Configuration and use
 
 [source,java]
 ----
-Message msg=new Message(null, "hello world").setFlag(Message.RSVP);
-ch.send(msg);
+ch.send(new Message(null, "hello world").setFlag(Message.RSVP));
 ----
 
 * Method `send()` returns as soon as it has received acks from all current members
@@ -601,12 +616,10 @@ public interface AddressGenerator {
 [source,java]
 ----
 JChannel ch=new JChannel();
-ch.addAddressGenerator(new AddressGenerator() {
-    public Address generateAddress() {
+ch.addAddressGenerator(() -> {
         ExtendedUUID retval=ExtendedUUID.randomUUID();
-            retval.put("host", getHostName().getBytes());
-            return retval;
-        }
+        retval.put("host", getHostName().getBytes());
+        return retval;
     });
 ch.connect("cluster");
 ----
@@ -672,10 +685,8 @@ Sample view generation
 [source,java]
 ----
 if(beefy)
-    channel.setAddressGenerator(new AddressGenerator() {
-        public Address generateAddress() {
+    channel.setAddressGenerator(() -> {
             return ExtendedUUID.randomUUID(channel.getName());
-        }
     });
 }
 ----
@@ -1261,19 +1272,22 @@ Register dynamically to JMX
 
 [source,java]
 ----
-private boolean is_registered = false;
+private boolean is_registered;
 
 @ManagedOperation(description = "Register dynamically to jmx")
 public synchronized void register(boolean register) {
+    TP tp=getTransport();
+    JChannel ch=getProtocolStack().getChannel();
 	try {
-		if (register && !is_registered) {
-			JmxConfigurator.registerChannel(this.getProtocolStack().getChannel(), Util.getMBeanServer(), this.getTransport().getClusterName());
-			is_registered = true;
-		} else {
-			if (is_registered) {
-				JmxConfigurator.unregisterChannel(this.getProtocolStack().getChannel(), Util.getMBeanServer(), this.getTransport().getClusterName());
-				is_registered = false;
-			}
+		if(register && !is_registered) {
+		    JmxConfigurator.registerChannel(ch), Util.getMBeanServer(), tp.getClusterName());
+		    is_registered = true;
+		}
+		else {
+		    if(is_registered) {
+		        JmxConfigurator.unregisterChannel(ch, Util.getMBeanServer(), tp.getClusterName());
+			    is_registered = false;
+		    }
 		}
 	} catch (Exception e) {
 		log.warn(e.getMessage(), e);

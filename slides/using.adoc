@@ -337,6 +337,18 @@ ch.connect("MyCluster");
 ----
 
 
+Receiving message batches
+-------------------------
+* Messgages can be received in batches:
+[source,java]
+----
+public void receive(MessageBatch batch) {
+    for(Message msg: batch) {
+        // handle message
+    }
+}
+----
+
 
 Receiving view changes
 ----------------------
