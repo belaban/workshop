@@ -60,7 +60,6 @@ JGroups has 3 parts
 ** Flow control
 ** Fragmentation
 ** Compression, encryption, authentication
-* Stack can be adapted to every environment
 
 . Building blocks
 * Used over a channel
@@ -105,7 +104,7 @@ Common classes
 ----
 // "hello" is serialized into a byte[] buffer
 Message msg=new Message(null, "hello")
-                .setFlag(Message.Flag.OOB); // set flag OOB
+                .setFlag(Message.Flag.OOB); // set OOB flag
 channel.send(msg);
 ----
 
@@ -118,13 +117,13 @@ Receiving messages
 [source,java]
 ----
 public void receive(Message msg) {
-    Address sender=msg.getSrc();
+    Address sender=msg.src();
     String greeting=(String)msg.getObject();
-    System.out.println("received " + greeting + " from " + sender);
+    System.out.printf("received %s from %s\n", greeting, sender);
 }
 
 public void viewAccepted(View view) {
-    System.out.println("received view " + view);
+    System.out.printf("received view %s\n", view);
 }
 ----
 
@@ -400,10 +399,10 @@ protected void sendFile() throws Exception {
 
 Getting the group's state
 -------------------------
-* Frequently clusters have _shared state_, ie. every node has the same local state, and updates are propagated
-across the cluster to all nodes, which then update their local state
-* State can be anything, e.g. a hashmap that stores servlet session data
-* A newly joined member may want to retrieve the state of the cluster before starting work. This is done
+* Frequently clusters have _shared state_, ie. every node has the same local state, and updates are sent
+to all cluster nodes, which then update their state
+* State can be anything, e.g. a hashmap that stores servlet sessions
+* A new member may want to retrieve the state of the cluster before starting work. This is done
 with `getState()`:
 
 [source,java]
@@ -411,11 +410,11 @@ with `getState()`:
 public Channel getState(Address target, long timeout) throws Exception;
 ----
 
-* This method requests the state from the coordinator (target == null)
-** If a timeout (ms) elapses before the state has been fully fetched, an exception will be thrown
+* This requests the state from the coordinator (target == null)
+** If a timeout (ms) elapses before the state has been fetched, an exception will be thrown
 ** A timeout of 0 waits until the entire state has been transferred.
-* To participate in state transfer, both state provider and state requester have to override the
-following methods in `ReceiverAdapter`:
+* To participate in state transfer, both state provider and requester have to override the
+following methods of `ReceiverAdapter`:
 
 [source,java]
 ----
