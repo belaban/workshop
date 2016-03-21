@@ -8,9 +8,9 @@ Modules and labs for a JGroups workshop. The different modules can be combined i
 
 Requirements:
 
-* JDK (7 or higher) installed
+* JDK 8
 * IDE installed. I used IntelliJ, but eclipse works, too
-** JGroups source code imported into IDE
+** JGroups master (= 4.x) source code imported into IDE
 
 Disclaimer
 ----------

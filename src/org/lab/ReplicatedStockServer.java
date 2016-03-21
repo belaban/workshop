@@ -12,6 +12,9 @@ import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Replicated stock server; every cluster node has the same state (stocks).
+ */
 public class ReplicatedStockServer extends ReceiverAdapter {
     private final Map<String,Double> stocks=new HashMap<>();
     private JChannel                 channel;
@@ -36,7 +39,8 @@ public class ReplicatedStockServer extends ReceiverAdapter {
 
     private void start(String props) throws Exception {
         channel=new JChannel(props);
-        disp=new RpcDispatcher(channel, this, this, this);
+        disp=new RpcDispatcher(channel, this).setMembershipListener(this);
+        disp.setStateListener(this);
         channel.connect("stocks");
         disp.start();
         channel.getState(null, 30000); // fetches the state from the coordinator

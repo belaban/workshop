@@ -7,5 +7,5 @@ import java.io.Serializable;
  * @author Bela Ban
  */
 public interface Task extends Serializable {
-    public abstract Object execute();
+    Object execute();
 }

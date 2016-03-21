@@ -5,7 +5,6 @@ import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.RpcDispatcher;
-import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
 import org.jgroups.util.Util;
 
@@ -20,7 +19,7 @@ public class ChatDemoRpc extends ReceiverAdapter {
         System.out.println("** view: " + new_view);
     }
 
-    public void onMessage(String message) {
+    public static void onMessage(String message) {
         System.out.println(message);
     }
 
@@ -29,7 +28,7 @@ public class ChatDemoRpc extends ReceiverAdapter {
         channel=new JChannel(props);
         if(name != null)
             channel.name(name);
-        disp=new RpcDispatcher(channel, null, this, this);
+        disp=new RpcDispatcher(channel, this).setMembershipListener(this);
         channel.connect("ChatCluster");
         Util.registerChannel(channel, "relay");
         eventLoop();
@@ -47,25 +46,13 @@ public class ChatDemoRpc extends ReceiverAdapter {
                 }
                 String message=channel.getAddressAsString() + ": " + line;
                 RspList<Void> rsps=disp.callRemoteMethods(null, "onMessage", new Object[]{message}, new Class[]{String.class}, RequestOptions.SYNC());
-                printResponses(rsps);
+                System.out.printf("rsps from %s\n", rsps.keySet());
             }
             catch(Exception e) {
             }
         }
     }
 
-    protected static void printResponses(RspList<Void> rsps) {
-        boolean first=true;
-        System.out.print("responses from [");
-        for(Rsp rsp: rsps) {
-            if(first)
-                first=false;
-            else
-                System.out.print(", ");
-            System.out.print(rsp.getSender());
-        }
-        System.out.println("]");
-    }
 
 
     public static void main(String[] args) throws Exception {

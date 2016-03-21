@@ -21,7 +21,7 @@ About me
 * I've been working on JGroups ever since
 * Joined JBoss in 2003 as employee 007
 * JBoss was acquired by RedHat in 2006
-* Started JBossCache (predecessor of Infinispan) in 2003, work on it until version 1.4
+* Started JBossCache (predecessor of Infinispan) in 2003, worked on it until version 1.4
 * Started jgroups-raft end of 2014
 * I enjoy biking, mountain biking, tennis, running
 * I hate maven, scala, fat monolithic projects, security
@@ -41,15 +41,15 @@ Red Hat support for this material.
 
 Introduction
 ------------
-* Who are you ?
-* What are you working on ?
-* What's your interest in JGroups / have you used it before ?
-* What do you expect from this course ?
+* Who are you?
+* What are you working on?
+* What's your interest in JGroups / have you used it before?
+* What do you expect from this course?
 
 
 What are we going to do this week ?
 -----------------------------------
-* Start at 9am every day, end: Friday noon
+* Start at 9am every day, end 5pm (Friday: noon)
 * Mon: API and overview of protocols (introductory, to relax)
 * Tue: building blocks (boring but necessary)
 * Wed: protocols and advanced (hard)

@@ -25,7 +25,7 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     protected JChannel ch;
 
     /** Maps task IDs to Tasks */
-    private final ConcurrentMap<ClusterID,Entry> tasks=new ConcurrentHashMap<ClusterID,Entry>();
+    private final ConcurrentMap<ClusterID,Entry> tasks=new ConcurrentHashMap<>();
 
     /** Used to handle received tasks */
     private final ExecutorService thread_pool=Executors.newCachedThreadPool();
@@ -161,9 +161,7 @@ public class Server extends ReceiverAdapter implements Master, Slave {
 
         // process tasks by left members
         if(left_members != null && !left_members.isEmpty()) {
-            for(Address mbr: left_members) {
-                handleLeftMember(mbr);
-            }
+            left_members.forEach(this::handleLeftMember);
         }
     }
 
@@ -212,25 +210,14 @@ public class Server extends ReceiverAdapter implements Master, Slave {
             int key=Util.keyPress("[1] Submit [2] Submit long running task [3] Info [q] Quit");
             switch(key) {
                 case '1':
-                    Task task=new Task() {
-                        private static final long serialVersionUID=5102426397394071700L;
-
-                        public Object execute() {
-                            return new Date();
-                        }
-                    };
-                    _submit(task, server);
+                    _submit(Date::new, server);
                     break;
                 case '2':
-                    task=new Task() {
-                        private static final long serialVersionUID=5102426397394071700L;
-
-                        public Object execute() {
-                            System.out.println("sleeping for 15 secs...");
-                            Util.sleep(15000);
-                            System.out.println("done");
-                            return new Date();
-                        }
+                    Task task=() -> {
+                        System.out.println("sleeping for 15 secs...");
+                        Util.sleep(15000);
+                        System.out.println("done");
+                        return new Date();
                     };
                     _submit(task, server);
                     break;
@@ -288,7 +275,7 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     private static class Entry {
         private final Task            task;
         private final Address         submitter;
-        private final Promise<Object> promise=new Promise<Object>();
+        private final Promise<Object> promise=new Promise<>();
 
         public Entry(Task task, Address submitter) {
             this.task=task;
@@ -333,7 +320,7 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     
 
     public static class Request implements Streamable {
-        static enum Type {EXECUTE, RESULT, REMOVE};
+        enum Type {EXECUTE, RESULT, REMOVE};
 
         private Type type;
         private Task task;

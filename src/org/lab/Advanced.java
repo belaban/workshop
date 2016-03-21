@@ -5,7 +5,7 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 import org.jgroups.annotations.ManagedAttribute;
-import org.jgroups.blocks.AsyncRequestHandler;
+import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.Response;
 import org.jgroups.blocks.RpcDispatcher;
@@ -51,7 +51,7 @@ public class Advanced extends ReceiverAdapter {
         ch=new JChannel(props);
         if(name != null)
             ch.name(name);
-        disp=new RpcDispatcher(ch, null, this, this);
+        disp=new RpcDispatcher(ch, this).setMembershipListener(this);
         if(use_async_request_handler) {
             disp.asyncDispatching(true);
             disp.setRequestHandler(new MyAsyncHandler(disp));
@@ -86,7 +86,7 @@ public class Advanced extends ReceiverAdapter {
         if(invokers != null)
             return;
         invokers=new Invoker[num_threads];
-        avg=new Average(num_threads);
+        avg=new Average();
         running=true;
         for(int i=0; i < invokers.length; i++) {
             invokers[i]=new Invoker();
@@ -197,7 +197,7 @@ public class Advanced extends ReceiverAdapter {
     }
 
 
-    protected class MyAsyncHandler implements AsyncRequestHandler {
+    protected class MyAsyncHandler implements RequestHandler {
         protected final RpcDispatcher d;
 
         public MyAsyncHandler(RpcDispatcher d) {
@@ -206,15 +206,13 @@ public class Advanced extends ReceiverAdapter {
 
         @Override
         public void handle(final Message request, final Response response) throws Exception {
-            app_thread_pool.execute(new Runnable() {
-                public void run() {
-                    try {
-                        Object result=d.handle(request);
-                        response.send(result, false);
-                    }
-                    catch(Exception e) {
-                        response.send(e, true);
-                    }
+            app_thread_pool.execute(() -> {
+                try {
+                    Object result=d.handle(request);
+                    response.send(result, false);
+                }
+                catch(Exception e) {
+                    response.send(e, true);
                 }
             });
         }
