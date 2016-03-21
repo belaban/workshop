@@ -48,9 +48,7 @@ public class Advanced extends ReceiverAdapter {
 
 
     protected void start(String props, String name, boolean use_async_request_handler) throws Exception {
-        ch=new JChannel(props);
-        if(name != null)
-            ch.name(name);
+        ch=new JChannel(props).name(name);
         disp=new RpcDispatcher(ch, this).setMembershipListener(this);
         if(use_async_request_handler) {
             disp.asyncDispatching(true);
@@ -180,7 +178,7 @@ public class Advanced extends ReceiverAdapter {
                 try {
                     RequestOptions opts=RequestOptions.SYNC();
                     if(oob)
-                        opts.setFlags(Message.Flag.OOB);
+                        opts.flags(Message.Flag.OOB);
                     long start=System.currentTimeMillis();
                     disp.callRemoteMethods(null, "sleep", null, null, opts);
                     long diff=System.currentTimeMillis() - start;

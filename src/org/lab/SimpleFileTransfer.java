@@ -18,8 +18,7 @@ public class SimpleFileTransfer extends ReceiverAdapter {
     private void start(String props, String name, String filename) throws Exception {
         ClassConfigurator.add(ID, FileHeader.class);
         this.filename=filename;
-        channel=new JChannel(props).name(name);
-        channel.setReceiver(this);
+        channel=new JChannel(props).name(name).setReceiver(this);
         channel.connect("FileCluster");
         eventLoop();
     }
@@ -35,7 +34,7 @@ public class SimpleFileTransfer extends ReceiverAdapter {
         FileInputStream in=new FileInputStream(filename);
         try {
             for(;;) {
-                byte[] buf=new byte[8096];
+                byte[] buf=new byte[8096]; // think about why not outside the for-loop
                 int bytes=in.read(buf);
                 if(bytes == -1)
                     break;

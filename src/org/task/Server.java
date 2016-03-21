@@ -40,8 +40,7 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     }
 
     public void start(String name) throws Exception {
-        ch=new JChannel(props).name(name);
-        ch.setReceiver(this);
+        ch=new JChannel(props).name(name).setReceiver(this);
         ch.connect("task-cluster");
         JmxConfigurator.registerChannel(ch, Util.getMBeanServer(), "jgroups", ch.getClusterName(), true);
     }
@@ -53,11 +52,8 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     }
 
     public String info() {
-        StringBuilder sb=new StringBuilder();
-        sb.append("local_addr=" + ch.getAddress() + "\nview=" + view).append("\n");
-        sb.append("rank=" + rank + "\n");
-        sb.append("(" + tasks.size() + " entries in tasks cache)");
-        return sb.toString();
+        return String.format("local_addr=%s\nview=%s\nrank=%d\n(%d entries in tasks cache)\n",
+                             ch.getAddress(), view, rank, tasks.size());
     }
 
     public Object submit(Task task, long timeout) throws Exception {

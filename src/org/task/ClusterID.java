@@ -12,7 +12,7 @@ import java.io.DataOutput;
  */
 public class ClusterID implements Streamable {
     private Address creator;
-    private  int id;
+    private  int    id;
 
     private static int next_id=1;
 

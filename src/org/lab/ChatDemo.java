@@ -38,9 +38,7 @@ public class ChatDemo extends ReceiverAdapter {
 
     private void start(String props, String name, boolean send_replies) throws Exception {
         this.send_replies=send_replies;
-        channel=new JChannel(props);
-        channel.name(name);
-        channel.setReceiver(this);
+        channel=new JChannel(props).name(name).setReceiver(this);
         channel.connect("ChatCluster");
         JmxConfigurator.registerChannel(channel,Util.getMBeanServer(),"relay2",channel.getClusterName(),true);
         eventLoop();

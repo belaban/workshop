@@ -49,8 +49,7 @@ public class MethodLookupExample {
         for(int i=1; i <= 10; i++) {
 
             MethodCall call=new MethodCall((short)1,i);
-            RspList<Integer> rsps=disp.callRemoteMethods(null,call,
-                                                         RequestOptions.SYNC().setTimeout(60000));
+            RspList<Integer> rsps=disp.callRemoteMethods(null, call, RequestOptions.SYNC().timeout(60000));
             System.out.println("rsps = " + rsps);
             Util.sleep(1000);
         }

@@ -82,7 +82,7 @@ public class StartGroovyShell {
             return;
         }
 
-        tmp.start(file);
+        start(file);
     }
 
     protected static void help() {

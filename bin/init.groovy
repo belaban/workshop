@@ -1,10 +1,8 @@
-import org.jgroups.*;
-import org.jgroups.util.*;
-import org.jgroups.blocks.*;
-import org.jgroups.jmx.*;
-import org.misc.*;
-import java.nio.*;
-import java.nio.channels.*;
+import org.jgroups.JChannel
+import org.jgroups.Version
+import org.jgroups.jmx.JmxConfigurator
+import org.jgroups.util.Util
+import org.misc.SampleReceiver
 
 println "JGroups version: " + Version.description
 println "Bind addr:" + System.getenv("BIND_ADDR")
@@ -12,7 +10,7 @@ println "Bind addr:" + System.getenv("BIND_ADDR")
 def mult(x) {x*x}
 
 
-def createChannel(String name) {ch=new JChannel("config.xml").name(name); ch.setReceiver(new SampleReceiver(name)); ch}
+def createChannel(String name) {ch=new JChannel("config.xml").name(name).setReceiver(new SampleReceiver(name)); ch}
 
 def register(JChannel ch) {JmxConfigurator.registerChannel(ch, Util.getMBeanServer(), "jgroups", ch.getClusterName(), true)}
 
