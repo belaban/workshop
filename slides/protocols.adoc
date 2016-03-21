@@ -29,7 +29,6 @@ udp.xml
          mcast_recv_buf_size="5M"
          mcast_send_buf_size="5M"
          max_bundle_size="64K"
-         max_bundle_timeout="30"
 
          thread_pool.min_threads="2"
          thread_pool.max_threads="8"
@@ -43,8 +42,7 @@ udp.xml
          oob_thread_pool.rejection_policy="discard"/>
 
     <PING />
-    <MERGE3 max_interval="30000"
-            min_interval="10000"/>
+    <MERGE3 max_interval="30000" min_interval="10000"/>
     <FD_SOCK/>
     <FD_ALL/>
     <VERIFY_SUSPECT timeout="1500"  />
@@ -52,18 +50,13 @@ udp.xml
     <pbcast.NAKACK2 xmit_interval="500"
                     max_msg_batch_size="500"
                     discard_delivered_msgs="true"/>
-    <UNICAST3 xmit_interval="500"
-              max_msg_batch_size="500"/>
-    <pbcast.STABLE desired_avg_gossip="50000"
-                   max_bytes="4M"/>
+    <UNICAST3 xmit_interval="500" max_msg_batch_size="500"/>
+    <pbcast.STABLE desired_avg_gossip="50000" max_bytes="4M"/>
     <pbcast.GMS print_local_addr="true" join_timeout="2000"
                 view_bundling="true"/>
-    <UFC max_credits="2M"
-         min_threshold="0.4"/>
-    <MFC max_credits="2M"
-         min_threshold="0.4"/>
+    <UFC max_credits="2M" min_threshold="0.4"/>
+    <MFC max_credits="2M" min_threshold="0.4"/>
     <FRAG2 frag_size="60K"  />
-    <RSVP resend_interval="2000" timeout="10000"/>
     <pbcast.STATE_TRANSFER />
 </config>
 ----
@@ -79,12 +72,12 @@ Transport protocols
 * Most of the resources of a node (sockets, thread pools) are located in the transport protocol
 * Available transports:
 
-[width="100%",cols="2,10", frame="topbot",options="header"]
+[width="100%",cols="4,15", frame="topbot",options="header"]
 |====
 | Name | Implementation
 | UDP | Sends datagram packets (to single destination) or multicast packets (to all cluster nodes). Requires IP multicasting to be enabled.
 | TCP | Uses TCP sockets. A message sent to the entire cluster (N nodes) is sent N-1 times. 1 thread per connection.
-| TCP_NIO | Same as TCP, but uses NIO.2: thread pool to handle _all_ connections. Currently not supported. Will get revamped in 4.0
+| TCP_NIO | Same as TCP, but uses NIO.2: thread pool to handle _all_ connections.
 | TUNNEL | Talks to external process (GossipRouter) to send/receive messages. Can be used to connect nodes behind firewalls.
 | SHARED_LOOPBACK| Dummy transport to connect members running inside the same process. Used for unit testing
 |====
