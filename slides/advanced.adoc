@@ -688,7 +688,6 @@ if(beefy)
     channel.setAddressGenerator(() -> {
             return ExtendedUUID.randomUUID(channel.getName());
     });
-}
 ----
 
 * First we check if the node that's started needs to be marked as beefy. If so, we grab the current channel
@@ -1272,26 +1271,21 @@ Register dynamically to JMX
 
 [source,java]
 ----
-private boolean is_registered;
 
-@ManagedOperation(description = "Register dynamically to jmx")
+@ManagedOperation(description="Dynamically register with JMX")
 public synchronized void register(boolean register) {
     TP tp=getTransport();
     JChannel ch=getProtocolStack().getChannel();
-	try {
-		if(register && !is_registered) {
-		    JmxConfigurator.registerChannel(ch), Util.getMBeanServer(), tp.getClusterName());
-		    is_registered = true;
-		}
-		else {
-		    if(is_registered) {
-		        JmxConfigurator.unregisterChannel(ch, Util.getMBeanServer(), tp.getClusterName());
-			    is_registered = false;
-		    }
-		}
-	} catch (Exception e) {
-		log.warn(e.getMessage(), e);
-	}
+    String clustername=tp.getClusterName();
+    MBeanServer srv=Util.getMBeanServer();
+    try {
+        if(register)
+            JmxConfigurator.registerChannel(ch), srv, clustername);
+        else
+            JmxConfigurator.unregisterChannel(ch, srv, clustername);
+    } catch (Exception e) {
+        log.warn(e.getMessage(), e);
+    }
 }
 ----
 * You can now call the managed operation to register/unregister dynamically the JGroups Channel 
