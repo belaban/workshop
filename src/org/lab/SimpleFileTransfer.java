@@ -18,7 +18,8 @@ public class SimpleFileTransfer extends ReceiverAdapter {
     private void start(String props, String name, String filename) throws Exception {
         ClassConfigurator.add(ID, FileHeader.class);
         this.filename=filename;
-        channel=new JChannel(props).name(name).setReceiver(this);
+        channel=new JChannel(props).name(name);
+        channel.setReceiver(this);
         channel.connect("FileCluster");
         eventLoop();
     }

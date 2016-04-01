@@ -40,7 +40,7 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     }
 
     public void start(String name) throws Exception {
-        ch=new JChannel(props).name(name).setReceiver(this);
+        ch=new JChannel(props).name(name).receiver(this);
         ch.connect("task-cluster");
         JmxConfigurator.registerChannel(ch, Util.getMBeanServer(), "jgroups", ch.getClusterName(), true);
     }
