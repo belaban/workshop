@@ -1,4 +1,4 @@
-import org.jgroups.JChannel
+import org.jgroups.*;
 import org.jgroups.Version
 import org.jgroups.jmx.JmxConfigurator
 import org.jgroups.util.Util
