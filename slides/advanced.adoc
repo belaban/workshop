@@ -857,7 +857,7 @@ Dynamically inserting a FORK protocol
 
 [source,java]
 ----
-public ForkChannel(final Channel main_channel,
+public ForkChannel(final JChannel main_channel,
                    String fork_stack_id, String fork_channel_id,
                    boolean create_fork_if_absent,
                    int position,
@@ -1288,7 +1288,7 @@ public synchronized void register(boolean register) {
     }
 }
 ----
-* You can now call the managed operation to register/unregister dynamically the JGroups Channel 
+* You can now call the managed operation to register/unregister dynamically the JGroups channel
   to the JMX MBeanServer using probe.sh
 ----
 probe.sh op=PRINT_BYTES.register[true]

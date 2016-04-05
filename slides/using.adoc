@@ -263,7 +263,7 @@ Joining a cluster
 
 [source,java]
 ----
-public Channel connect(String cluster_name) throws Exception;
+public JChannel connect(String cluster_name) throws Exception;
 ----
 * `cluster_name` is the name of the cluster to be joined
 ** All channels that call `connect()` with the same name form a cluster
@@ -368,10 +368,10 @@ Sending messages
 
 [source,java]
 ----
-public Channel send(Message msg) throws Exception; // <1>
-public Channel send(Address dst, Serializable obj) throws Exception; // <2>
-public Channel send(Address dst, byte[] buf) throws Exception; // <3>
-public Channel send(Address dst, byte[] buf, int off, int len) throws Exception; // <4>
+public JChannel send(Message msg) throws Exception; // <1>
+public JChannel send(Address dst, Serializable obj) throws Exception; // <2>
+public JChannel send(Address dst, byte[] buf) throws Exception; // <3>
+public JChannel send(Address dst, byte[] buf, int off, int len) throws Exception; // <4>
 ----
 <1> Accepts a message as parameter. The message's destination should either be the address of the
 receiver (unicast) or null (multicast). When the destination is null, the message will be sent to all members
@@ -419,7 +419,7 @@ with `getState()`:
 
 [source,java]
 ----
-public Channel getState(Address target, long timeout) throws Exception;
+public JChannel getState(Address target, long timeout) throws Exception;
 ----
 
 * This requests the state from the coordinator (target == null)
@@ -498,7 +498,7 @@ Leaving a cluster
 
 [source,java]
 ----
-public Channel disconnect();
+public JChannel disconnect();
 ----
 
 * It will have no effect if the channel is already in the disconnected or closed state
