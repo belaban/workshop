@@ -78,7 +78,7 @@ public class ChatDemo extends ReceiverAdapter {
                 continue;
             }
             if(args[i].equals("-send_replies")) {
-                send_replies=Boolean.getBoolean(args[++i]);
+                send_replies=Boolean.valueOf(args[++i]);
                 continue;
             }
             help();
