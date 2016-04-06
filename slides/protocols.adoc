@@ -77,7 +77,7 @@ Transport protocols
 | Name | Implementation
 | UDP | Sends datagram packets (to single destination) or multicast packets (to all cluster nodes). Requires IP multicasting to be enabled.
 | TCP | Uses TCP sockets. A message sent to the entire cluster (N nodes) is sent N-1 times. 1 thread per connection.
-| TCP_NIO | Same as TCP, but uses NIO.2: thread pool to handle _all_ connections.
+| TCP_NIO2 | Same as TCP, but uses NIO.2: thread pool to handle _all_ connections.
 | TUNNEL | Talks to external process (GossipRouter) to send/receive messages. Can be used to connect nodes behind firewalls.
 | SHARED_LOOPBACK| Dummy transport to connect members running inside the same process. Used for unit testing
 |====
