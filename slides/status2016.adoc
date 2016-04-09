@@ -139,19 +139,13 @@ DONT_BUNDLE and OOB: messages are not removed from batch when execution fails
 * Rejections are not counted to num_rejected_msgs
 
 
-COMPRESS: removed 1 byte[] buff copy
-------------------------------------
-* https://issues.jboss.org/browse/JGRP-2017
-* An unneeded copy of the compressed payload was created when sending and compressing a message. The fix should reduce
-memory allocation pressure quite a bit.
-
 
 RpcDispatcher: don't copy the first anycast
 -------------------------------------------
 * https://issues.jboss.org/browse/JGRP-2010
 * When sending an anycast to 3 destinations, JGroups sends a copy of the original message to all 3. However, the first
-doesn't need to be copied (less memory allocation pressure). For an anycast to a single destination, no copy is
-needed, either.
+doesn't need to be copied (less memory allocation pressure).
+* For an anycast to a single destination, no copy is needed, either.
 
 
 Compaction of in-memory size
