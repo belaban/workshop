@@ -339,7 +339,7 @@ public class ReplicatedHashMap<K, V> implements ReplicatedMap<K,V> {
         void contentsSet(Map<K,V> new_entries);
         void contentsCleared();
     }
-    public         ReplicatedHashMap(Channel channel) {..}       // <2>
+    public         ReplicatedHashMap(JChannel channel) {..}      // <2>
     public void    setBlockingUpdates(boolean blocking_updates); // <3>
     public void    setTimeout(long timeout);                     // <4>
     public void    start(long state_timeout) throws Exception;   // <5>

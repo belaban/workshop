@@ -40,7 +40,7 @@ public class ChatDemo extends ReceiverAdapter {
         this.send_replies=send_replies;
         channel=new JChannel(props).name(name).receiver(this);
         channel.connect("ChatCluster");
-        JmxConfigurator.registerChannel(channel,Util.getMBeanServer(),"relay2",channel.getClusterName(),true);
+        JmxConfigurator.registerChannel(channel,Util.getMBeanServer(),"chat-channel",channel.getClusterName(),true);
         eventLoop();
         channel.close();
     }
@@ -78,7 +78,7 @@ public class ChatDemo extends ReceiverAdapter {
                 continue;
             }
             if(args[i].equals("-send_replies")) {
-                send_replies=Boolean.getBoolean(args[++i]);
+                send_replies=Boolean.valueOf(args[++i]);
                 continue;
             }
             help();
