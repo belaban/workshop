@@ -1,0 +1,163 @@
+
+Status JGroups 2016
+===================
+:author: Bela Ban belaban@yahoo.com
+:backend: deckjs
+:deckjs_transition: fade
+:navigation:
+:deckjs_theme: web-2.0
+:goto:
+:menu:
+:toc:
+:status:
+
+
+Agenda
+------
+* 3.6.10, 3.6.11, 4.0, 4.1
+
+
+
+JGroups 3.6.10
+==============
+
+
+Backport of encryption refactoring (JGRP-2021)
+----------------------------------------------
+* https://issues.jboss.org/browse/JGRP-2055
+* Replaced `ENCRYPT` with `SYM_ENCRYPT` and `ASYM_ENCRYPT`
+
+
+Flow control bugs
+-----------------
+* https://issues.jboss.org/browse/JGRP-2071: fixes regression in 3.6.9 (3.6.8 is fine)
+* https://issues.jboss.org/browse/JGRP-2072: credits are not sent in time
+
+
+Measure RTT with probe
+----------------------
+* https://issues.jboss.org/browse/JGRP-2049
+* `probe.sh rpcs-details` dumps timings for RPCs
+
+
+TransferQueueBundler perf improvement
+-------------------------------------
+* https://issues.jboss.org/browse/JGRP-2076
+* Remove chunks of messages from the queue rather than one by one
+* Minimal perf increase (ca. 3-5%)
+
+
+Change message bundler at runtime
+---------------------------------
+* https://issues.jboss.org/browse/JGRP-2058
+* Bundler can now be changed at runtime, e.g. `probe.sh op=UDP.bundler["rb"]`
+
+
+
+
+
+JGroups 3.6.11
+==============
+
+
+New message bundler
+-------------------
+* https://issues.jboss.org/browse/JGRP-2087
+* Implementation of new bundlers: `ring-buffer`, `ring-buffer-lockless`, `ring-buffer-lockless2`, `no-bundler`,
+  `disruptor-bundler`
+* Experiment with bundler and their effect on performance without having to shutdown and restart a (warmed-up) cluster
+* `ring-bundler` is 10% faster than `transfer-queue`
+* Disruptor bundler
+** `yielding-wait` and `busy-spin` are ca. 15% faster that `transfer-queue`, but CPU usage is very high, even under no
+   load
+
+
+MERGE3: merge never happens
+---------------------------
+* https://issues.jboss.org/browse/JGRP-2092
+* If no member is coordinator of its own subcluster, this can happen, e.g. `A: BCA`, `B: CAB`, `C: ABC`
+* Can only happen when a previous merge failed to install the subviews in all members
+
+
+
+
+
+
+
+
+
+
+JGroups 4.0
+===========
+* API changes (use of Java 8)
+* RpcDispatcher: use CompletableFuture
+* Removed all deprecated classes: NAKACK, UNICAST, UNICAST2, MuxDispatcher, FD_PING, MERGE2, PEER_LOCK, FC, SCOPE etc
+* Removed shared transport
+
+
+Receive message batches
+-----------------------
+* https://issues.jboss.org/browse/JGRP-2003
+* JChannel has a new `receive(MessageBatch)` callback
+
+
+Replace Java de-serialization with JGroups marshalling for internal classes
+---------------------------------------------------------------------------
+* https://issues.jboss.org/browse/JGRP-2033
+
+
+RpcDispatcher CompletableFuture bugs
+------------------------------------
+* https://issues.jboss.org/browse/JGRP-2038
+* https://issues.jboss.org/browse/JGRP-2039
+
+ENCRYPT
+-------
+* https://issues.jboss.org/browse/JGRP-2021
+
+
+
+
+JGroups 4.1
+===========
+
+
+Multiple transports
+-------------------
+* https://issues.jboss.org/browse/JGRP-1424
+* Runs multiple transports in the same stack, e.g. TCP and UDP
+* Multiple transports of the same type, e.g. UDP for load balancing purposes
+
+
+
+Shared memory transport
+-----------------------
+* https://issues.jboss.org/browse/JGRP-1672
+* For members on the same physical box
+* Difficult to implement, high complexity
+
+
+
+Infiniband / RDMA support
+--------------------------
+* https://issues.jboss.org/browse/JGRP-1680
+* Requires JNI, probably a showstopper
+
+
+
+Counter enhancements
+--------------------
+* https://issues.jboss.org/browse/JGRP-2025
+* Better handling of network partitions
+
+
+
+SEQUENCER3
+----------
+* https://issues.jboss.org/browse/JGRP-1830
+* Special form of Counter
+* Reconciliation phase after split / coordinator failover
+* Better handling of partitions
+* Possible replacement of TOA (?)
+
+
