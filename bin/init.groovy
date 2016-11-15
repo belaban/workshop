@@ -14,7 +14,6 @@ def createChannel(String name) {ch=new JChannel("config.xml").name(name).setRece
 
 def register(JChannel ch) {JmxConfigurator.registerChannel(ch, Util.getMBeanServer(), "jgroups", ch.getClusterName(), true)}
 
-def sendMany(JChannel ch) {
-  range=0..100;
-  range.forEach{i -> ch.send(null, i)}
+static def sendMany(JChannel ch) {
+  (0..100).forEach{i -> ch.send(null, i)}
 }
