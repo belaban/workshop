@@ -92,34 +92,30 @@ public class PRINT_BYTES extends Protocol {
     public Object down(Event evt) {
         switch(evt.getType()) {
             case Event.VIEW_CHANGE:
-                View view=(View)evt.getArg();
+                View view=evt.getArg();
                 System.out.println("view = " + view);
-                break;
-            case Event.MSG:
-                if(do_print) {
-                    Message msg=(Message)evt.getArg();
-                    int num_bytes=msg.getLength();
-                    if(num_bytes > 0)
-                        System.out.printf("-- sending %d bytes\n", num_bytes);
-                    System.out.println("headers are " + msg.printHeaders());
-                }
                 break;
         }
         return down_prot.down(evt);
     }
 
-    public Object up(Event evt) {
-        switch(evt.getType()) {
-            case Event.MSG:
-                if(do_print) {
-                    Message msg=(Message)evt.getArg();
-                    int num_bytes=msg.getLength();
-                    if(num_bytes > 0)
-                        System.out.printf("-- received %d bytes\n", num_bytes);
-                }
-                break;
+    public Object down(Message msg) {
+        if(do_print) {
+            int num_bytes=msg.getLength();
+            if(num_bytes > 0)
+                System.out.printf("-- sending %d bytes\n", num_bytes);
+            System.out.println("headers are " + msg.printHeaders());
         }
-        return up_prot.up(evt);
+        return down_prot.down(msg);
+    }
+
+    public Object up(Message msg) {
+        if(do_print) {
+            int num_bytes=msg.getLength();
+            if(num_bytes > 0)
+                System.out.printf("-- received %d bytes\n", num_bytes);
+        }
+        return up_prot.up(msg);
     }
 
     public void up(MessageBatch batch) {

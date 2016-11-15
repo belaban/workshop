@@ -7,6 +7,7 @@ import org.jgroups.util.Util;
 import java.io.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 
 public class SimpleFileTransfer extends ReceiverAdapter {
@@ -111,7 +112,15 @@ public class SimpleFileTransfer extends ReceiverAdapter {
             this.eof=eof;
         }
 
-        public int size() {
+        public short getMagicId() {
+            return ID;
+        }
+
+        public Supplier<? extends Header> create() {
+            return FileHeader::new;
+        }
+
+        public int serializedSize() {
             return Util.size(filename) + Global.BYTE_SIZE;
         }
 

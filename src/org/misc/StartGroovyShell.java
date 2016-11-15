@@ -51,7 +51,7 @@ public class StartGroovyShell {
             }
         });
 
-        int code=shell.run();
+        int code=shell.run("");
         System.exit(code);
     }
 

@@ -3,10 +3,10 @@
             xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
     <info organisation="org.jgroups" module="training" revision="1.0"/>
     <dependencies>
-        <dependency org="org.jgroups"              name="jgroups"         rev="4.0.0-SNAPSHOT"/>
+        <dependency org="org.jgroups"              name="jgroups"         rev="4.0.0.Beta3"/>
         <dependency org="org.apache.logging.log4j" name="log4j-api"       rev="2.0"/>
         <dependency org="org.apache.logging.log4j" name="log4j-core"      rev="2.0"/>
-        <dependency org="org.codehaus.groovy"      name="groovy-all"      rev="2.3.7" transitive="true"/>
+        <dependency org="org.codehaus.groovy"      name="groovy-all"      rev="2.4.+" transitive="true"/>
         <dependency org="org.fusesource.jansi"     name="jansi"           rev="1.11"/>
         <dependency org="commons-cli"              name="commons-cli"     rev="1.2"/>
         <dependency org="jline"                    name="jline"           rev="2.11"/>
