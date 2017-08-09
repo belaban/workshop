@@ -53,7 +53,7 @@ public class SimpleFileTransfer extends ReceiverAdapter {
 
 
     public void receive(Message msg) {
-        FileHeader hdr=(FileHeader)msg.getHeader(ID);
+        FileHeader hdr=msg.getHeader(ID);
         if(hdr == null)
             return;
         OutputStream out=files.get(hdr.filename);

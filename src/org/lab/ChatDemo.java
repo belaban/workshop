@@ -20,7 +20,7 @@ public class ChatDemo extends ReceiverAdapter {
     }
 
     public void receive(Message msg) {
-        String payload=(String)msg.getObject();
+        String payload=msg.getObject();
         boolean is_rsp=payload.startsWith(rsp);
         String line=(!is_rsp? "[" + msg.getSrc() + "]: " : "") + payload;
         System.out.println(line);

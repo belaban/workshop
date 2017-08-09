@@ -81,7 +81,7 @@ public class Server extends ReceiverAdapter implements Master, Slave {
     /** All we receive is Requests */
     public void receive(Message msg) {
         try {
-            Request req=(Request)Util.streamableFromByteBuffer(Request.class, msg.getRawBuffer(), msg.getOffset(), msg.getLength());
+            Request req=Util.streamableFromByteBuffer(Request.class, msg.getRawBuffer(), msg.getOffset(), msg.getLength());
             switch(req.type) {
                 case EXECUTE:
                     handleExecute(req.id, msg.getSrc(), req.task);
@@ -341,18 +341,14 @@ public class Server extends ReceiverAdapter implements Master, Slave {
                 Util.objectToStream(task, out);
             }
             catch(Exception e) {
-                IOException ex=new IOException("failed marshalling of task " + task);
-                ex.initCause(e);
-                throw ex;
+                throw new IOException("failed marshalling of task " + task, e);
             }
             Util.writeStreamable(id, out);
             try {
                 Util.objectToStream(result, out);
             }
             catch(Exception e) {
-                IOException ex=new IOException("failed to marshall result object");
-                ex.initCause(e);
-                throw ex;
+                throw new IOException("failed to marshall result object", e);
             }
         }
 
@@ -372,21 +368,19 @@ public class Server extends ReceiverAdapter implements Master, Slave {
                     throw new InstantiationException("ordinal " + tmp + " cannot be mapped to enum");
             }
             try {
-                task=(Task)Util.objectFromStream(in);
+                task=Util.objectFromStream(in);
             }
             catch(Exception e) {
                 InstantiationException ex=new InstantiationException("failed reading task from stream");
                 ex.initCause(e);
                 throw ex;
             }
-            id=(ClusterID)Util.readStreamable(ClusterID.class, in);
+            id=Util.readStreamable(ClusterID.class, in);
             try {
                 result=Util.objectFromStream(in);
             }
             catch(Exception e) {
-                IOException ex=new IOException("failed to unmarshal result object");
-                ex.initCause(e);
-                throw ex;
+                throw new IOException("failed to unmarshal result object", e);
             }
         }
 

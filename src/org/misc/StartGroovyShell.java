@@ -38,18 +38,16 @@ public class StartGroovyShell {
         }
 
         // Add a hook to display some status when shutting down...
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            public void run() {
-                if(shell.getHistory() != null) {
-                    try {
-                        shell.getHistory().flush();
-                    }
-                    catch(IOException e) {
-                        e.printStackTrace();
-                    }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if(shell.getHistory() != null) {
+                try {
+                    shell.getHistory().flush();
+                }
+                catch(IOException e) {
+                    e.printStackTrace();
                 }
             }
-        });
+        }));
 
         int code=shell.run("");
         System.exit(code);

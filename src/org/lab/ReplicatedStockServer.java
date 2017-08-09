@@ -89,7 +89,7 @@ public class ReplicatedStockServer extends ReceiverAdapter {
     @SuppressWarnings("unchecked")
     public void setState(InputStream input) throws Exception {
         DataInput in=new DataInputStream(input);
-        Map<String,Double> new_state=(Map<String,Double>)Util.objectFromStream(in);
+        Map<String,Double> new_state=Util.objectFromStream(in);
         System.out.println("-- received state: " + new_state.size() + " stocks");
         synchronized(stocks) {
             stocks.clear();
