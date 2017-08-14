@@ -39,8 +39,8 @@ Day 1: Overview, architecture, API, protocols
 ** Closing a channel
 * Protocols
 ** What do the most frequently used protocols do ?
-*** UDP/TCP/TCP_NIO2, PING/TCPPING, FD_SOCK/FD/FD_ALL, NAKACK, UNICAST, STABLE,
-GMS, UFC/MFC, FRAG, STATE_TRANSFER
+*** UDP/TCP/TCP_NIO2, PING/TCPPING, FD_SOCK/FD_ALL, NAKACK2, UNICAST3, STABLE,
+GMS, UFC/MFC, FRAG3, STATE_TRANSFER
 ** What are the configuration options ?
 
 include::./using.adoc[Overview]
@@ -50,17 +50,11 @@ include::./prot_overview.adoc[Protocol overview]
 
 Day 2: Building blocks
 ----------------------
-* RpcDispatcher / MessageDispatcher
-** Request options
-** Response filters
+* Remote procedure calls across a cluster
 ** Asynchronous invocation API
-** Working with futures
-* Distributed caches
-** ReplicatedHashMap
-** ReplCache
+** Non-blocking RPCs
 * Distributed locks
 * Distributed atomic counters
-* Distributed task execution
 
 include::./blocks.adoc["Building blocks"]
 
@@ -73,15 +67,16 @@ Day 3: A closer look at protocols
 
 * Discovery
 ** PING, TCPPING
+** Cloud based discovery: Kubernetes, AWS, Google Compute Platform Azure
 
 * Merging
 ** MERGE3
 
 * Failure detection
-** FD, FD_ALL, FD_SOCK, FD_HOST
+** FD_ALL, FD_SOCK, FD_HOST
 
 * Reliable message transmission and ordering
-** NAKACK2, UNICAST3, SEQUENCER, RSVP
+** NAKACK2, UNICAST3, SEQUENCER
 
 * Message stability
 ** STABLE
@@ -91,15 +86,16 @@ Day 3: A closer look at protocols
 
 * Flow control
 ** MFC, UFC
+** Non-blocking flow control (UFC_NB, MFC_NB)
 
 * State transfer
 ** STATE, STATE_SOCK
 
 * Security
-** AUTH, ENCRYPT, (SASL)
+** AUTH, SYM_ENCRYPT, ASYM_ENCRYPT, SSL_KEY_EXCHANGE
 
 * Misc
-** FRAG, COMPRESS, STOMP
+** FRAG3, COMPRESS, STOMP
 
 include::./protocols.adoc["Protocols"]
 
@@ -112,12 +108,10 @@ Day 3-4: Advanced
 * Message flags (OOB, DONT_BUNDLE, NO_FC etc)
 
 * The transport
-** Regular, OOB and internal thread pools: configuration
-** Customization (replacing thread pool, thread and socket factories)
+** Thread pools: configuration and sizing
+** Customizations (replacing thread pool, thread and socket factories)
 
 * Message bundling and message batching
-
-* Sending messages synchronously (RSVP)
 
 * Generating custom addresses
 * Control over view generation (pinning down a coordinator)
@@ -126,19 +120,21 @@ Day 3-4: Advanced
 
 * Fork channels: light weight channels over the same protocol stack
 
-* RELAY2: bridging geographically separated data centers
-
-* Strategies for handling network partitions
+* Network partitions (split brain)
+** What causes partitions?
+** Strategies to handle them (CAP)
 ** Primary partition, merging data
+** Raft, eventual consistency
+* Examples: distributed counters in JGroups and jgroups-raft
 
-* Anatomy of a protocol
+* Writing a simple protocol
 ** Callbacks
 ** Headers
-*** (Efficient) marshalling, magic numbers, protocol IDs and header registration
+*** Marshalling, magic numbers, protocol IDs and header registration
 ** Writing your own protocol
 
 * Debugging
-** What breakpoints can do (FD, FD_ALL)
+** What breakpoints can do (FD_ALL)
 ** Byteman: installing rules into a running JVM (and removing them again)
 *** A look at a unit test _black-box style_
 

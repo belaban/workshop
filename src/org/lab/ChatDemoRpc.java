@@ -1,7 +1,7 @@
 package org.lab;
 
 import org.jgroups.JChannel;
-import org.jgroups.ReceiverAdapter;
+import org.jgroups.MembershipListener;
 import org.jgroups.View;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.RpcDispatcher;
@@ -11,7 +11,7 @@ import org.jgroups.util.Util;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-public class ChatDemoRpc extends ReceiverAdapter {
+public class ChatDemoRpc implements MembershipListener {
     protected JChannel      channel;
     protected RpcDispatcher disp;
 
@@ -25,9 +25,7 @@ public class ChatDemoRpc extends ReceiverAdapter {
 
 
     private void start(String props, String name) throws Exception {
-        channel=new JChannel(props);
-        if(name != null)
-            channel.name(name);
+        channel=new JChannel(props).name(name);
         disp=new RpcDispatcher(channel, this).setMembershipListener(this);
         channel.connect("ChatCluster");
         Util.registerChannel(channel, "relay");
@@ -41,9 +39,8 @@ public class ChatDemoRpc extends ReceiverAdapter {
             try {
                 System.out.print("> "); System.out.flush();
                 String line=in.readLine().toLowerCase();
-                if(line.startsWith("quit") || line.startsWith("exit")) {
+                if(line.startsWith("quit") || line.startsWith("exit"))
                     break;
-                }
                 String message=channel.getAddressAsString() + ": " + line;
                 RspList<Void> rsps=disp.callRemoteMethods(null, "onMessage", new Object[]{message}, new Class[]{String.class}, RequestOptions.SYNC());
                 System.out.printf("rsps from %s\n", rsps.keySet());

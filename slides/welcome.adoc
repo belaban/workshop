@@ -17,14 +17,13 @@ Welcome to the JGroups workshop
 About me
 --------
 * Bela Ban, Kreuzlingen (Switzerland)
-* PhD in Zurich, post-doc at Cornell where I started JGroups in 1998
-* I've been working on JGroups ever since
-* Joined JBoss in 2003 as employee 007
+* PhD in Zurich, post-doc at Cornell (1998-1999) where I started JGroups
+* 2000-2003: Fujitsu Networking Communications San Jose, CA
+* 2003: joined JBoss (as employee 007)
 * JBoss was acquired by RedHat in 2006
 * Started JBossCache (predecessor of Infinispan) in 2003, worked on it until version 1.4
 * Started jgroups-raft end of 2014
 * I enjoy biking, mountain biking, tennis, running
-* I hate maven, scala, fat monolithic projects, security
 
 
 Disclaimer

@@ -12,8 +12,6 @@ import java.io.InputStreamReader;
 
 public class ChatDemo extends ReceiverAdapter {
     protected JChannel            channel;
-    protected static final String rsp="rsp from ";
-    protected boolean             send_replies=false;
 
     public void viewAccepted(View new_view) {
         System.out.println("** view: " + new_view);
@@ -21,23 +19,11 @@ public class ChatDemo extends ReceiverAdapter {
 
     public void receive(Message msg) {
         String payload=msg.getObject();
-        boolean is_rsp=payload.startsWith(rsp);
-        String line=(!is_rsp? "[" + msg.getSrc() + "]: " : "") + payload;
-        System.out.println(line);
-        if(send_replies && !payload.startsWith(rsp)) {
-            Message reply=new Message(msg.src(), rsp + channel.getAddress()).setFlag(Message.Flag.OOB);
-            try {
-                channel.send(reply);
-            }
-            catch(Exception e) {
-                e.printStackTrace();
-            }
-        }
+        System.out.printf("[%s]: %s\n", msg.getSrc(), payload);
     }
 
 
-    private void start(String props, String name, boolean send_replies) throws Exception {
-        this.send_replies=send_replies;
+    private void start(String props, String name) throws Exception {
         channel=new JChannel(props).name(name).receiver(this);
         channel.connect("ChatCluster");
         JmxConfigurator.registerChannel(channel,Util.getMBeanServer(),"chat-channel",channel.getClusterName(),true);
@@ -51,9 +37,8 @@ public class ChatDemo extends ReceiverAdapter {
             try {
                 System.out.print("> "); System.out.flush();
                 String line=in.readLine().toLowerCase();
-                if(line.startsWith("quit") || line.startsWith("exit")) {
+                if(line.startsWith("quit") || line.startsWith("exit"))
                     break;
-                }
                 Message msg=new Message(null, line);
                 channel.send(msg);
             }
@@ -66,7 +51,6 @@ public class ChatDemo extends ReceiverAdapter {
     public static void main(String[] args) throws Exception {
         String  props="config.xml";
         String  name=null;
-        boolean send_replies=true;
 
         for(int i=0; i < args.length; i++) {
             if(args[i].equals("-props")) {
@@ -77,18 +61,14 @@ public class ChatDemo extends ReceiverAdapter {
                 name=args[++i];
                 continue;
             }
-            if(args[i].equals("-send_replies")) {
-                send_replies=Boolean.valueOf(args[++i]);
-                continue;
-            }
             help();
             return;
         }
 
-        new ChatDemo().start(props, name, send_replies);
+        new ChatDemo().start(props, name);
     }
 
     protected static void help() {
-        System.out.println("ChatDemo [-props XML config] [-name name] [-send_replies true|false]");
+        System.out.println("ChatDemo [-props XML config] [-name name]");
     }
 }

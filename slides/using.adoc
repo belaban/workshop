@@ -21,11 +21,10 @@ What is it ?
 ** Communication in a cluster
 ** Chat
 ** Replicated or distributed state (session state in application servers)
-** Task distribution
 ** Presence
 ** Pub/sub
 * Processes (nodes) on different hosts form a cluster and send each other messages
-** Reliable _one-to-many_ or _one-to-one_ communication
+** Reliable _one-to-many_ (*multicast*) or _one-to-one_ (*unicast*) communication
 * Nodes get notifications when others join or leave (or crash)
 * Runs on Android, too
 
@@ -39,6 +38,10 @@ Goals for JGroups
 * I like KISS
 * I'm fighting dependency orgies seen in a lot of projects today
 * JGroups has 0 (runtime) dependencies and I want to keep it that way
+* Separate https://github.com/jgroups-extras[jgroups-extras] GitHub repo for functionality
+  that requires dependencies:
+** Discovery protocols for AWS, Google Compute Platform, Kubernetes, Azure
+** Disruptor bundler
 
 
 
@@ -81,20 +84,23 @@ image::../images/arch.png[Architecture of JGroups,width="60%",align=left,valign=
 Common classes
 --------------
 * `Address`
-** Identifies a node (=member) in a cluster
-** Can be used as destination to send a message to a node
+** Identifies a member (=node) in a cluster
+** Can be used as destination to send a message to
 ** A node's address can be retrieved from the channel: `JChannel.getAddress()`
 
 * `View`
 ** List of addresses, lists all cluster nodes
-** Order is the same in all nodes
-** Example: `A[4] (2) [A, B]`
-*** View was created by (coordinator) A and the current cluster contains A and B
+** Order is the same in all members
+** Example: `A[2] (3) [A, B, C]`
+*** `Coordinator[view-id] (number of members) [membership list]`
+*** The view was created by (coordinator) A
+*** A view-id of 2 means this is the third view (starting at 0)
+*** The cluster has 3 members: A, B and C
 
 * `Message`
 ** This is sent and received by cluster nodes
 ** Destination and sender's addresses
-*** Destination == null: send to entire cluster
+*** Destination == null: *send to entire cluster*
 ** Payload (`byte[]` buffer)
 ** Flags
 ** Headers (used mainly by protocols to add information, e.g. sequence numbers)
@@ -152,7 +158,7 @@ Message msg=new Message(null, "hello world");
 ch.send(msg);
 
 // Disconnect and close the channel:
-ch.close();
+ch.close(); // no need to call ch.disconnect() first
 ----
 
 
@@ -162,15 +168,15 @@ Creation of a channel
 
 [source,java]
 ----
-public JChannel(); // creates a default channel (uses udp.xml)
-public JChannel(File properties); // from a file
-public JChannel(Element el); // from a DOM element
-public JChannel(URL url); // from a URL
-public JChannel(String props); // config file on the classpath
-public JChannel(InputStream input); // input stream
-public JChannel(Protocol ... protocols); // programmatic creation
-public JChannel(Collection<Protocol> protocols);
-public JChannel(JChannel ch); // from another channel
+public JChannel();                           // default channel (uses udp.xml)
+public JChannel(File properties);            // from a file
+public JChannel(Element el);                 // from a DOM element
+public JChannel(URL url);                    // from a URL
+public JChannel(String props);               // config file on the classpath
+public JChannel(InputStream input);          // input stream
+public JChannel(Protocol ... protocols);     // programmatic creation
+public JChannel(Collection<Protocol> prots); // ditto
+public JChannel(JChannel ch);                // from another channel
 ----
 
 
@@ -194,14 +200,12 @@ Sample XML configuration file
     <FD_SOCK/>
     <FD_ALL/>
     <VERIFY_SUSPECT timeout="1500"  />
-    <pbcast.NAKACK2 xmit_interval="500"
-                    use_mcast_xmit="false"/>
+    <pbcast.NAKACK2 xmit_interval="500"/>
     <UNICAST3 xmit_interval="500"
               conn_expiry_timeout="0" />
     <pbcast.STABLE desired_avg_gossip="50000"
                    max_bytes="4M"/>
-    <pbcast.GMS print_local_addr="true" join_timeout="2000"
-                view_bundling="true"/>
+    <pbcast.GMS print_local_addr="true" join_timeout="2000"/>
     <UFC max_credits="2M" min_threshold="0.4"/>
     <MFC max_credits="2M" min_threshold="0.4"/>
     <FRAG2 frag_size="60K"  />
@@ -218,7 +222,7 @@ Programmatic creation
 Protocol[] prot_stack={
           new UDP().setValue("bind_addr", InetAddress.getByName("127.0.0.1")),
           new PING(),
-          new MERGE3(),
+          new MERGE3().setMinInterval(1000).setMaxInterval(5000),
           new FD_SOCK(),
           new FD_ALL(),
           new VERIFY_SUSPECT(),
@@ -233,8 +237,9 @@ Protocol[] prot_stack={
 JChannel ch=new JChannel(prot_stack) // <2>
             .name("A"); // <3>
 ----
-<1> First, an array of protocols is created.
-<2> Next, the `JChannel` constructor which accepts the protocols array is called
+<1> First, an array of protocols is created. Attributes can be set via setters (setMaxInterval()) or
+    generic `setValue()`.
+<2> Next, the JChannel is created with the protocols array as argument
 <3> Finally, the channel is given a logical name ("A")
 
 
@@ -263,16 +268,16 @@ Joining a cluster
 
 [source,java]
 ----
-public JChannel connect(String cluster_name) throws Exception;
+public JChannel connect(String cluster) throws Exception;
 ----
-* `cluster_name` is the name of the cluster to be joined
+* `cluster` is the name of the cluster to be joined
 ** All channels that call `connect()` with the same name form a cluster
 * Messages sent on any channel in the cluster will be received by all members (including the one who sent it)
-** Local delivery can be turned off using `setDiscardOwnMessages(true)`.          
 * The `connect()` method returns as soon as the new member has joined successfully
 * If there are no other members, then a new cluster is created and the member joins it as first member. 
-** The first member of a cluster becomes its _coordinator_.
-** A coordinator is in charge of installing new views whenever the membership changes
+** The first member of a cluster becomes its *coordinator*.
+** A coordinator is in charge of handling join and leave requests, and excludes crashed members
+** It installs new views whenever the membership changes
 * A node can join only one cluster at a time
 ----
   groovy:000> ch.connect("demo");
@@ -369,7 +374,7 @@ Sending messages
 [source,java]
 ----
 public JChannel send(Message msg) throws Exception; // <1>
-public JChannel send(Address dst, Serializable obj) throws Exception; // <2>
+public JChannel send(Address dst, Object obj) throws Exception; // <2>
 public JChannel send(Address dst, byte[] buf) throws Exception; // <3>
 public JChannel send(Address dst, byte[] buf, int off, int len) throws Exception; // <4>
 ----
@@ -387,7 +392,7 @@ of the cluster (including itself).
 
 A note about buffer reuse
 -------------------------
-* Typical (incorrect) code:
+* Incorrect code:
 
 [source,java]
 ----
@@ -501,8 +506,8 @@ Leaving a cluster
 public JChannel disconnect();
 ----
 
-* It will have no effect if the channel is already in the disconnected or closed state
-* If connected, it will leave the cluster
+* It will have no effect if the channel is already disconnected or closed
+* If connected, the member will leave the cluster
 ** This is done by sending a leave request to the current coordinator
 ** The coordinator removes the leaving node from the view and installs a new view in all remaining members
 * After a successful disconnect, the channel will be in the unconnected state, and may subsequently be
@@ -515,8 +520,7 @@ reconnected.
 
 Destroying a channel
 --------------------
-* To destroy a channel instance (destroy the associated protocol stack, and release all resources),
-method `close()` is used:
+* Use `close()` to destroy a channel instance (destroy the associated protocol stack, and release all resources):
 
 [source,java]
 ----
@@ -526,8 +530,8 @@ public void close();
 * Closing a connected channel disconnects the channel first
 * The `close()` method moves the channel to the closed state, in which no further operations are allowed
  (most throw an exception when invoked on a closed channel)
-* In this state, a channel is not considered used any longer by an application and -- when the reference to the instance is reset --
- the channel essentially only lingers around until it gets garbage collected
+* In this state, a channel is not considered used any longer by an application and -- when the reference to the
+  instance is reset -- the channel essentially only lingers around until it gets garbage collected
 
 ----
   groovy:000> ch.close();

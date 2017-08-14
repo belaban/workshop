@@ -4,6 +4,7 @@ import org.jgroups.JChannel;
 import org.jgroups.blocks.MethodCall;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.RpcDispatcher;
+import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
 import org.jgroups.util.Util;
 
@@ -46,11 +47,15 @@ public class MethodLookupExample {
         disp.setMethodLookup(lookup::get);
         ch.connect("demo");
 
+        RequestOptions options=RequestOptions.SYNC().timeout(5000);
         for(int i=1; i <= 10; i++) {
-
             MethodCall call=new MethodCall((short)1,i);
-            RspList<Integer> rsps=disp.callRemoteMethods(null, call, RequestOptions.SYNC().timeout(60000));
-            System.out.println("rsps = " + rsps);
+            RspList<Integer> rsps=disp.callRemoteMethods(null, call, options);
+            int result=rsps.values().stream()
+              .filter(rsp -> rsp != null && rsp.wasReceived())
+              .map(Rsp::getValue)
+              .findFirst().orElse(-1);
+            System.out.printf("mult(%d) = %d\n", i, result);
             Util.sleep(1000);
         }
         Util.close(disp,ch);

@@ -30,16 +30,9 @@ udp.xml
          mcast_send_buf_size="5M"
          max_bundle_size="64K"
 
-         thread_pool.min_threads="2"
+         thread_pool.min_threads="0"
          thread_pool.max_threads="8"
-         thread_pool.keep_alive_time="5000"
-         thread_pool.queue_max_size="10000"
-         thread_pool.rejection_policy="discard"
-
-         oob_thread_pool.min_threads="1"
-         oob_thread_pool.max_threads="8"
-         oob_thread_pool.keep_alive_time="5000"
-         oob_thread_pool.rejection_policy="discard"/>
+         thread_pool.keep_alive_time="5000"/>
 
     <PING />
     <MERGE3 max_interval="30000" min_interval="10000"/>
@@ -47,13 +40,10 @@ udp.xml
     <FD_ALL/>
     <VERIFY_SUSPECT timeout="1500"  />
     <BARRIER />
-    <pbcast.NAKACK2 xmit_interval="500"
-                    max_msg_batch_size="500"
-                    discard_delivered_msgs="true"/>
-    <UNICAST3 xmit_interval="500" max_msg_batch_size="500"/>
+    <pbcast.NAKACK2 xmit_interval="500"/>
+    <UNICAST3 xmit_interval="500"/>
     <pbcast.STABLE desired_avg_gossip="50000" max_bytes="4M"/>
-    <pbcast.GMS print_local_addr="true" join_timeout="2000"
-                view_bundling="true"/>
+    <pbcast.GMS print_local_addr="true" join_timeout="2000"/>
     <UFC max_credits="2M" min_threshold="0.4"/>
     <MFC max_credits="2M" min_threshold="0.4"/>
     <FRAG2 frag_size="60K"  />
@@ -75,7 +65,7 @@ Transport protocols
 [width="100%",cols="4,15", frame="topbot",options="header"]
 |====
 | Name | Implementation
-| UDP | Sends datagram packets (to single destination) or multicast packets (to all cluster nodes). Requires IP multicasting to be enabled.
+| UDP | Sends datagram packets (to single destination) or IP multicast packets (to all cluster nodes). The latter requires IP multicasting to be enabled.
 | TCP | Uses TCP sockets. A message sent to the entire cluster (N nodes) is sent N-1 times. 1 thread per connection.
 | TCP_NIO2 | Same as TCP, but uses NIO.2: thread pool to handle _all_ connections.
 | TUNNEL | Talks to external process (GossipRouter) to send/receive messages. Can be used to connect nodes behind firewalls.
@@ -88,13 +78,13 @@ Transport protocols
 Discovery
 ---------
 * Discovers the initial membership
-* Used to find out who the _existing coordinator_ is (to send a `JOIN` request to it)
+* Used to find the *coordinator*  (to send a `JOIN` request to it)
 * Implementations:
 
 [width="100%",cols="2,10", frame="topbot",options="header"]
 |====
 | Name | Implementation
-| PING | Sends discovery request as multicast (requiring `UDP` as transport)
+| PING | Sends discovery request as multicast (requires `UDP` as transport)
 | TCPPING | Defines a static list of nodes (IP addresses and ports) to contact, e.g. `initial_hosts=A[7800],B[7800],C[7800]`
 | MPING | Uses its own multicast socket to multicast discovery requests. Used when the transport
           doesn't support multicasting, e.g. `TCP`
@@ -103,8 +93,9 @@ Discovery
 | JDBC_PING | Uses a database to store the membership for a given cluster. Each members adds its own information at startup.
 | FILE_PING | Uses the file system to store membership information. On startup, each members writes its own information
               to the (shared) file system
-| S3_PING, GOOGLE_PING| Uses a cloud store for membership information. More impls include AWS_PING, SWIFT_PING,
-                        RACKSPACE_PING, Kubernetes, Zookeeper etc
+| S3_PING, GOOGLE_PING| Uses a cloud store for membership information. More impls include AWS_PING,
+                        RACKSPACE_PING, Azure, Kubernetes etc
+|DNS_PING| Uses DNS to look up members
 |SHARED_LOOPBACK_PING| Requires `SHARED_LOOPBACK` as transport, delegates all discovery requests to the transport
 |====
 
@@ -114,8 +105,8 @@ Discovery
 
 Merging
 --------
-* When failure detection splits a cluster into multiple subclusters, e.g. `A15={A,B,C}` and `D15={D,E}`, merging tries to
-  merge the subclusters back into a single cluster:
+* When failure detection splits a cluster into multiple subclusters, e.g. `A15={A,B,C}` and `D15={D,E}`,
+  merging tries to merge the subclusters back into a single cluster:
 ** The _subcluster coordinators_ `A` and `D` periodically send out merge messages
 *** `A` sends `{coord=A,addr=192.166.1.5:50500,view=A15,cluster="demo"}`
 *** `D` sends `{coord=D,addr=192.168.1.6:60500,view=D15,cluster="demo"}`
@@ -123,9 +114,9 @@ Merging
    engage in a protocol to
 *** Exchange information about their respective subclusters
 *** Agree on a _merge leader_ who
-**** Generates a `MergeView` (`A16={A,B,C,D,E}`)
-**** Has all subcluster coordinators install the MergeView
-**** All subcluster coordinators except one (e.g. `A`) step down
+**** generates a `MergeView` (`A16={A,B,C,D,E}`)
+**** has all subcluster coordinators install the MergeView
+*** All subcluster coordinators except one (e.g. `A`) step down
 * The merging itself is done by `GMS`; the merge protocol only notifies `GMS` that a merge is needed
 
 [width="100%",cols="2,10", frame="topbot",options="header"]
@@ -141,16 +132,16 @@ Merging
 
 Failure detection
 -----------------
-* Failure detection checks for crashed or unresponsive members and _suspects them_
-** It _doesn't remove suspected members_ (that's the task of `GMS`)
+* Failure detection checks for crashed or unresponsive members and *suspects* them
+** It *doesn't remove suspected members* (that's the task of `GMS`)
 * Note that members which leave _gracefully_ (e.g. via `JChannel.disconnect()`) are never handled by failure detection
 * Implementations:
 
 [width="100%",cols="2,10", frame="topbot",options="header"]
 |====
 | Name | Implementation
-| FD_ALL | Every node periodically multicasts heartbeats. Members maintains a table of members and timestamps and
-           reset the timestamp for P on reception of a heartbeat or message from P. +
+| FD_ALL | Every node periodically multicasts (= 'send to all') heartbeats. Members maintains a table of members and
+           timestamps and reset the timestamp for P on reception of a heartbeat or message from P. +
            If a member's timestamp exceeds a threshold, a suspect(P) message is sent to the coordinator, which tells
            `GMS` to handle the suspicion. +
            `GMS` then removes P and installs a new view excluding P. `FD_ALL` works best with `UDP` as transport as
@@ -160,13 +151,14 @@ Failure detection
             When `C` crashes, `B` will get notified that the TCP connection to `C` was closed and sends a
             `suspect(C)` to the coordinator (`A`), who excludes `C` from the view.
 | FD | Same as `FD_SOCK` but instead of a TCP connection, heartbeat messages are sent to the neighbor to the right. If
-       a timeout elapses without getting a response or traffic from the neighbor, the neighbor is suspected.
+       a timeout elapses without getting a response or traffic from the neighbor, the neighbor is suspected. +
+       *Not recommended anymore as the detection time of a crash of multiple adjacent members is big.*
 | FD_HOST| To detect the crash or freeze of entire hosts and the cluster members running on them. Not
            meant to be used in isolation, as it doesn’t detect crashed members on the local host, but in conjunction
            with other failure detection protocols, such as `FD_ALL` or `FD_SOCK`. +
            Can be used when multiple cluster members are running on a box. For example, if we have members
            `{A,B,C,D}` running on host 1 and `{M,N,O,P}` running on host 2, and host 1 is powered down, then `A`, `B`,
-           `C` and `D` are suspected and removed from the cluster _together_, typically in one view change.
+           `C` and `D` are suspected and removed from the cluster *together, typically in one view change*.
 |====
 
 * Ref: http://www.jgroups.org/manual/index.html#FailureDetection
@@ -220,7 +212,7 @@ Message stability
 
 Group membership
 ----------------
-* Handles new member joining, existing members leaving or crashing (suspicions) and merging
+* Handles new member joining, existing members leaving or crashing (suspicions)
 * Adds new members to the view, removes left or suspected members from the view and installs a new view
 * Also handles merge events sent by a merge protocol
 
@@ -237,7 +229,7 @@ Flow control
 * Flow control makes sure that receivers that process messages slower than senders are sending them, don't get
   overwhelmed by the traffic -> OOME
 * This is done by throttling the senders: their rate is adjusted to the fastest rate at which the receiver(s) can process messages
-* Senders and receivers start out with _credits_ which are bytes to send
+* Senders and receivers start out with *credits* which are bytes to send
 * A sender subtracts the bytes it sends and blocks if its credits are used up
 * A receiver also subtracts the credits for each message it receives from a sender and sends new credits to the sender(s)
   when the credits fall below a given threshold (e.g. 10%)
@@ -246,10 +238,17 @@ Flow control
 |====
 | Name | Implementation
 | UFC | Unicast flow control. Maintains flow control between 2 peers for unicast messages. Can be removed if `TCP` is
-        used as transport
+        used as transport. +
+        Blocks the sender in case of insufficient credits, until more credits have been received.
 | MFC | Multicast flow control. Maintains a credit table for _all_ receivers and senders and blocks for credits
         or sends credits based on the _slowest_ member. +
-        A slow member can slow everyone down -> if it's too slow it can be suspected and removed by failure detection)
+        A slow member can slow everyone down -> if it's too slow it can be suspected and removed by failure detection). +
+        Blocks the sender in case of insufficient credits, until more credits have been received.
+| UFC_NB | Non-blocking version of `UFC`. When a message cannot be sent due to insufficient credits, instead of blocking
+           the sender, the message is queued and sent later, when credits have been received. The queue can be bounded
+           to prevent it from growing endlessly; this would again block senders. +
+           *In combination with TCP_NIO2, a completely non-blocking stack can be configured*.
+| MFC_NB | Non-blocking version of MFC.
 |====
 * Ref: http://www.jgroups.org/manual/index.html#FlowControl
 
@@ -264,22 +263,11 @@ Fragmentation
 |====
 | Name | Implementation
 | FRAG2 | Framentation / unfragmentation with minimal copying
+| FRAG3 | A more memory-conserving implementation
 |====
 * Ref: http://www.jgroups.org/manual/index.html#_fragmentation
 
 
-Synchronous sending
--------------------
-* Handles messages with an `RSVP` flag
-* Blocks the sender until acks from all receivers have been received
-* Can be used for unicast and multicast messages
-
-[width="90%",cols="2,10", frame="topbot",options="header"]
-|====
-| Name | Implementation
-| RSVP | See discussion on RSVP in the advanced section
-|====
-* Ref: http://www.jgroups.org/manual/index.html#RSVP
 
 
 State transfer
@@ -323,8 +311,12 @@ Encryption and authentication
 [width="90%",cols="2,10", frame="topbot",options="header"]
 |====
 | Name | Implementation
-| ENCRYPT | Encryption on the sender and decryption on the receiver(s)
 | AUTH | Admission of new cluster members only when authentication succeeds.
+| SYM_ENCRYPT | Encryption on the sender and decryption on the receiver(s), using a shared key (from a keystore)
+| ASYM_ENCRYPT | Same as `SYM_ENCRYPT`, but the shared key is fetched on startup from the key server (coordinator).
+                 Can be configured to use an external key exchange protocol.
+|SSL_KEY_EXCHANGE| External key exchange protocol using SSL sockets and certificates. Can be used by `ASYM_ENCRYPT` to
+                   prevent man-in-the-middle attacks.
 | SASL | SASL based authentication
 |====
 * Ref: http://www.jgroups.org/manual/index.html#Security
@@ -337,7 +329,7 @@ Miscellaneous
 [width="90%",cols="3,10", frame="topbot",options="header"]
 |====
 | Name | Implementation
-| RELAY2 | Relaying of messages between separate clusters. See advanced section
+| RELAY2 | Relaying of messages between separate clusters.
 | STOMP | Client access via Stomp to _any_ cluster node. Stomp messages received by a client are sent to the entire cluster,
           where all connected clients receive them. +
           Clients can be written in any language and only need to implement the Stomp protocol.
