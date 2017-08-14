@@ -17,7 +17,7 @@ Advanced topics
 
 Message flags
 -------------
-* Message flags are used to override default behavior provided by the protocols in a stack
+* Message flags are used to override default behavior of the protocols in a stack
 * Examples:
 ** Mark a message as OOB (out-of-band) to deliver multiple messages from the same sender concurrently
 ** Skip the flow control protocols
@@ -41,61 +41,147 @@ Message msg=new Message(null, "hello").setFlag(Message.Flag.OOB).name("A");
 
 Provided message flags
 ----------------------
-Message.OOB: Marks a message as _out-of-band_. OOB messages don't not provide any ordering guarantees,
+`Message.OOB`: Marks a message as *out-of-band*. OOB messages don't not provide any ordering guarantees,
              although they're are reliable (no loss) and are delivered only once.
 
-Message.DONT_BUNDLE: Causes the transport not to bundle the message, but to send it immediately.
+`Message.DONT_BUNDLE`: Causes the transport not to bundle the message, but to send it immediately.
 
-Message.NO_FC: Bypasses any flow control protocols.
+`Message.NO_FC`: Bypasses any flow control protocols.
 
-Message.NO_RELIABILITY: Bypasses reliable protocols; makes the message unreliable. An unreliable message has no
+`Message.NO_RELIABILITY`: Bypasses reliable protocols; makes the message unreliable. An unreliable message has no
                        ordering constraints, may get dropped or delivered multiple times.
 
-Message.NO_TOTAL_ORDER: If we use a total order configuration with `SEQUENCER`, then we
+`Message.NO_TOTAL_ORDER`: If we use a total order configuration with `SEQUENCER`, then we
                          can bypass `SEQUENCER` (if we don't need total order for a given message) with this flag
 
-Message.RSVP: When set, a message send will block until the receiver (unicast) or receivers
-               (multicast) have acked reception of the message, or until a timeout occurs.
-
-Message.DONT_LOOPBACK: When set, a message is multicast, but not looped back up the stack.
+`Message.DONT_LOOPBACK`: When set, a message is multicast, but not looped back up the stack.
                         Useful when a sender doesn't want to receive its own multicast. +
-                        Note that this is a _transient flag_, so `Message.setTransientFlag()` has
-                        to be used instead of `Message.setFlag()`
+                        Note that this is a *transient flag*, so `Message.setTransientFlag()` has
+                        to be used instead of `Message.setFlag()`. Transient flags are not marshalled with a message.
 
 
 
-Regular and OOB messages
+Ordering of regular messages
+----------------------------
+* Messages from sender P are delivered sequentially, *in P's send order*
+** P sends messages 1-3: P1 is delivered first, then P2, then P3
+** P3 has to wait until both P1 and P2 have been processed
+* Messages from different senders are delivered in parallel
+** P sends messages 1-3 and Q sends messages 1-3; possible deliveries are:
+*** At M: `(P1 || Q1-3) -> P2-3` (`||`: parallel, `->`: followed by)
+*** At N: `(P1-2 || Q1) -> (Q2-3 || P3)`
+** Make sure your `receive()` callback is reentrant
+
+Ordering of OOB messages
 ------------------------
-* Regular messages are ordered as follows
-** Messages from sender P are delivered sequentially, in the order in which P sent them
-** Messages from different senders are delivered in parallel
-*** When P sends P1 -> P2 -> P3, P1 is delivered first, then P2, then P3
-*** P3 has to wait until both P1 and P2 have been processed
-*** Messages from sender Q are delivered in parallel to P's messages
-**** Make sure your `receive()` callback is reentrant
-* However, _OOB messages_ completely ignore any ordering constraints of the stack
-** A message marked as OOB is processed by the OOB thread pool, not the regular thread pool (see below)
-** When P sends P1 -> P2 -> P3, then all 3 messages are delivered randomly (but only once !)
-*** Whether all 3 messages are really delivered in parallel also depends on the config of the OOB thread pool
-
+* OOB messages are delivered *exactly once*, no loss and no duplicates
+* However, the delivery order is undefined
+* P sending messages 1-3; possible deliveries are:
+** At M: `P1-3` (a batch of 3)
+** At N: `P2 -> P1 -> P3`
 
 
 
 
 The transport
 -------------
-* Bottom most protocol in the stack
-* Serializes messages and sends them as UDP datagram packets, or over a TCP connection
-* Receives packets and de-serializes them into messages, which are then passed up the stack
-* 4 thread pools for handling of incoming messages
-. Regular thread pool
-. OOB thread pool
+* Lowest protocol in the stack
+* Serializes messages and puts them on the network
+* Receives messages from the network, de-serializes them, and passes them up the stack
+* 2 thread pools for handling of incoming messages
+. Default thread pool
 . Internal thread pool
-. Timer thread pool
-* All thread pools can be configured (e.g. min/max threads)
-* The thread pools can be replaced with custom thread pools
-* The thread factories can also be replaced
-* The transport also manages all sockets (UDP or TCP)
+
+
+The big picture
+---------------
+image::../images/Transport.png[The transport,width=60%",align=left,valign=top]
+
+
+
+
+The default thread pool
+-----------------------
+* Used to pass received messages up the stack to the application
+** Can be configured with min-size, max-size and thread idle time (*no queue*)
+*** When all pooled threads are busy, new threads are created (up to max-size)
+*** Idle threads are removed from the pool after idle-time
+** Can be replaced by a custom thread pool
+** Can be disabled
+* When all threads are busy, *internal messages are forwarded to the internal pool*
+** All other messages are discarded
+
+
+
+Configuration of default thread pool
+------------------------------------
+* A thread pool must `java.util.concurrent.Executor` and the default implementation uses
+  `java.util.concurrent.ThreadPoolExecutor`
+* The following attributes are used:
+
+[width="90%",cols="2,10", frame="topbot",options="header"]
+|====
+| Name | Function
+|`thread_pool.enabled` | If false, the thread pool is disabled: when a message is received, it is passed up the stack by the receiver thread
+|`thread_pool.min_threads` | The min number of threads
+|`thread_pool.max_threads` | The max number of threads
+|`thread_pool.keep_alive_time` | Time (ms) after which an idle thread should be returned to the pool
+|====
+
+
+The internal thread pool
+------------------------
+* Handles JGroups internal messages (e.g. heartbeats)
+** Can *not* be configured via XML (max-size is computed as a function of the number of cores)
+* When full, new threads are spawned (should never happen)
+** This needs to be done, so important items (such as timer tasks) are not dropped
+** (OOB and regular) messages are retransmitted, so they may be dropped
+
+
+
+Assignment of messages to thread pools
+--------------------------------------
+* This is done by an instance of `MessageProcessingPolicy` (pluggable)
+* It determines how messages or message batches are handled (e.g. forwarded to thread pool, queued, dropped etc)
+* Currently JGroups ships with 2 policies:
+** `SubmitToThreadPool`
+** `MaxOneThreadPerSender` (default)
+* Can be set / changed via attribute `message_processing_policy` or `setMessageProcessingPolicy(String policy)`
+
+
+SubmitToThreadPool
+------------------
+* All messages (or batches) are added to the default thread pool, increasing its size (up to max-size)
+* If full, internal messages are forwarded to the internal thread pool, all other messages are dropped
+
+
+MaxOneThreadPerSender
+---------------------
+* Subclass of `SubmitToThreadPool`
+* OOB and internal messages are handled by the parent `SubmitToThreadPool`
+* Regular messages:
+** A max of 1 thread is assigned to handle regular messages from a given sender P
+** All other messages from P are queued
+** When the thread returns, the queued messages for P are submitted to the pool as a message batch
+* Benefit: only 1 thread used for each member
+** If we have 10 cluster members, and all are sending regular messages, then we need only 10 threads from the pool
+   to handle these
+
+
+
+
+Processing regular messages
+---------------------------
+image::../images/RegularThreadPool.png[Regular thread pool,width="100%"]
+
+
+
+Processing OOB messages
+-----------------------
+image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
+
+
+
 
 
 Available transports
@@ -105,7 +191,6 @@ Available transports
 ** A message to N cluster nodes is sent *once*, as a datagram packet to a multicast (class D) address
 *** Class D addresses: `224.0.0.1` - `239.255.255.255` (`224.0.0.x` reserved for host / router pings)
 ** The switch copies the packet to all ports which have multicast group members
-** This can be turned off by setting `ip_mcast` to `false` in `UDP`
 * TCP uses N-1 TCP connections; 1 connection per destination
 ** A message to N cluster nodes is sent *N-1 times*
 *** This generates a lot of traffic
@@ -122,100 +207,13 @@ TCP_NIO2
 ** As optimization, we can have multiple receiver threads
 * More scalable than `TCP`
 * Default TCP-based transport in the future
-
-
-The transport
--------------
-image::../images/Transport.png[The transport,width="60%",align=left,valign=top]
-* UDP: 1 receiver thread for unicast datagram packets, 1 thread for multicast packets
-* TCP: 1 thread per connection model; ie. in a 100 node cluster, we have 99 connection receiver threads in a node
-** In 4.0, NIO.2 will be used to manage all TCP connections with a configurable pool of threads
-* A receiver thread receives a network packet and - depending on the type - passes it to the right thread pool
-** The pool performs
-*** Version checking (drops packets with different version)
-*** Deserializes the buffer into a `Message`
-*** Passes the message (or message batch) up through the protocol stack all the way to the channel
-
-
-Thread pools
-------------
-Regular:: Handles regular messages (non-OOB, non-internal)
-
-OOB:: Handles OOB messages
-
-Internal:: Handles `INTERNAL` messages. Reserved for use by JGroups. Needed to deliver some important messages by
-           JGroups protocols (e.g. heartbeats in failure detection), without potentially blocking on user messages.
-
-Timer:: Used to execute tasks (periodic or one-time), e.g. retransmission, expiry of connection pools, stability etc
+** Currently slightly slower than `TCP`
 
 
 
-
-Configuration of thread pools
------------------------------
-* All pools need to implement `java.util.concurrent.Executor` and the default implementations use
-  `java.util.concurrent.ThreadPoolExecutor`
-* The configuration of a thread pool is done with properties of the form <pool_name>.<attr>,
-  e.g. `oob_thread_pool.min_threads`. The pool names are `thread_pool` (regular), `oob_thread_pool`, `internal` and
-  `timer`
-* The following attributes are used:
-
-[width="90%",cols="2,10", frame="topbot",options="header"]
-|====
-| Name | Function
-|enabled | If false, the thread pool is not enabled: when a message is received, it is passed up the stack by the receiver thread
-| min_threads | The min number of threads
-| max_threads | The max number of threads
-| keep_alive_time | Time (ms) after which an idle thread should be returned to the pool
-| queue_enabled | Whether or not a thread pool should have a queue enabled
-| queue_max_size | The max size of a queue (if enabled)
-| rejection_policy | The rejection policy. One of `run`, `discard`, `discardoldest` or `abort`
-|====
-
-
-Thread pool behavior
---------------------
-* Semantics are the same as for `ThreadPoolExecutor`: on submission of a task:
-* If we have fewer than `min_threads` -> create an additional thread
-* Else:
-** If a queue is enabled and not full -> queue the task
-** Else create an additional thread if we're below `max_threads`
-* If the queue is full (or disabled) or we've reached `max_threads` and all threads are busy -> consult the rejection policy
-
-run: Pass the message up on the receiver's thread. If there's a risk that the thread might block, or take a long time,
-      this hampers the ability of the receiver to quickly remove packets and might thus lead to queue overflow
-      (or a 0 TCP write window, _blocking the sender_)
-
-discard: Discard the message. JGroups retransmission will later retransmit the message, but dropping a message is
-          good as it tells the sender to slow down a bit (via the flow control protocols)
-
-abort: same as discard, but throw an exception
-
-discardoldest: Discards the oldest message first
-
-
-Thread pool use
----------------
-* An OOB message uses 1 thread which passes it all the way up to the channel and to the application (see Transport)
-** If the application sends another message (or invokes an RPC) _on the same thread_, that incoming thread can be
-   busy for quite a while
-* A regular message is passed up to the reliable protocol (either NAKACK for mcasts or UNICAST for unicasts)
-** The message is then added to a table
-** If there's no other thread busy removing messages from the table -> Set a CAS and
-   remove as many messages as possible and pass them up
-** Else return (thread is ready to process other messages)
-** Most threads will only add their message (or message batch) to the table and return
-
-
-Processing regular messages
----------------------------
-image::../images/RegularThreadPool.png[Regular thread pool,width="100%"]
-
-
-
-Processing OOB messages
------------------------
-image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
+The path of a message from reception to delivery
+------------------------------------------------
+* `TP.receive()` (`JGroups/src/org/jgroups/protocols/TP.java`)
 
 
 
@@ -223,29 +221,24 @@ image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
 Lab: advanced 1
 ---------------
 * Run one instance of `bin/advanced.sh`
+** A member P has *5 threads invoking synchronous RPCs on all cluster members*
+** The called method sleeps for 1 second
 * Press `[1] start`
 * The first RPC takes 1s, the second 2s, then 3s, 4s, 5s.
 * *All subsequent RPCs take 5s. Why ?*
 
 
-Explanation 1
--------------
-* `min=2`, `max=8`, large queue: we will always only have 2 threads handling incoming messages
-* 5 threads are invoking _blocking RPCs_: max of 5 incoming requests at any time
-* Thread-1:
-** Takes message A1 and adds it to table-A in `NAKACK2`
-** Nobody's currently delivering messages in table-A, so thread-1 removes A1 from table-A and delivers it -> sleeps 1s in app code
-** When done, thread-2 (below) already added more messages, so thread-1 removes and delivers all other messages in turn
-* Thread-2
-** Takes A2 and adds it to table-A
-** Sees that thread-1 is already delivering messages, so thread-2 returns and takes the next message
-** All other 3 messages are added to table-A by thread-2 _before thread-1 returns_
-* Regular messages from the same sender are delivered in the order in which they were sent
-* Message `A5` sent by a sender thread in A has to wait until messages `A1` - `A4` have been delivered: takes 4 * 1s
-* To dump the messages in the table:
-----
-probe.sh  jmx=NAKACK2.xmit_table_undelivered
-----
+Explanation
+-----------
+// * What's going on?
+// * (Explanation commented, uncomment in the source code to make visible)
+* The same sender P has 5 threads invoking synchronous RPCs
+* The RPCs are sent as regular messages
+* Regular messages from the same sender are delivered sequentially
+* The first message is delivered immediately and returns after 1s, the second has to wait for 1s, is delivered and
+  returns after 1s and so on
+* After some messages, everyone always has 4 messages ahead of it: 4s of wait time plus 1s of actual processing time
+** Total processing time of 5s
 
 
 Possible fixes
@@ -254,127 +247,146 @@ Possible fixes
 ** Press `'o'` to switch to `OOB` RPCs
 ** Each message now takes 1s to process
 ** However, messages are delievered in random order (no FIFO-per-sender anymore)
+** This also uses more thread of the pool; up to 5 more if all RPCs arrive at the same time
 * Fix 2: use the asynchronous invocation API (see below)
 ** Reduced thread use in the regular and OOB pools, but more use of the application's thread pool
+
+
+Monitoring
+----------
+* See the current pending requests (edited):
+----
+[belasmac] /Users/bela/workshop$ probe.sh  requests
+local_addr=A [ip=127.0.0.1:54829, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=advanced, 1 mbr(s)]
+requests=134: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+135: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+136: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+137: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+138: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+----
+
+* Timing details on RPCs:
+[.small]
+----
+[belasmac] /Users/bela/workshop$ probe.sh rpcs-details
+
+#1 (212 bytes):
+local_addr=A [ip=127.0.0.1:54829, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=advanced, 1 mbr(s)]
+rpcs-details=
+<all>: async: 0, sync: 180, round-trip min/avg/max (us): 5001802.73 / 5011800.38 / 5022800.32
+----
+
+
+
+
+Extra credit
+------------
+* Change Advanced to have invoker threads invoke the RPCs in the background
+** Use `RpcDispatcher.callRemoteMethodsWithFuture()` and call `whenComplete()` on the returned `CompletableFuture`.
+** Add a small sleep of 500ms between invocations
+* What would happen to the thread pool?
+* Can this be looked at? Where?
+* What's the outcome if we switched to OOB RPCs?
+
+
+Explanation
+-----------
+* An invoker thread calls the RPCs but returns immediately
+* Each thread sleeps for 500ms between invocations
+** This means it generates 2 invocations/sec, but the invocations take 2s to execute
+* Because the invocation rate (5 threads generate 10 invocations/sec) is greater than the delivery rate,
+  RPCs keep piling up in `MaxOneThreadPerSender`
+** The invocation times keep increasing
+* OOB RPCs:
+** 10 RPCs/sec: because all RPCs are handled in parallel, so it takes 1s for the 10 to get processed
+** The largest thread pool size should therefore be ~10:
+*** `probe.sh jmx=UDP.thread_pool_`: should show a max pool size of ~10
+*** Hmm, incorrect: ~20 is shown as largest thread pool size! Why?
+** OOB RPCs are bound by the max-size of the thread pool. Verify this by increasing the number of threads!
+
 
 
 Lab: advanced 2
 ---------------
 * Run 3 instances of `bin/advanced.sh`
-* Start all of them
-* *RPCs take more than 5s. Why ?*
-
-Explanation 2
--------------
-* We only have 2 threads handling 15 incoming messages
-* The 2 processing threads are almost always stuck in `sleep()`
-* The other (13) messages are added to the queue -> which is growing:
-----
-[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep regular
-UDP={regular_queue_size=23, regular_pool_size_active=2, regular_pool_size=2}
-UDP={regular_queue_size=25, regular_pool_size_active=2, regular_pool_size=2}
-UDP={regular_queue_size=22, regular_pool_size_active=2, regular_pool_size=2}
-----
-* Sender could be starved for processing, e.g. if we have a queue: `A1` -> `A2` -> `B1` -> `A3` -> `A4` -> `B2` -> `C1`:
-** (Thread T1 and T2)
-** Sec 1: `A1` is processed by T1, `A2` is added to table-A by T2, `B1` is processed by T2
-** Sec 2: `A2` is processed by T1, `A3` and `A4` are added to table-A by T2, `B2` is processed by T2
-** Sec 3: `A3` is processed by T1, `C1` is processed by T2
-** Sec 4: `A4` is processed by T1
-* `C1` starts processing after ~ 2 s
-
-
-Possible fixes
---------------
-* Same as in lab 1
-* Increase `UDP.thread_pool.min_threads` to 4 (in the running system, or the config, but the latter requires a restart):
-----
-probe.sh op=UDP.setThreadPoolMinThreads[4]
-----
-** 3 threads are busy processing `sleep()`
-* 1 thread takes all other incoming messages and adds them to the respective tables
-** Downside: this will increase the tables sizes
-* Resulting queue and pool sizes:
-----
-[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep UDP
-UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
-UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
-UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
-----
-* The block times are now back to 5s
-
-
-
-Lab: advanced 3
----------------
-* Run 3 instances of `bin/advanced.sh`
-* Start all of them
-* Press `[o]` to use `OOB` RPCs
+* in each of them:
+** Press `[o]` to use `OOB` RPCs
+** Press `[3]` and set the number of threads to 10
+* Now start all of them (`[1]`)
 * *RPCs take more then 1s. Why?*
 
 
-Explanation 3
--------------
-* The OOB thread is configured as follows: `min=1`, `max=8`, no queue
-** Will create up to 8 threads to handle the 15 incoming messages
-** 8 threads are almost always in `sleep()`
-** The other 7 messages are discarded (`rejection_policy="discard"`)
-*** They will get retransmitted
+Explanation
+-----------
+* The thread pool is configured as follows: `min=0`, `max=20`
+* Each instance has ca. 10 messages (requests and responses) in flight at any given time
+* This requires ~30 threads, but the thread pool is configured to a max-size of 20
+* We can see the size of the thread pool and the number of rejected messages because of a full pool (edited):
+
+[.small]
 ----
-[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.oob_pool,oob_queue|grep UDP
-UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=8}
-UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
-UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
-----
-* Retransmit requests:
-----
-mac] /Users/bela/JGroups$ probe.sh jmx=NAKACK2.xmit_r|grep xmit_r
-NAKACK2={xmit_rsps_sent=11, xmit_reqs_received=11, xmit_rsps_received=7, xmit_reqs_sent=8}
-NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=9, xmit_reqs_sent=10}
-NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=13, xmit_reqs_sent=13}
+[mac] /Users/bela/workshop$ probe.sh jmx=UDP.thread_pool_,num_re
+UDP={num_rejected_msgs=14, thread_pool_size=20, thread_pool_size_active=14, thread_pool_size_largest=20}
+UDP={num_rejected_msgs=25, thread_pool_size=20, thread_pool_size_active=18, thread_pool_size_largest=20}
+UDP={num_rejected_msgs=21, thread_pool_size=20, thread_pool_size_active=18, thread_pool_size_largest=20}
 ----
 
+The largest thread pool size is 20, which means max-size has been reached (and probably exceeded). The
+`num_rejected_msgs` attribute shows the number of messages dropped because of a full thread pool.
+
+* Retransmit requests:
+
+[.small]
+----
+[mac] probe.sh jmx=NAKACK2.xmit_r
+NAKACK2={xmit_reqs_received=65, xmit_reqs_sent=60, xmit_rsps_received=55, xmit_rsps_sent=65}
+NAKACK2={xmit_reqs_received=75, xmit_reqs_sent=68, xmit_rsps_received=62, xmit_rsps_sent=75}
+NAKACK2={xmit_reqs_received=59, xmit_reqs_sent=71, xmit_rsps_received=60, xmit_rsps_sent=59}
+----
+
+Here we can see the number of retransmit requests and responses. Typically, these numbers should be
+very low or 0. Running this command multiple times, or using a tool such as `watch`, we can see
+that they are increasing over time.
 
 
 Possible fixes
 --------------
-* Increase `UDP.oob_thread_pool.max_size` to 15:
+* Increase `UDP.oob_thread_pool.max_size` to 50:
 ----
-probe.sh op=UDP.setOOBThreadPoolMaxThreads[15]
+probe.sh op=UDP.setOOBThreadPoolMaxThreads[50]
 ----
 * Now each request takes ~ 1s again
 
 
-Recommended configs
--------------------
-
-[width="90%",cols="2,10",frame="topbot",options="header"]
-|====
-| Pool | Recommendation
-| OOB | No queue -> OOB messages are executed on a thread or dropped. +
-Set `min_size` to a small size (more threads are created if needed), `max_threads` should be higher than the max number of OOB messages received
-at any given time
-|Regular| Queue is enabled and quite large, to handle message peaks. +
-Set `min_threads` to the number of cluster nodes plus a few more (D), `max_threads` to a slightly higher value. +
-In a cluster of N, we never have more than N threads passing messages up, so we need D additional threads to
-handle all other regular messages and add them to the retransmission tables. This is quick so D can be small.
-|Internal| Leave the default config (min=2,max=4), don't touch
-| Timer | Defaults (min=2,max=4,small queue) should be sufficient
-|====
-
 
 Thread pool sizing
 ------------------
-* Disable the queue
+* Set min-size to 0
+* How about max_size?
 * Keep track of the average and max active threads
-* Set min to average and enable the queue again to be at least max active threads to cover spikes
+** This should give you a good estimate of what the max-size should be
+* Or just don't bother and set max-size to a large value!
+** Threads will not be created until needed and idle threads will be removed from the pool
+   after max-idle-time anyway
+** See monitoring section in the Admin part
+
+
 
 
 
 Asynchronous invocation API
 ---------------------------
 * A method invoked in an RpcDispatcher is dispatched to application code
-  by calling method handle from `RequestHandler`:
+  by calling method handle in `RequestHandler`:
 
 [source,java]
 ----
@@ -385,18 +397,21 @@ public interface RequestHandler {
 
 * `RpcDispatcher.handle()` converts the message's contents into a method call,
   invokes the method against the target object and returns the result. The return value
-  is then sent back to the caller.
+  is then marshalled and sent back to the caller.
 
-* The invocation is _synchronous_, ie. done on the thread dispatching the
+* The invocation is *synchronous*, ie. done on the thread dispatching the
   message from the network up to the application. The thread is
-  _busy_ for the duration of the method invocation.
+  *busy* for the duration of the method invocation.
 
 * If the invocation takes a while, e.g. because locks are acquired or the application waits on some I/O,
   another thread will be used for a different request. This can quickly lead to the thread pool being
   exhausted or many messages getting queued if the pool has a queue.
 
-* Therefore a new way of dispatching messages to the application was devised; the asynchronous invocation API
-* A new interface `AsyncRequestHandler` (derived from `RequestHandler`) is introduced
+* Therefore a new way of dispatching messages to the application was devised; the *asynchronous invocation API*
+* A new interface `AsyncRequestHandler` (extending `RequestHandler`) was introduced
+
+* This allows a request thread to be returned to the thread pool immediately, and the response to be sent later when
+  the request has completed
 
 
 AsyncRequestHandler
@@ -445,9 +460,9 @@ Use of the asynchronous invocation API
 ---------------------------------------
 * An application can subclass `RpcDispatcher`, or it can set a custom request handler via
   `setRequestHandler()`, and implement `AsyncRequestHandler.handle()` by
-  dispatching the processing to a thread pool.
+  dispatching the processing to an *application thread pool*.
 
-* The JGroups thread handling the request will immediately be released and can be used to process other messages.
+* The JGroups thread handling the request is released immediately and can be used to process other messages.
 
 * The response will be sent when the invocation of application code is done, and thus the thread is not blocked
   on I/O, or trying to acquire locks that blocks in application code.
@@ -459,6 +474,10 @@ Use of the asynchronous invocation API
   knows (JGroups doesn't) which requests can be processed in parallel and which ones can't.
 
 * Benefit: request dispatching (and ordering !) is now under application control
+
+* Caution: because ordering is done by the application; *the order established by JGroups can be destroyed!*
+** E.g. P1 and P2 (sender-ordered) are delivered by JGroups and the application adds them to its thread pool. There's
+   no guarantee in which order P1 and P2 are processed.
 
 
 
@@ -494,10 +513,13 @@ Lab: advanced 4
 
 
 
+
+
+
 Message batching
 ----------------
-* For historic reasons, term message _bundling_ is used on the sender, _batching_ on the receiver
-** Let's use the term _batching_ only
+* For historic reasons, the term *message bundling* is used on the sender, *message batching* on the receiver
+** Let's use the term *batching* only
 * When sending many smaller messages, it is better to queue them and send them as a _message batch_
 ** Payload / header ratio is better (e.g. payload of 5, header of 30 !)
 * Simple sender algorithm:
@@ -508,7 +530,7 @@ LOOP(while there are messages pending for destination D):
 ENDLOOP
 - Send batch if size > 0
 ----
-* This collects many messages into a batch until the `max_bundle_size` has been reached, but sends individual messages
+* This collects many messages into a batch until `max_bundle_size` has been reached, but sends individual messages
   immediately
 * E.g. message P1-5 are sent at time T1, and P6 at time T20: this create a batch for P1-5 and a single message for P6
 
@@ -522,82 +544,28 @@ Message batching on the receiver
 ** Locks are acquired once for a batch (say of 10) rather than 10 times -> less context switching
 ** `NAKACK` / `UNICAST`: add N messages into the retransmission table *in one step* rather than *N steps*
 ** The destination and sender addresses are sent *only once rather than N times*
-* API for reception of a batch:
+* API for reception of a batch (`Receiver`):
 [source,java]
 ----
 public void receive(MessageBatch batch);
 ----
 
 
-Sending messages synchronously (RSVP)
--------------------------------------
-* While JGroups guarantees that a message will eventually be delivered at all non-faulty members,
-  sometimes this might take a while
-** We don't know when a message has been delivered at all nodes
-** (Alternative: use RpcDispatcher and blocking RPCs)
-* This can be changed by setting flag `Message.RSVP` in a message
-** The send blocks until all members have acknowledged reception (or delivery) of the message
-   (excluding members which crashed or left meanwhile).
-* If we send an `RSVP` tagged message, then - when `send()` returns - we're guaranteed that all messages
-  sent _before_ will have been delivered at all members as well
-** If P sends messages 1-10, and marks 10 as `RSVP`, then, upon `JChannel.send()` returning,
-   P knows that all members received messages 1-10 from P.
+Do I have to change my code?
+----------------------------
+* No: by default `receive(MessageBatch)` calls `receive(Message)` for each message in a batch
+* However, it may be more efficient to process multiple messages in one go
 
-NOTE:
-Since RSVP'ing a message is costly, and might block the sender for a while, it should be
-used sparingly. For example, when completing a unit of work (ie. member P sending N messages), and
-P needs to know that all messages were received by everyone, before sending other messages.
+NOTE: messages in a regular message batch should still be processed in order, or else ordering is destroyed
 
 
-Configuration and use
----------------------
-* To use RSVP, two things have to be done:
-* First, the `RSVP` protocol has to be in the config, somewhere above the reliable transmission
-  protocols such as `NAKACK` or `UNICAST`, e.g.:
 
-[source,xml]
-----
-<config>
-    <UDP/>
-    <pbcast.NAKACK2 />
-    <UNICAST3 />
-    ...
-    <RSVP />
-</config>
-----
-
-* Secondly, the message we want to get ack'ed must be marked as `RSVP`:
-
-[source,java]
-----
-ch.send(new Message(null, "hello world").setFlag(Message.RSVP));
-----
-
-* Method `send()` returns as soon as it has received acks from all current members
-** If there are 4 members A, B, C and D, and A has received acks from itself, B and C,
-   but D's ack is missing and D crashes before the timeout kicks in, then this will
-   nevertheless make `send()` return, as if D had actually sent an ack.
-* If the `timeout` property is greater than 0, and we don't receive all acks within
-  `timeout` milliseconds, a `TimeoutException` will be thrown (if `RSVP.throw_exception_on_timeout` is true)
-** The application can choose to catch this (runtime) exception and do something with it, e.g. retry.
-
-
-Non blocking RSVP
------------------
-* Sometimes a sender wants a given message to be resent until it has been received, or a timeout occurs, but doesn't
-  want to block. As an example, `RpcDispatcher.callRemoteMethodsWithFuture()` needs to return immediately, even
-  if the results aren't available yet.
-** If the call options contain flag `RSVP`, then the future would only be returned once all responses have been
-   received. This is clearly undesirable behavior.
-* To solve this, flag `RSVP_NB` (non-blocking) can be used. This has the same behavior as `RSVP`, but the caller is not
-  blocked by the RSVP protocol. When a timeout occurs, a warning message will be logged, but since the caller doesn't
-  block, the call won't throw an exception.
 
 
 
 Generating custom addresses
 ---------------------------
-* Address generation is pluggable: an application can make JGroups use custom addresses.
+* Address generation is pluggable: an application can use custom addresses.
 * To use custom addresses, `org.jgroups.stack.AddressGenerator` has to be implemented:
 
 [source,java]
@@ -607,7 +575,7 @@ public interface AddressGenerator {
 }
 ----
 
-* The default address type is `UUID`
+* The default `Address` implementation is `UUID`
 * Use `ExtendedUUID` (subclass of `UUID`) as custom address.
 ** Can be used to pass additional data around with an address, for example information
    about the location of the node to which the address is assigned
@@ -629,15 +597,15 @@ ch.connect("cluster");
 
 Controlling view generation
 ---------------------------
-* View generation is pluggable; application code can be called to create a view
+* `View` generation is pluggable, too: application code can be called to create a view
 * The first member of a view is always the _coordinator_
 ** The application can therefore pick the coordinator
 ** Useful to
-*** Pin the coordinatorship to only certain 'beefy' servers
+*** Pin the coordinatorship to only certain servers
 *** Make sure that one of the previous coordinators becomes the new coordinator after a merge. This
     reduces the frequency at which the coordinator moves around and increases stability for
     singleton services.
-* To do this, interface +MembershipChangePolicy+ has to be implemented
+* To do this, interface `MembershipChangePolicy` has to be implemented
 
 [source,java]
 ----
@@ -649,8 +617,8 @@ public interface MembershipChangePolicy {
   List<Address> getNewMembership(Collection<Collection<Address>> views); // <2>
 }
 ----
-<1> Create a regular view: `current_members` is a list of the current members, `joiners`
-  of new members, `leavers` of members which want to leave and `suspects` of members which have crashed
+<1> Create a regular view: `current` is a list of the current members, `joiners`
+  of new members, `leavers` of members which want to leave gracefully and `suspects` of members which have crashed
 <2> Accepts a list of membership lists; each list is a subview that needs to get merged into a new `MergeView`
 
 
@@ -686,7 +654,7 @@ Sample view generation
 ----
 if(beefy)
     channel.setAddressGenerator(() -> {
-            return ExtendedUUID.randomUUID(channel.getName());
+        return ExtendedUUID.randomUUID(channel.getName());
     });
 ----
 
@@ -705,7 +673,7 @@ public List<Address> getNewMembership(Collection<Address> current,
                                       Collection<Address> joiners,
                                       Collection<Address> leavers,
                                       Collection<Address> suspects) {
-    Membership retval=new Membership();
+    Membership retval=new Membership(); // prevents duplicates
     for(Address addr: current_members)
         if(addr instanceof ExtendedUUID)
             retval.add(addr);
@@ -732,6 +700,8 @@ public List<Address> getNewMembership(Collection<Address> current,
 
 
 
+
+
 Fork channels
 -------------
 * A fork channel is a light-weight channel, forked off of a main channel (`JChannel`)
@@ -749,8 +719,7 @@ Fork channels
 *** To do so, it can create a fork stack with `COUNTER` and a fork channel connecting to that stack, and it will now
     have distributed atomic counter functionality on its fork stack, not available in the main stack
 
-NOTE:
-Fork channels are exposed directly in WildFly 9
+NOTE: Fork channels are exposed directly in WildFly 9
 
 
 
@@ -877,272 +846,6 @@ public ForkChannel(final JChannel main_channel,
 
 
 
-
-
-Relaying between multiple sites
--------------------------------
-* A _site_ is a local cluster
-* `RELAY2` relays unicast and multicast messages between different sites
-* Each site is *completely autonomous* and knows nothing about different sites other than their names
-* The coordinator of each site is the _site master_ and is responsible for traffic relaying
-* Goals:
-** Relay traffic between sites
-** Send a unicast message to the _site master_ of a given site
-** Send back a response to a sender from a different site
-
-image::../images/RelayArchitecture.png[RELAY2 architecture,width="70%"]
-
-
-
-
-RELAY2 configuration
----------------------
-* To use RELAY2, it has to be placed towards the top of the configuration, e.g.:
-
-[source,xml]
-----
-...
-<FRAG2 />
-<relay.RELAY2 enable_address_tagging="true" site="${site:lon}">
-    <RelayConfiguration>
-        <sites>
-            <site name="lon">
-                <bridges>
-                    <bridge name="global" config="relay-global.xml"/>
-                </bridges>
-            </site>
-            <site name="sfo">
-                <bridges>
-                    <bridge name="global" config="relay-global.xml"/>
-                </bridges>
-            </site>
-            <site name="nyc">
-                <bridges>
-                    <bridge name="global" config="relay-global.xml"/>
-                </bridges>
-            </site>
-        </sites>
-    </RelayConfiguration>
-</relay.RELAY2>
-----
-
-* The `site` property gives the local site its name, used for routing between sites
-* Addresses contain site name, e.g. address `A1:LON` in the `SFO` site is not local, but will be routed
-  to member `A` in the remote site `LON`.
-* Property `relay_multicasts` determines whether or not multicast messages (with `dest` == `null`) are relayed to other sites
-** When we have a site `LON`, connected to sites `SFO` and `NYC`, if a multicast message is sent in site `LON`,
-   and `relay_multicasts` is true, then all members of sites `SFO` and `NYC` will receive the message
-
-Sites configuration
--------------------
-* Sites an be configured via the `config` attribute, which points to an external XML file, or inline via the
-  `<RelayConfiguration>` child element, as shown above
-* The example defines 3 sites `lon`, `sfo` and `nyc`, connected with a global cluster `"global"` (defined in `relay-global.xml`)
-* All _inter-site_ traffic is sent via this global cluster
-* The above configuration can also be structured differently, ie. instead of a global cluster, we could define separate clusters
-  between `lon` and `sfo`, and `lon` and `nyc`
-** However, in such a setup, `nyc` and `sfo` wouldn't be able to send each other messages;
-   only `lon` would be able to send message to `sfo` and `nyc`.
-
-
-
-
-Relaying of multicasts
-----------------------
-* If `relay_multicasts` is true then any multicast received by the _site master_ of a site will get forwarded
-  to _all connected sites_
-* A recipient of a multicast message which originated in a different site will see that the sender's
-  address is not a `UUID`, but a subclass (`SiteUUID`) which is the `UUID` plus the site suffix, e.g. `A1:sfo`
-* When a reply is to be sent to the sender of the multicast message, `Message.getSrc()` provides the target
-  address for the unicast response message
-** This is also a `SiteUUID`, but the sender of the response neither has to know this nor take any special action to send
-   the response, as JGroups takes care of routing the response back to the original sender.
-
-
-
-Relaying of unicasts
---------------------
-* Relaying of unicasts is done transparently
-** If we don't have a dest address (e.g. as a result of reception of a multicast), there is a special address
-   `SiteMaster(name)` which identifies the site master for relaying of messages
-* Class `SiteMaster` is created with the name of a site, e.g. `new SiteMaster("lon")`
-** When a unicast with destination `SiteMaster("lon")` is sent, then the message is relayed to the _current_
-   site master of `lon`
-** If the site master changes, messages will get relayed to a different node, which
-   took over as site master from the old site master
-* Sometimes only certain members of a site should become site masters; e.g. the more powerful boxes
-  (as routing needs some additional CPU power), or multi-homed hosts which are connected to the external
-  network (over which the sites are connected with each other).
-** To do this, `RELAY2` can generate special addresses which contain knowledge about whether a member
-   should be skipped when selecting a site master from a view, or not
-*** If `can_become_site_master` is set to false in `RELAY2`, then the selection process will skip that member
-*** However, if all members in a given view are marked with `can_become_site_master`==`false`,
-    then the first member of the view will get picked
-* When we have all members in a view marked with `can_become_site_master`==`false`, e.g. `{B,C,D}`, then `B`
-  is the site master
-** If we now start a member `A` with `can_become_site_master`==`true`, then `B` will stop
-   being the site master and `A` will become the new site master
-
-
-
-
-Invoking RPCs across sites
---------------------------
-* Invoking RPCs across sites is more or less transparent, except when we cannot contact a site
-* If we want to invoke method `foo()` in `A1`, `A2` (local) and `SiteMaster("sfo")`, we could
-  write the following code:
-
-[source,java]
-----
-List<Address> dests=new ArrayList<>(view.getMembers());
-dests.add(new SiteMaster("sfo"));
-RspList<Object> rsps;
-rsps=disp.callRemoteMethods(dests, call,
-              new RequestOptions(ResponseMode.GET_ALL, 5000));
-for(Rsp rsp: rsps.values()) {
-    if(rsp.wasUnreachable())
-        System.out.println("<< unreachable: " + rsp.getSender());
-    else
-        System.out.println("<< " + rsp.getValue() + " from " + rsp.getSender());
-}
-----
-
-* First, we add the members (`A1` and `A2`) of the current (local) view to the destination set
-* Then we add the special address of the `sfo` site master: `SiteMaster("sfo")`
-* Next, we invoke the call and block until responses from all `A1`, `A2` and `SiteMaster("sfo")`
-  have been received, or until 5 seconds have elapsed.
-* Finally, we check the response list
-** If a site is unreachable, a `Rsp` has field `"unreachable"` set
-
-
-Issues with invoking RPCs across different sites
-------------------------------------------------
-* The above example added the local members and the site master of `sfo` to `dests`
-* This means the caller will block until a response from each of these 3 nodes has been received
-* If site `sfo` has 10 members, their responses will get dropped as they're not in the destination list
-* So while we can invoke an RPC in all members of all sites, the responses from non-local sites will get dropped
-* To fix this, there are 2 alternatives:
-
-Add all nodes to `dests`::
-This is a problem since the view only shows members of the local site. A 'site-local' membership could be maintained via
-application RPCs, but then this membership would have to be maintained whenever a member leaves or joins. New members
-would also have to learn the membership
-
-Use regular messages::
-Requests and responses could be marked specially, so the `receive()` callback knows what to do. When a message marked
-as request is received, a response could be sent to the sender of the message. See `ChatDemo` for details.
-
-
-
-Lab: relay demo
----------------
-* Goal
-** Create 3 sites `lon`, `nyc` and `sfo`
-** Run 2 `ChatDemo` instances in each site
-** Each message is sent to all members in all sites
-** Each member replies with an `ack` message
-* Note that each site needs to have a different site id, mcast_addr and mcast_port
-* Run 2 nodes of each site:
-----
-bin/lon.sh -name lon1
-bin/lon.sh -name lon2
-bin/nyc.sh -name nyc1
-bin/nyc.sh -name nyc2
-bin/sfo.sh -name sfo1
-bin/sfo.sh -name sfo2
-----
-
-
-
-
-
-
-
-Handling network partitions (split brain)
------------------------------------------
-* Cluster: `v4={A,B,C,D,E}` (coord=`A`)
-* Assume a switch connecting to members `{D,E}` fails -> network partition between `{A,B,C}` and `{D,E}`
-** `A`, `B` and `C` can ping each other, but not `D` or `E`, and vice versa
-* JGroups detects this and creates 2 subclusters: `v5={A,B,C}` (`A` remains coordinator) and `v5={D,E}` (`D` becomes coord)
-* Clients may be able to access one or both of the partitions (or none)
-* When the partition heals, JGroups will merge the subclusters back into _MergeView_ `v6={A,B,C,D,E}`
-** A MergeView has a list of all subviews (partitions)
-*** We know which members were part of which partition before the split healed
-* However, JGroups won't be able to merge the (possibly divergent) _application data_
-
-
-Strategies for keeping application data consistent
---------------------------------------------------
-* CAP: either CP or AP (P can never be forfeited as partitions do happen)
-* CP: consistency & partition handling
-** System may not be available all the time
-** jgroups-raft
-* AP: availability & partition handling
-** Consistency not guaranteed all the time
-** Eventual consistency: possibility to see stale data but eventual convergence of data
-** Infinispan eventual consistency
-
-
-Consistency and partition handling (CP)
----------------------------------------
-* Only a majority partition is allowed to perform reads and writes
-** The majority partition can also be defined differently as long as the decision is deterministic
-   (only one majority partition), e.g.
-*** A given node needs to be present
-*** Access to a given resource (e.g. DB)
-**** Whoever has access to the DB is allowed to write, others shut down or become read-only
-* A minority partition rejects client access (stale reads might be allowed)
-* Advantage: no merging of data
-* Disadvantage: system unavailable when no majority
-
-
-Example: primary partition handling
------------------------------------
-
-[source,java]
------
-static final int majority=3;
-boolean is_primary;
-
-public void viewAccepted(View new_view) {
-    int size=new_view.size();
-    if(is_primary) {
-        if(size < majority) {
-            is_primary=false;
-            // go into read-only mode (or reject all requests)
-        }
-    }
-    else {
-        if(size >= majority) {
-            is_primary=true;
-            // 1. go into read-write mode
-            // 2. overwrite state with state from primary partition
-        }
-    }
-}
------
-* A cluster becomes a primary partition as soon as it has `majority` members
-* A read-only, non-primary partition exists when the view size drops below `majority` members
-
-
-
-
-Availability and partition handling (AP)
-----------------------------------------
-* All partitions are allowed to make progress (read-write)
-* Partitions can diverge if the same data is modified in different partitions
-* When the network partition heals, data has to be merged
-* Merge strategies:
-** Timestamps, physical time, logical clocks
-** Member precedence
-** Causal vectors (_eventual consistency_)
-*** Has to contact application if data collision cannot be resolved automatically
-* Advantage: system is always available and accepts writes
-* Disadvantage: merging data can be hard (and we may have to consult the application)
-
-
-
-
 Writing a protocol
 ------------------
 * Let's write a simple protocol which prints the number of bytes for each sent or received message to stdout
@@ -1152,20 +855,14 @@ Writing a protocol
 ----
 @MBean(description="A sample protocol printing the number of bytes of all received messages")
 public class PRINT_BYTES extends Protocol {
-    protected static final short ID=2015;
-
-    static {
-        ClassConfigurator.addProtocol(ID, PRINT_BYTES.class);
-    }
 
     @Property(description="Suppresses printing to stdout if false")
     protected boolean do_print=true;
 }
 ----
 * The `@MBean` annotation makes all attributes and operations available via JMX (see below)
-* Each protocol has a unique ID, which needs to be registered
-** The IDs of all JGroups protocols are defined in `conf/jg-protocol-ids.xml`
 * There's a property `do_print` which can be set via configuration and JMX, e.g. `<PRINT_BYTES do_print="false".../>`
+** When on (default), the size of all messages is printed. This attribute can be changed at runtime.
 
 
 Methods to be overridden
@@ -1179,8 +876,10 @@ Methods to be overridden
 |start()|Called on `JChannel.connect()`
 |stop()| Called on `JChannel.disconnect()`
 |destroy()| Called when a channel is closed (`JChannel.close()`)
-|down(Event)| Called when an event (e.g. a message) is sent
-|up(Event)| Called when an event (e.g. a message) is received
+|down(Event)|Called when an event is sent down the stack
+|down(Message)| Called when a message is sent
+|up(Event)|Called when an event is sent up the stack
+|up(Message)| Called when a message is received
 |up(MessageBatch) | Called when a message batch is received
 |=================
 
@@ -1188,10 +887,10 @@ Methods to be overridden
 A few facts about protocols
 ---------------------------
 * Each protocol has a neighbor above it (`up_prot`) and below it (`down_prot`)
-* _Events_ are passed between protocols
+* Messages and message batches are sent on the network, between members
+* Events are sent between protocols and are never sent out on the network
 ** An Event has a `type` and `arg` (`Object`)
 *** E.g. `type`=`VIEW_CHANGE` -> `arg` = `View`
-*** `type`=`MSG` -> `arg`=`Message`
 
 
 Example: printing a view change
@@ -1199,66 +898,74 @@ Example: printing a view change
 
 [source,java]
 ----
-public Object down(Event evt) {  // <1>
-    switch(evt.getType()) {      // <2>
-         case Event.VIEW_CHANGE: // <3>
-             View view=(View)evt.getArg(); // <4>
+public Object down(Event evt) {      // <1>
+    switch(evt.getType()) {          // <2>
+         case Event.VIEW_CHANGE:     // <3>
+             View view=evt.getArg(); // <4>
              System.out.println("view = " + view);
              break;
     }
-    return down_prot.down(evt);
+    return down_prot.down(evt);      // <5>
 }
 ----
 <1> Intercepting a view change in the down direction
 <2> Switching based on the type of the event
 <3> Handling a view change
-<4> Getting the argument and casting it to a `View`
+<4> Getting the view argument
+<5> Passing the view down the stack
 
 
 Caveats
 -------
-* GMS sends a `VIEW_CHANGE` up and down
+* GMS is the protocol which sends a `VIEW_CHANGE` up and down
 * If `PRINT_BYTES` is *above* GMS, it won't handle the view change
 ** Need to handle `VIEW_CHANGE` in the down and up direction
 
 
 Printing the sent messages
 --------------------------
-* To do this, we need to override `down()`:
+* To do this, we need to override `down(Message)`:
 
 [source,java]
 ----
-case Event.MSG:
-    if(do_print) { // <1>
-        Message msg=(Message)evt.getArg(); // <2>
-        int num_bytes=msg.getLength();     // <3>
+public Object down(Message msg) {
+    if(do_print) {                     // <1>
+        int num_bytes=msg.getLength(); // <2>
         if(num_bytes > 0)
-            System.out.printf("-- sending %d bytes\n", num_bytes);
+            System.out.printf("-- sending %d bytes, headers: %s\n",
+                               num_bytes, msg.printHeaders());
     }
-    break;
+    return down_prot.down(msg);
+}
 ----
 <1> Only print if `do_print` is true
-<2> Cast the event's argument to `Message`
-<3> `Message.getLength()` returns the number of bytes of the message's payload
+<2> `Message.getLength()` returns the number of bytes of the message's payload
 
 
 
 
 Printing the received bytes
 ---------------------------
-* We have to override methods `up(Event)` and `up(MessageBatch)`
-* `up(Event)` is more or less the same code as `down(Event)`
-* `up(MessageBatch)`:
+* We have to override methods `up(Message)` and `up(MessageBatch)`:
 
 [source,java]
 ----
+public Object up(Message msg) {
+    if(do_print) {
+        int num_bytes=msg.getLength();
+        if(num_bytes > 0)
+            System.out.printf("-- received %d bytes from %s\n", num_bytes, msg.src());
+    }
+    return up_prot.up(msg);
+}
+
 public void up(MessageBatch batch) {
     int total_bytes=0;
     for(Message msg: batch)
         total_bytes+=msg.getLength();
     // alternative: total_bytes=batch.length();
-    System.out.printf("received batch of %d messages: total size is %d bytes\n",
-                      batch.size(), total_bytes);
+    System.out.printf("received batch of %d messages from %s: size is %d bytes\n",
+                      batch.size(), batch.sender(), total_bytes);
     if(!batch.isEmpty())
         up_prot.up(batch);
 }
@@ -1271,7 +978,6 @@ Register dynamically to JMX
 
 [source,java]
 ----
-
 @ManagedOperation(description="Dynamically register with JMX")
 public synchronized void register(boolean register) {
     TP tp=getTransport();
@@ -1311,8 +1017,10 @@ Running the demo
 * Extra credit
 . Maintain the number of sent messages / bytes in variables and expose them with `@ManagedAttribute`
 . Disable and re-enable printing of messages via probe.sh
-. Print the headers (`Message.printHeaders()`)
 . Dynamically remove `PRINT_BYTES` via `probe.sh remove-protocol ...`
+. What's the output if the protocol is moved up the stack? What if it is moved down the stack?
+
+
 
 
 
@@ -1321,8 +1029,9 @@ Debugging
 * Failure detection protocols depending on heartbeats should be disabled
 * Otherwise, stopping member P in a breakpoint for more than the failure detection timeout would
   suspect and exclude P
-** Disable FD_ALL, FD
-** FD_SOCK is fine
+** This would be a simulation of a network partition (see below)
+** Disable `FD_ALL`, `FD`
+** `FD_SOCK` is fine
 * Alternatively stop only the current thread (config in debugger)
 
 
@@ -1332,7 +1041,8 @@ Simulation
 ----------
 * JGroups ships with a number of protocols for simulation of
 ** Message drops: `DISCARD`
-** Network partitions: `DISCARD` (demo)
+** Network partitions: `DISCARD`
+*** Let's run simulate a *network partition* (split brain) and subsequent healing
 ** Duplicate messages: `DUPL`
 ** High latency: `DELAY`
 ** Message reordering: `SHUFFLE`
@@ -1350,6 +1060,21 @@ Byteman
 ** Byteman rules can be removed at runtime -> no overhead
 ** Can be used even in production
 
+Byteman rule
+------------
+* Simple rule language:
+----
+RULE down
+CLASS ^org.jgroups.protocols.TP
+METHOD down(org.jgroups.Message)
+AT ENTRY
+IF TRUE
+   DO System.out.println("--> " + $1.printHeaders());
+ENDRULE
+----
+* For protocol `TP` and subclasses (`UDP`, `TCP` etc), in method `down(Message):
+** On entering `down()`, print the headers of the sent message
+* Try writing similar rules for reception of single messages and message batches
 
 
 
@@ -1378,6 +1103,8 @@ world
 --> MSG, arg=[dst: <null>, src: <null> (1 headers), size=0 bytes, flags=INTERNAL, transient_flags=DONT_LOOPBACK] (headers=MERGE3: INFO: view_id=[A|0], logical_name=A, physical_addr=127.0.0.1:63360)
 ----
 * Uninstall the rule: `./bm-submit -u`
+* Change the rule, install it again
+
 
 
 

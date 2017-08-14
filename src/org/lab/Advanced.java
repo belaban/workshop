@@ -1,21 +1,18 @@
 package org.lab;
 
-import org.jgroups.JChannel;
-import org.jgroups.Message;
-import org.jgroups.ReceiverAdapter;
-import org.jgroups.View;
+import org.jgroups.*;
 import org.jgroups.annotations.ManagedAttribute;
-import org.jgroups.blocks.RequestHandler;
-import org.jgroups.blocks.RequestOptions;
-import org.jgroups.blocks.Response;
-import org.jgroups.blocks.RpcDispatcher;
+import org.jgroups.blocks.*;
 import org.jgroups.jmx.JmxConfigurator;
 import org.jgroups.stack.DiagnosticsHandler;
 import org.jgroups.util.Average;
+import org.jgroups.util.RspList;
 import org.jgroups.util.Util;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -23,16 +20,27 @@ import java.util.concurrent.ThreadPoolExecutor;
  * RPC demo with slow receivers. Shows how thread pool configuration and AIA can help prevent pool exhaustion
  * @author Bela Ban
  */
-public class Advanced extends ReceiverAdapter {
-    protected JChannel          ch;
-    protected RpcDispatcher     disp;
-    protected int               num_threads=5;
-    protected boolean           oob=false;
-    protected long              sleep=1000; // ms
-    protected Invoker[]         invokers;
-    protected Average           avg; // avg invocation times
-    protected volatile boolean  running=false;
+public class Advanced implements MembershipListener {
+    protected JChannel           ch;
+    protected RpcDispatcher      disp;
+    protected int                num_threads=5;
+    protected boolean            oob;
+    protected long               sleep=1000; // ms
+    protected Invoker[]          invokers;
+    protected Average            avg; // avg invocation times
+    protected volatile boolean   running;
     protected ThreadPoolExecutor app_thread_pool=(ThreadPoolExecutor)Executors.newCachedThreadPool();
+
+    protected static final Method SLEEP;
+
+    static {
+        try {
+            SLEEP=Advanced.class.getMethod("sleep");
+        }
+        catch(NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 
     @ManagedAttribute(description="avg invocation time")
@@ -52,7 +60,7 @@ public class Advanced extends ReceiverAdapter {
         disp=new RpcDispatcher(ch, this).setMembershipListener(this);
         if(use_async_request_handler) {
             disp.asyncDispatching(true);
-            disp.setRequestHandler(new MyAsyncHandler(disp));
+            disp.setRequestHandler(new MyAsyncHandler());
         }
         ch.connect("advanced");
         Util.registerChannel(ch, "advanced-cluster");
@@ -66,6 +74,7 @@ public class Advanced extends ReceiverAdapter {
                         map.put("adv.invocation_avg", String.valueOf(getAvgInvocationTime()));
                         map.put("adv.app_thread_pool_size", String.valueOf(getAppPoolSize()));
                         map.put("adv.app_thread_pool_active_count", String.valueOf(getAppPoolActiveThreads()));
+                        map.put("adv.app_thread_pool_largest_count", String.valueOf(app_thread_pool.getLargestPoolSize()));
                     }
                 }
                 return map;
@@ -172,6 +181,7 @@ public class Advanced extends ReceiverAdapter {
 
 
     protected class Invoker extends Thread {
+        MethodCall call=new MethodCall(SLEEP);
 
         public void run() {
             while(running) {
@@ -180,7 +190,7 @@ public class Advanced extends ReceiverAdapter {
                     if(oob)
                         opts.flags(Message.Flag.OOB);
                     long start=System.currentTimeMillis();
-                    disp.callRemoteMethods(null, "sleep", null, null, opts);
+                    disp.callRemoteMethods(null, call, opts);
                     long diff=System.currentTimeMillis() - start;
                     if(diff > 0) {
                         avg.add(diff);
@@ -192,21 +202,39 @@ public class Advanced extends ReceiverAdapter {
                 }
             }
         }
+
+        public void runInBackground() {
+            while(running) {
+                try {
+                    RequestOptions opts=RequestOptions.SYNC();
+                    if(oob)
+                        opts.flags(Message.Flag.OOB);
+                    long start=System.currentTimeMillis();
+                    CompletableFuture<RspList<Void>> fut=disp.callRemoteMethodsWithFuture(null, call, opts);
+                    fut.whenComplete((rsps,ex) -> {
+                        long diff=System.currentTimeMillis() - start;
+                        if(diff > 0) {
+                            avg.add(diff);
+                            System.out.println(diff);
+                        }
+                    });
+                    Util.sleep(500);
+                }
+                catch(Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
 
     protected class MyAsyncHandler implements RequestHandler {
-        protected final RpcDispatcher d;
-
-        public MyAsyncHandler(RpcDispatcher d) {
-            this.d=d;
-        }
 
         @Override
         public void handle(final Message request, final Response response) throws Exception {
             app_thread_pool.execute(() -> {
                 try {
-                    Object result=d.handle(request);
+                    Object result=disp.handle(request);
                     response.send(result, false);
                 }
                 catch(Exception e) {
@@ -217,7 +245,7 @@ public class Advanced extends ReceiverAdapter {
 
         @Override
         public Object handle(Message msg) throws Exception {
-            return d.handle(msg);
+            return disp.handle(msg);
         }
     }
 }

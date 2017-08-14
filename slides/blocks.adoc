@@ -16,11 +16,9 @@ Building blocks
 
 Abstractions (over a channel)
 -----------------------------
-* Method invocations (RPCs) across a cluster
-* Replicated and distributed hashmaps
+* Remote Procedure Calls (RPCs): method invocations across a cluster
 * Distributed counters
-* Distributed locks and
-* Task execution across cluster nodes
+* Distributed locks
 
 
 
@@ -51,7 +49,7 @@ for(Map.Entry<Address,Rsp<Integer>> entry: rsps.entrySet()) {
     Address sender=entry.getKey();
     Rsp<Integer> rsp=entry.getValue();
     if(rsp.hasException()) {
-        System.out.printf("exception for %s: %s", sender, rsp.getException());
+        System.out.printf("exception for %s: %s\n", sender, rsp.getException());
         continue;
     }
     if(rsp.wasSuspected()) {
@@ -80,8 +78,8 @@ rsps.entrySet().stream()
 
 
 
-Rsp<T>
-------
+Rsp
+---
 * A response is of type `Rsp<T>`:
 
 [source,java]
@@ -96,7 +94,7 @@ public class Rsp<T> {
 }
 ----
 
-* Method `getValue()` returns the value, or `null` if no value was received (or the method returned `void`)
+* Method `getValue()` returns the value, or `null` if no value was received (or the method returns `void`)
 * If `hasException()` is true, `getException()` will return a non-null `Throwable`
 * Method `getSender()` returns the sender of this specific response
 * Method `wasReceived()` returns true if the call completed successfully (even if it is a `void` method)
@@ -107,15 +105,15 @@ public class Rsp<T> {
 RequestOptions
 --------------
 * Every method invocation can be parameterized with an instance of `RequestOptions`. We can define
-** Response mode: this determines whether the call is blocking and - if yes - how long it should block. The modes are:
-  `GET_ALL`:: Block until responses from all members (minus the suspected ones) have been received.
+** `ResponseMode`: this determines whether the call is blocking and - if yes - how long it should block. The modes are:
+  `GET_ALL`:: Blocks until responses from all members (minus the suspected ones) have been received.
   `GET_NONE`:: Wait for none. This makes the call non-blocking
-  `GET_FIRST`:: Block until the first response (from anyone) has been received
+  `GET_FIRST`:: Blocks until the first response (from anyone) has been received
 ** Timeout: max time (ms) to block. If the call hasn't completed after the timeout elapsed, a TimeoutException will be thrown.
    A timeout of 0 means to wait forever. Ignored if the call is non-blocking (mode=`GET_NONE`)
 ** Response filter: a `RspFilter` allows for filtering of responses and user-defined termination of
   a call. For example, if we expect responses from 10 members, but can return after having
-  received 3 non-null responses, a `RspFilter` could be used. 
+  received 3 non-null responses, a `RspFilter` may be used.
 ** Flags: the various flags to be passed to the message (see advanced section)
 ** Exclusion list: here we can pass a list of members (addresses) that should be excluded. For example,
   if the view is `{A,B,C,D,E}`, and we set the exclusion list to A,C then the caller will wait for
@@ -194,24 +192,26 @@ previously created is passed to the call.
 Method lookup
 -------------
 * Use an impl of `MethodLookup` for efficient RPC marshalling
-* Sends IDs (shorts) rather than method metadata across the wire
+** Maps methods to IDs
+** Sends IDs (shorts) rather than method metadata across the wire
 * A simple `add(3,4)` uses 125 bytes on the wire with `MethodCall(Method)` and 18 with
   `MethodCall(short)`
+* Sample code: `MethodLookupExample`
 
 
 RpcDispatcher and `receive()`
 -----------------------------
 * RpcDispatcher requires `receive()` to be called, and therefore calls `JChannel.setReceiver()`
-* If an application sets a receiver itself, this will steal all messages from
+* If an application sets a receiver itself, this will 'steal' all messages from
   the RpcDispatcher and it will never receive a method invocation
 * Overriding a receiver with another one will log a warning
-* Sample code: `MethodLookupExample`
+
 
 
 Response filters
 ----------------
-* Response filters allow application code to drop responses, or to return from a blocking call before all responses
-  have been received.
+* Response filters allow application code to drop responses, or to return from a blocking call
+  before all responses have been received.
 * The `RspFilter` interface looks as follows:
           
 [source,java]
@@ -223,8 +223,9 @@ public interface RspFilter {
 ----
 
 * Method `isAcceptable()` is given a response value and the address of the member which sent
-the response, and needs to decide whether the response is valid (returning true) or not
-(returning false).
+  the response, and needs to decide whether the response is valid (returning true) or not
+  (returning false).
+** If false is returned, the response will be dropped and not get included in the response list
 * The response value can be an exception if the method invocation threw an exception
 * Method `needMoreResponses()` determines whether a call is done or not.
 
@@ -253,8 +254,8 @@ RequestOptions opts=RequestOptions.SYNC().setRspFilter(filter); // <3>
 RspList rsps=disp.callRemoteMethods(null, "foo", null, null, opts);
 ----
 <1> The response filter acepts all integer values that are greater than 1. All accepted values increment a counter.
-<2> The call returns as soon as (1) it has received 2 valid responses or (2) the timeout elapsed or (3) it received responses
-from all members.
+<2> The call returns as soon as (1) it has received 2 valid responses or (2) the timeout elapsed or (3) it received
+    responses from all members.
 <3> The RequestOptions object is passed the `RspFilter` instance.
 
 
@@ -264,7 +265,8 @@ Asynchronous calls with futures
 * When invoking a synchronous call, the calling thread is blocked until the response (or responses) has
   been received.
 
-* A _future_ allows a caller to return immediately and grab the result(s) later.
+* A _future_ allows a caller to return immediately and grab the result(s) later, or pass some code to be
+  executed when the result has been received.
 
 [source,java]
 ----
@@ -304,152 +306,6 @@ bin/run.sh org.lab.ChatDemoRpc -props config.xml -name A
 
 
 
-
-Distributed caching
--------------------
-In this section we'll look at replicating or distributing data across a cluster. _Replication_ means that all nodes
-have all the data, whereas _distribution_ means that only selected nodes store a given piece of information.
-
-'''
-
-
-ReplicatedHashMap
------------------
-* A key/value store implementing `java.util.concurrent.ConcurrentMap`
-* `ReplicatedHashMap` uses _full replication_; any data added to an instance will be replicated to all other
-  instances in the cluster
-** Removing a key will remove it in all cluster instances
-** Gets are always local and don't involve network round trips
-* A new instance needs to acquire the state from an existing node (the coordinator)
-* A cache can be configured to use blocking or non-blocking updates and - if blocking - define a max timeout to block
-** When blocking mode is used, the caller blocks until the update has been acked by all cluster instances
-** Otherwise, the call returns immediately and the updates are sent asynchronously
-
-
-ReplicatedHashMap: API
-----------------------
-
-[source,java]
-----
-public class ReplicatedHashMap<K, V> implements ReplicatedMap<K,V> {
-    public interface Notification<K, V> {   // <1>
-        void entrySet(K key, V value);
-        void entryRemoved(K key);
-        void viewChange(View view, List<Address> joined, List<Address> left);
-        void contentsSet(Map<K,V> new_entries);
-        void contentsCleared();
-    }
-    public         ReplicatedHashMap(JChannel channel) {..}      // <2>
-    public void    setBlockingUpdates(boolean blocking_updates); // <3>
-    public void    setTimeout(long timeout);                     // <4>
-    public void    start(long state_timeout) throws Exception;   // <5>
-    public void    stop();                                       // <6>
-    public void    addNotifier(Notification n);                  // <7>
- // get(), put(), putIfAbsent(), remove() etc from ConcurrentHashMap // <8>
-----
-<1> Notification interface; can be used to register for certain events, e.g. when a key/value pair has been added
-<2> Creates a new instance over an existing channel
-<3> Sets the updates to be blocking or non-blocking
-<4> Sets the timeout (ms); ignored if non-blocking
-<5> Starts the cache: this fetches the state from an existing member
-<6> Stops the cache: this stops the underlying channel and leaves the cluster
-<7> Registers a listener for `Notification` callbacks
-<8> The get and update methods are derived from `ConcurrentMap`; refer to it for details
-
-
-ReplicatedHashMap: sample code
-------------------------------
-
-[source,java]
-----
-ReplicatedHashMap<String,Integer> map;
-JChannel channel=new JChannel(props); // <1>
-channel.connect("rhm-cluster");
-map=new ReplicatedHashMap<>(channel); // <2>
-map.start(); // <3>
-----
-<1> Creates a new `JChannel`. Note that the configuration needs to include a state transfer protocol (e.g. `STATE`), or
-    else the channel creation will fail with an exception
-<2> Creates a new ReplicatedHashMap over an existing (and connected) channel
-<3> Fetches the state from an existing member (not done if this is the first member). If the state transfer fails,
-    e.g. with a timeout, or there s no state transfer protocol configured, an exception will be thrown
-
-
-ReplicatedHashMap: demo
------------------------
-* Demo: `repl-hashmap.sh`
-
-
-ReplCache
----------
-* A key/value store using _partial replication_: a given key/value pair is not stored on _all_ nodes, but only on
-  _selected_ cluster nodes
-** The number of times a key is stored is configured via a _replication count_.
-** When the cluster view changes, keys are rebalanced if needed, to maintain the replication count for that key
-* A put(K,V) will store K on replication count nodes
-** The nodes on which K is stored are computed using a _consistent hash function_.
-*** This function tries to minimize rebalancing on a view change.
-* A get(K) on a node which doesn't store K is redirected to the primary owner of K
-* A new instance doesn't do state transfer (like RHM above), but rebalancing might assign it some keys
-
-
-ReplCache: API
---------------
-
-[source,java]
-----
-public class ReplCache<K,V> {
-    public interface HashFunction<K> {      // <1>
-        List<Address> hash(K key, short repl_count);
-    }
-
-    public ReplCache(String props, String cluster_name);        // <2>
-    public void setDefaultReplicationCount(short repl_count);   // <3>
-    public void setHashFunction(HashFunction<K> hash_function); // <4>
-    public void start() throws Exception;                       // <5>
-    public void stop();                                         // <6>
-    public void put(K k, V v, short repl_count, long timeout, boolean sync); // <7>
-    public V    get(K key);                                     // <8>
-    public void remove(K key, boolean synchronous);             // <9>
-}
-----
-<1> Interface which defines the consistent hash function to be used.
-<2> Creates a new instance, creating a channel first.
-<3> Sets a default replication count. Used when not explicitly passed to update methods
-<4> Sets the consistent hash function. There's a default if not set.
-<5> Joins the cluster. This causes rebalancing if there are existing cluster members.
-<6> Leaves the cluster. This causes rebalancing if there are existing cluster members.
-<7> Adds data to the cache. If synchronous, `timeout` (ms) defines how long the caller is willing to block
-<8> Returns a value for a given key K. If K is not local, this may result in a network round trip to the primary owner.
-<9> Removes a key from all nodes which store it.
-
-
-ReplCache: sample code
-----------------------
-
-[source,java]
-----
-ReplCache<String,String> cache=new ReplCache<>(props, cluster_name);
-cache.setCallTimeout(rpc_timeout);
-cache.start();
-----
-
-
-ReplCache: demo
----------------
-* Demo: repl-cache.sh
-
-
-
-Difference between ReplicatedHashMap and ReplCache
---------------------------------------------------
-* For large clusters or large data, RHM won't scale (data-wise), as each node stores data from all other nodes
-   -> use ReplCache
-* When the cluster is small or the data set is small -> use RHM (all gets are local)
-* RHM requires state transfer; ReplCache requires rebalancing
-* Example: 5 node cluster, we need to store 10 items of 50MB each in the cluster
-* RHM: each node stores 500MB, independent of cluster size
-* ReplCache (repl_count=2): each node stores 2 * 10 * 50 / 5 = ~200MB on average (depends on the hashing function)
 
 
 
@@ -523,8 +379,7 @@ CENTRAL_LOCK
 <config>
     <UDP />
     ...
-    <pbcast.GMS print_local_addr="true" join_timeout="3000"
-                view_bundling="true"/>
+    <pbcast.GMS print_local_addr="true" join_timeout="3000"/>
     <MFC max_credits="2M" min_threshold="0.4"/>
     <FRAG2 frag_size="60K"  />
     <CENTRAL_LOCK num_backups="1"/>
@@ -554,7 +409,7 @@ Distributed locks and network partitions
 *** Locks can only get acquired and released by majority agreement
 *** Persistent logs allow newly elected leaders to get current lock information
 *** Only _one_ member holds a lock at any time
-
+* More on this in the advanced section (split brain)
 
 
 Distributed counters
@@ -629,72 +484,6 @@ CounterServiceDemo
 * Regarding merging, the same caveats as for distributed locks hold for distributed counters
 
 
-
-
-
-Distributed task execution
---------------------------
-
-Execution of tasks on different nodes in the cluster.
-
-'''
-
-Goal
-----
-* Oftentimes, tasks need to be executed across a distributed system, reasons are:
-** We don't want to overload a single host
-** If a task is long running and/or requires a lot of CPU/memory, we want to distribute the tasks across a cluster to
-   harness the processing power and memory provided by individual cluster nodes
-* Requirement: jobs / tasks need to be able to be broken into sizable chunks, that can be distributed in parallel
-* If a node processing a task T crashes, T needs to be processed by some other node
-* No single point of failure
-
-
-Design
-------
-* Cluster of nodes, each node can submit tasks (to be executed by some other node in the cluster)
-** Every node is a peer: it can both _submit_ and _handle_ tasks
-** In a real application, clients could connect to _any_ node, e.g. via TCP or RMI, and submit
-  tasks to that node, which would then distribute it to some other node (or handle it itself)
-* When submitting a task, we pick a random integer which is then mapped to the rank of a node in the cluster
-** E.g. using `modulo` or a consistent hash
-* The task is then multicast (EXECUTE) across the cluster
-* Every node adds the task to a hashmap consisting of tasks and their submitters' addresses
-* Every node now compares the rank shipped with the task to its own rank
-** It it doesn't match -> nothing is done
-** Else -> the node needs to process the task. It does so and returns the result to the submitter
-* When the submitter receives the response (RESULT), it multicasts a REMOVE message across the cluster
-** Upon reception of REMOVE(T), every node removes T from its hashmap
-* If a node X crashes (or leaves gracefully), we know which tasks were assigned to it by looking up the tasks
-  in the hashmap, keyed by X
-** All tasks which are still present in the hashmap have not yet been processed and need to be re-executed,
-   this time by a different node
-** This is done by comparing the rank shipped with the task to the node's rank and executing it if a node's
-   own rank matches it
-* If a node M crashes after having submitted a few tasks but not yet having received the results,
-  the slaves remove all tasks submitted by M, because M won't need the results anymore.
-
-Example
--------
-* The cluster consists of nodes A, B, C and D
-* Clients can access one of them
-* A task submitted for example to B by a client might assign 23 to the task
-* B then multicasts an EXECUTE(23, TASK) message to all nodes in the cluster, and every node adds task #23 to its cache
-* However, the only node processing task #23 is A (to which 23 happens to map to),
-  which then sends the result as a RESULT(23, OBJ) to B
-* B returns the result OBJ to the client and multicasts a REMOVE(23) message to the cluster,
-  which causes all nodes to remove task #23 from their caches.
-* Had A crashed during processing of task #23, some other node would have taken over,
-  processed the result and sent it back to B
-
-
-
-Demo
-----
-* `task.sh` / `task.bat`
-** Start a few instances
-** Submit a long running job T
-** Identify the host H on which T is executed
-** Kill H -> T should now be executed by some other node
-* Details: link:$$https://github.com/belaban/TaskDistribution$$[https://github.com/belaban/TaskDistribution]
+NOTE: Distributed counters can also be affected by network partitions (multiple values for the same number). The
+      split brain section (advanced) discusses ways to cope with this, or avoid the issue altogether.
 

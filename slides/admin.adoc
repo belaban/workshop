@@ -12,12 +12,12 @@ Admin
 :status:
 
 
-
+////
 Tuning
 ------
 * Let's take a (non exhaustive) look at things that can be tuned
 * Ref: https://developer.jboss.org/wiki/PerfTuning
-
+////
 
 
 Multicast routing
@@ -120,29 +120,17 @@ Transport resources
 
 Transport: default thread pool
 ------------------------------
-* For regular (sender-FIFO) messages
+* For regular (sender-FIFO) and `OOB` messages
 * (Conceptual) queues are created for each sender
 * Only 1 thread processes a queue, delivering _1 message at a time_
 * The other messages for the same sender consume threads only to add the messages to the queue, then the thread is
   put back into the pool
 * Recommendations for peak (receiving messages from N senders concurrently):
-** Set min-threads to N
-** Set max-threads to N+2 (2 spare threads)
-** Enable a queue to catch traffic peaks
-
-
-Transport: OOB thread pool
---------------------------
-* For OOB messages (no defined delivery order)
-* Each thread takes a message (or message batch) and passes it up to the application
-* Many messages from the same sender can be processed concurrently
-* Recommendations:
-** Disable the thread pool queue
-** Set min-threads to a small number (more threads will be created if needed)
-** Set max-threads to the max number of OOB messages expected to be received concurrently
+** Set min-threads to 0
+** Regular messages: set max-threads to N+2 (2 spare threads)
+** `OOB` messages: max number of OOB messages expected to be received concurrently
 *** This number can be high because we won't reach it unless we have many concurrent messages
 **** The thread idle time will reduce the active thread size after a while if not all threads > min-threads are used
-* Thread stack size: uses memory, make sure to size this as well
 
 
 ////
@@ -257,7 +245,7 @@ Top JGroups problems
 
 
 
-Problem #13: AWS
+Problem #11: AWS
 ----------------
 * Large packets sizes in EC2 are dropped
 ** The problem was that large packets using the default stack configuration for `FRAG2` (60k) were sometimes being dropped
@@ -270,15 +258,7 @@ Problem #13: AWS
 * Solution: use `FRAG2` sizes of <= 32k if you are running in `UDP` mode under EC2.
 
 
-Problem #12: last message dropped in `NAKACK2`
----------------------------------------------
-* Last message dropped issue
-* Solution: use `RSVP` to ack a batch of work, or set `resend_last_seqno` in `NAKACK2`
-
-
-
-
-Problem #11: `receive()` and `viewAccepted()` callbacks
+Problem #10: `receive()` and `viewAccepted()` callbacks
 ------------------------------------------------------
 * Invoking blocking RPCs or doing something long or blocking in these callbacks
 * Because JGroups calls these callbacks on a thread from the incoming thread pool, all messages behind this one are stuck
@@ -286,7 +266,7 @@ Problem #11: `receive()` and `viewAccepted()` callbacks
 * Solution: use a separate thread is some callback code needs to block, invoke a blocking RPC, or perform a long task
 
 
-Problem #10: reusing a message (the Sebastian problem)
+Problem #9: reusing a message (the Sebastian problem)
 ------------------------------------------------------
 [source,java]
 ----
@@ -295,12 +275,6 @@ for(int i=0; i < 10; i++)
    channel.send(msg)
 ----
 * Spot the problem ?
-
-
-Problem #9: MacOS
------------------
-* Multicast routing on Mac OS: https://developer.jboss.org/wiki/MulticastRoutingOnMacOSX
-* Solution: pick the correct `mcast_addr` in `UDP` based on the routing table and `bind_addr`
 
 
 
@@ -391,7 +365,8 @@ Problem #3: tinkering with configuration
 ** Removing `STABLE` causes OOMEs
 
 * Putting protocols in the wrong place
-** A configuration needs to be defined in a certain order; placing protocols in the wrong place almost always causes subtle issues
+** A configuration needs to be defined in a certain order; placing protocols in the wrong place almost always
+   causes subtle issues
 
 
 
@@ -488,6 +463,26 @@ public static void unregisterChannel(Channe channel) {
 }
 ----
 * Let's try this out with our ChatDemo
+
+
+
+
+JGroups and Docker
+------------------
+* JGroups can be run inside docker as on a physical box
+* However, by default, docker uses the *bridged* network (`none`, `bridge`, `host`), which restricts communication to
+  docker containers on the local host only
+* To communicate across hosts use the *host* network: `--net=host`
+* Otherwise, the normal restrictions apply
+** If IP multicasting is disabled -> switch to TCP
+** Pick the correct `bind_addr` etc
+* Demo:
+** Bridge network: `docker run -it --rm belaban/jgroups`
+** Host network: `docker run -it --net=host --rm belaban/jgroups`
+* More info: https://github.com/belaban/jgroups-docker
+
+
+
 
 
 probe.sh
@@ -724,13 +719,221 @@ version=3.6.1.Final
 [mac] /Users/bela/workshop/bin$
 ----
 
-* Ref: http://www.jgroups.org/manual/index.html#Probe
+
+Running the performance test
+----------------------------
+* We'll run just one test: `UPerf`
+* This mimics the way Infinispan works and uses mostly unicast messages
+* Every node starts 100 threads which mimic doing 20% puts and 80% gets (sync RPCs) on a distributed cache
+* This will be used in the next sections for monitoring
+* Run 4 instance of UPerf: `bin/uperf.sh -name <NAME>`
+** Make sure they find each other: the view should show 4 members
+** Also make sure `run.sh` has the bind addres set to loopback, or else you'll overwhelm the wifi...
+* Press `1` in one of the instances to start the test (runs for 1 minute)
+* Take a look at throughput and latency
+* Leave the instances running while we move on to the next section
+
+
+Monitoring various scenarios
+----------------------------
+* In the next sections we'll be taking a look at a number of scenarios and determine which
+  protocols/attributes to look at
+
+
+Group membership
+----------------
+* Cluster falls apart frequently and merges back
+* Members are excluded although they're healthy
+* Protocols to look at: `FD_ALL` / `FD_SOCK` (failure detection):
+----
+[belasmac] /Users/bela$ probe.sh jmx=FD_ALL.num_ jmx=FD_SOCK.num_
+
+#1 (265 bytes):
+local_addr=D [ip=127.0.0.1:64647, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+FD_ALL={num_heartbeats_received=1576, num_heartbeats_sent=394, num_suspect_events=0}
+FD_SOCK={num_suspect_events_generated=0, num_suspected_members=0, num_tries=3}
+
+#2 (265 bytes):
+local_addr=A [ip=127.0.0.1:56329, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+FD_ALL={num_heartbeats_received=1581, num_heartbeats_sent=396, num_suspect_events=0}
+FD_SOCK={num_suspect_events_generated=0, num_suspected_members=0, num_tries=3}
+
+#3 (265 bytes):
+local_addr=B [ip=127.0.0.1:62680, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+FD_ALL={num_heartbeats_received=1581, num_heartbeats_sent=396, num_suspect_events=0}
+FD_SOCK={num_suspect_events_generated=0, num_suspected_members=0, num_tries=3}
+
+#4 (265 bytes):
+local_addr=C [ip=127.0.0.1:59995, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+FD_ALL={num_heartbeats_received=1579, num_heartbeats_sent=395, num_suspect_events=0}
+FD_SOCK={num_suspect_events_generated=0, num_suspected_members=0, num_tries=3}
+----
+* We can see that both failure detection protocols show 0 suspect events.
+* `FD_ALL` does show sent and received heartbeats
+* If members are suspected falsely, one of the protocols would have a higher value for the number of suspicions
+* Then we'd have to focus on that protocol: enable logging, look at other attributes, invoke operations etc
+
+
+Finding out which attributes and operations are available in a protocol
+-----------------------------------------------------------------------
+* Sometimes it is useful to know the history of views, so we need to see if `GMS` exposes anything interesting
+* Look at `GMS.java` and search for `@ManagedAttribute`, `@Property` or `@ManagedOperation`:
+----
+cat GMS.java |grep -e "@Managed" -A 2 -e "@Property" -A 2|more
+----
+* We can see that there is an operation to print the previous views (output edited):
+----
+[belasmac] /Users/bela$ probe.sh op=GMS.printPreviousViews
+
+#1 (322 bytes):
+local_addr=A [ip=127.0.0.1:56329, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+GMS.printPreviousViews=
+Wed Aug 23 10:39:00 CEST 2017: [A|0] (1) [A]
+Wed Aug 23 10:39:14 CEST 2017: [A|1] (2) [A, B]
+Wed Aug 23 10:39:25 CEST 2017: [A|2] (3) [A, B, C]
+Wed Aug 23 10:39:33 CEST 2017: [A|3] (4) [A, B, C, D]
+
+#2 (277 bytes):
+local_addr=B [ip=127.0.0.1:62680, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+GMS.printPreviousViews=
+Wed Aug 23 10:39:14 CEST 2017: [A|1] (2) [A, B]
+Wed Aug 23 10:39:25 CEST 2017: [A|2] (3) [A, B, C]
+Wed Aug 23 10:39:33 CEST 2017: [A|3] (4) [A, B, C, D]
+
+#3 (229 bytes):
+local_addr=C [ip=127.0.0.1:59995, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+GMS.printPreviousViews=
+Wed Aug 23 10:39:25 CEST 2017: [A|2] (3) [A, B, C]
+Wed Aug 23 10:39:33 CEST 2017: [A|3] (4) [A, B, C, D]
+
+#4 (178 bytes):
+local_addr=D [ip=127.0.0.1:64647, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+GMS.printPreviousViews=Wed Aug 23 10:39:33 CEST 2017: [A|3] (4) [A, B, C, D]
+----
+* This shows that `A` created the first view `A|0` and therefore became coordinator
+* Next `B` joined: `A` installed view `A|1` consisting of `A` and `B`, and `B` installed this view as its first view
+* Next `C` join, creating view `A|2` and so on
+* This looks perfectly ok, but if we had high view IDs, this would point to a high membership churn rate
+** This might be ok if we have many members leaving and joining frequently, but if not, it is probably a result of
+   frequent false suspicions: look at which protocol does the suspicions and possibly change attributes (e.g. failure
+   detection timeouts)
 
 
 
+Exhausted thread pools
+----------------------
+* Oftentimes pools are too small
+* The result is that messages get rejected and dropped
+** If the dropped messages are unreliable, they won't get retransmitted, e.g. heartbeats -> this could lead to false
+   suspicions
+** If the dropped message are reliable, they will get retransmitted -> confirm this by looking at retransmission stats
+* Let's look at the thread pool sizes first:
+[.small]
+----
+[belasmac] /Users/bela$ probe.sh jmx=UDP.thread_pool.max,thread_pool_si
 
 
+#1 (209 bytes):
+local_addr=D [ip=127.0.0.1:64647, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=20, thread_pool_size=1, thread_pool_size_active=0, thread_pool_size_largest=20}
 
+#2 (209 bytes):
+local_addr=C [ip=127.0.0.1:59995, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=20, thread_pool_size=1, thread_pool_size_active=0, thread_pool_size_largest=20}
+
+#3 (209 bytes):
+local_addr=A [ip=127.0.0.1:56329, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=20, thread_pool_size=1, thread_pool_size_active=0, thread_pool_size_largest=20}
+
+#4 (209 bytes):
+local_addr=B [ip=127.0.0.1:62680, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=20, thread_pool_size=1, thread_pool_size_active=0, thread_pool_size_largest=20}
+----
+* First, we can see that the max size is 20 (`thread_pool.max_threads`)
+* However, the largest thread pool size is also 20 (it cannot get higher than max-size)
+** This could mean that the thread pool was exhausted
+** Let's check if we got rejected messages as a result:
+----
+[belasmac] /Users/bela$ probe.sh jmx=UDP.num_re
+
+#1 (128 bytes):
+local_addr=D [ip=127.0.0.1:64647, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={num_rejected_msgs=643}
+
+#2 (128 bytes):
+local_addr=B [ip=127.0.0.1:62680, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={num_rejected_msgs=849}
+
+#3 (128 bytes):
+local_addr=A [ip=127.0.0.1:56329, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={num_rejected_msgs=590}
+
+#4 (128 bytes):
+local_addr=C [ip=127.0.0.1:59995, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={num_rejected_msgs=283}
+----
+* Yes, we did get messages rejected! This means that the thread pool was too small and its max size needs to
+  be increased
+* We can confirm that we did indeed get retransmissions (we're checking both unicast and multicast retransmissions):
+----
+[belasmac] /Users/bela$ probe.sh jmx=NAKACK2.xmit_r jmx=UNICAST3.xmit_r
+
+#1 (266 bytes):
+local_addr=C [ip=127.0.0.1:59995, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+NAKACK2={xmit_reqs_received=0, xmit_reqs_sent=0, xmit_rsps_received=0, xmit_rsps_sent=0}
+UNICAST3={xmit_reqs_received=1492, xmit_reqs_sent=688, xmit_rsps_sent=1490}
+
+#2 (267 bytes):
+local_addr=B [ip=127.0.0.1:62680, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+NAKACK2={xmit_reqs_received=0, xmit_reqs_sent=0, xmit_rsps_received=0, xmit_rsps_sent=0}
+UNICAST3={xmit_reqs_received=1091, xmit_reqs_sent=1692, xmit_rsps_sent=1091}
+
+#3 (267 bytes):
+local_addr=A [ip=127.0.0.1:56329, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+NAKACK2={xmit_reqs_received=0, xmit_reqs_sent=0, xmit_rsps_received=0, xmit_rsps_sent=0}
+UNICAST3={xmit_reqs_received=1314, xmit_reqs_sent=1179, xmit_rsps_sent=1314}
+
+#4 (267 bytes):
+local_addr=D [ip=127.0.0.1:64647, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+NAKACK2={xmit_reqs_received=0, xmit_reqs_sent=0, xmit_rsps_received=0, xmit_rsps_sent=0}
+UNICAST3={xmit_reqs_received=1022, xmit_reqs_sent=1360, xmit_rsps_sent=1014}
+----
+* We can see that there were unicast retransmissions -> this confirms that our thread pool was too small
+
+
+How to find the right size
+--------------------------
+* Run the application
+* Change the thread pool at runtime:
+----
+probe.sh op=UDP.setThreadPoolMaxThreads[100]
+----
+* Look at the largest thread pool size again:
+----
+[belasmac] /Users/bela$ probe.sh jmx=UDP.thread_pool.max,thread_pool_si
+
+#1 (211 bytes):
+local_addr=B [ip=127.0.0.1:62680, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=100, thread_pool_size=23, thread_pool_size_active=0, thread_pool_size_largest=37}
+
+#2 (211 bytes):
+local_addr=C [ip=127.0.0.1:59995, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=100, thread_pool_size=22, thread_pool_size_active=0, thread_pool_size_largest=50}
+
+#3 (211 bytes):
+local_addr=A [ip=127.0.0.1:56329, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=100, thread_pool_size=24, thread_pool_size_active=0, thread_pool_size_largest=50}
+
+#4 (211 bytes):
+local_addr=D [ip=127.0.0.1:64647, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=uperf, 4 mbr(s)]
+UDP={thread_pool.max_threads=100, thread_pool_size=28, thread_pool_size_active=0, thread_pool_size_largest=40}
+----
+* The max-size is indeed 100 and this seemed to help as the largest sizes are 50 or less now
+* The suggestion is to have relatively high max sizes to cover peaks: after some idle time, threads are going to be
+  removed from the pool again.
+
+NOTE: Because `UPerf` uses `OOB` messages, the pool sizes are relatively high. Had we used regular messages, those
+      sizes would have been smaller
 
 
 

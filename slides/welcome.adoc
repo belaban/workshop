@@ -17,14 +17,13 @@ Welcome to the JGroups workshop
 About me
 --------
 * Bela Ban, Kreuzlingen (Switzerland)
-* PhD in Zurich, post-doc at Cornell where I started JGroups in 1998
-* I've been working on JGroups ever since
-* Joined JBoss in 2003 as employee 007
+* PhD in Zurich, post-doc at Cornell (1998-1999) where I started JGroups
+* 2000-2003: Fujitsu Networking Communications San Jose, CA
+* 2003: joined JBoss (as employee 007)
 * JBoss was acquired by RedHat in 2006
 * Started JBossCache (predecessor of Infinispan) in 2003, worked on it until version 1.4
 * Started jgroups-raft end of 2014
 * I enjoy biking, mountain biking, tennis, running
-* I hate maven, scala, fat monolithic projects, security
 
 
 Disclaimer
@@ -49,12 +48,12 @@ Introduction
 
 What are we going to do this week ?
 -----------------------------------
-* Start at 9am every day, end 5pm (Friday: noon)
-* Mon: API and overview of protocols (introductory, to relax)
-* Tue: building blocks (boring but necessary)
-* Wed: protocols and advanced (hard)
-* Thu: Advanced (harder)
-* Fri: Admin (easy & fun)
+* Start at 9am every day, end 5pm (last day: end at noon)
+* Mon: API and overview of protocols (introductory)
+* Mon/Tue: building blocks
+* Tue: protocols and advanced (hard)
+* Wed/Thu: Advanced (harder)
+* Thu: Admin (easy & fun)
 * This is a rough schedule
 ** We can dive into any topic in more detail if folks ask for it
 ** I try to make this as interactive as possible

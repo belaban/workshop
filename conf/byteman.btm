@@ -2,8 +2,8 @@
 
 RULE down
 CLASS ^org.jgroups.protocols.TP
-METHOD down
+METHOD down(org.jgroups.Message)
 AT ENTRY
 IF TRUE
-   DO System.out.println("--> " + $1);
+   DO System.out.println("--> " + $1.printHeaders());
 ENDRULE

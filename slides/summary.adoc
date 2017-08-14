@@ -19,6 +19,7 @@ What have we learned ?
 * Use of JGroups, API and building blocks
 * Advanced features
 * Design of major protocols
+* Handling of network partitions
 * Admin tools, e.g. probe.sh
 * Flexibility of the protocol stack
 ** Write your own protocols, or extend existing ones
@@ -28,13 +29,12 @@ What have we learned ?
 
 Outlook
 -------
-* JGroups 4 is the next major version (end of 2015, tbs)
+* JGroups 5 is the next major version (2018)
 * Java 8 as baseline
-* Use of Java 8 features, e.g. `CompletableFuture` returned by `RpcDispatcher.callRemoteMethods()`
-* Use of NIO.2
+* Multiple buffers in a message (gathering writes, scattering reads)
 ** No copying between applications (e.g. Infinispan) and JGroups
-** Multiple transports (UDP *and* TCP at the same time), pick transport per message
-** Efficient message passing between processes on the same box (shared memory)
+* Multiple transports (UDP *and* TCP at the same time), pick transport per message
+* Efficient message passing between processes on the same box (shared memory)
 
 
 
@@ -42,6 +42,5 @@ Before you go
 -------------
 * For questions use the mailing lists / IRC
 * If you liked this course, please recommend it to others !
-** There are 4 courses in 2015 and 4 (tbd) in 2016
-** Possibly a separate course on jgroups-raft (tbd)
+** There are more course planned for 2018
 * Thanks, and enjoy working with JGroups !
