@@ -1,16 +1,17 @@
 package org.lab;
 
-import org.jgroups.*;
+import org.jgroups.JChannel;
+import org.jgroups.MembershipListener;
+import org.jgroups.Message;
+import org.jgroups.View;
 import org.jgroups.annotations.ManagedAttribute;
-import org.jgroups.blocks.RequestHandler;
-import org.jgroups.blocks.RequestOptions;
-import org.jgroups.blocks.Response;
-import org.jgroups.blocks.RpcDispatcher;
+import org.jgroups.blocks.*;
 import org.jgroups.jmx.JmxConfigurator;
 import org.jgroups.stack.DiagnosticsHandler;
 import org.jgroups.util.Average;
 import org.jgroups.util.Util;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -21,15 +22,26 @@ import java.util.concurrent.ThreadPoolExecutor;
  * @author Bela Ban
  */
 public class Advanced implements MembershipListener {
-    protected JChannel          ch;
-    protected RpcDispatcher     disp;
-    protected int               num_threads=5;
-    protected boolean           oob=false;
-    protected long              sleep=1000; // ms
-    protected Invoker[]         invokers;
-    protected Average           avg; // avg invocation times
-    protected volatile boolean  running=false;
+    protected JChannel           ch;
+    protected RpcDispatcher      disp;
+    protected int                num_threads=5;
+    protected boolean            oob;
+    protected long               sleep=1000; // ms
+    protected Invoker[]          invokers;
+    protected Average            avg; // avg invocation times
+    protected volatile boolean   running;
     protected ThreadPoolExecutor app_thread_pool=(ThreadPoolExecutor)Executors.newCachedThreadPool();
+
+    protected static final Method SLEEP;
+
+    static {
+        try {
+            SLEEP=Advanced.class.getMethod("sleep");
+        }
+        catch(NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 
     @ManagedAttribute(description="avg invocation time")
@@ -170,6 +182,7 @@ public class Advanced implements MembershipListener {
 
 
     protected class Invoker extends Thread {
+        MethodCall call=new MethodCall(SLEEP);
 
         public void run() {
             while(running) {
@@ -178,7 +191,7 @@ public class Advanced implements MembershipListener {
                     if(oob)
                         opts.flags(Message.Flag.OOB);
                     long start=System.currentTimeMillis();
-                    disp.callRemoteMethods(null, "sleep", null, null, opts);
+                    disp.callRemoteMethods(null, call, opts);
                     long diff=System.currentTimeMillis() - start;
                     if(diff > 0) {
                         avg.add(diff);
