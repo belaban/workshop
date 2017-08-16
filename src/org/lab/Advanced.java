@@ -1,9 +1,6 @@
 package org.lab;
 
-import org.jgroups.JChannel;
-import org.jgroups.Message;
-import org.jgroups.ReceiverAdapter;
-import org.jgroups.View;
+import org.jgroups.*;
 import org.jgroups.annotations.ManagedAttribute;
 import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.RequestOptions;
@@ -23,7 +20,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * RPC demo with slow receivers. Shows how thread pool configuration and AIA can help prevent pool exhaustion
  * @author Bela Ban
  */
-public class Advanced extends ReceiverAdapter {
+public class Advanced implements MembershipListener {
     protected JChannel          ch;
     protected RpcDispatcher     disp;
     protected int               num_threads=5;
@@ -66,6 +63,7 @@ public class Advanced extends ReceiverAdapter {
                         map.put("adv.invocation_avg", String.valueOf(getAvgInvocationTime()));
                         map.put("adv.app_thread_pool_size", String.valueOf(getAppPoolSize()));
                         map.put("adv.app_thread_pool_active_count", String.valueOf(getAppPoolActiveThreads()));
+                        map.put("adv.app_thread_pool_largest_count", String.valueOf(app_thread_pool.getLargestPoolSize()));
                     }
                 }
                 return map;
