@@ -9,11 +9,13 @@ import org.jgroups.blocks.*;
 import org.jgroups.jmx.JmxConfigurator;
 import org.jgroups.stack.DiagnosticsHandler;
 import org.jgroups.util.Average;
+import org.jgroups.util.RspList;
 import org.jgroups.util.Util;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -197,6 +199,29 @@ public class Advanced implements MembershipListener {
                         avg.add(diff);
                         System.out.println(diff);
                     }
+                }
+                catch(Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        public void runInBackground() {
+            while(running) {
+                try {
+                    RequestOptions opts=RequestOptions.SYNC();
+                    if(oob)
+                        opts.flags(Message.Flag.OOB);
+                    long start=System.currentTimeMillis();
+                    CompletableFuture<RspList<Void>> fut=disp.callRemoteMethodsWithFuture(null, call, opts);
+                    fut.whenComplete((rsps,ex) -> {
+                        long diff=System.currentTimeMillis() - start;
+                        if(diff > 0) {
+                            avg.add(diff);
+                            System.out.println(diff);
+                        }
+                    });
+                    Util.sleep(500);
                 }
                 catch(Exception e) {
                     e.printStackTrace();
