@@ -262,13 +262,13 @@ Extra credit
 * What's the outcome if we switched to OOB RPCs?
 
 
-Solution
---------
+Explanation
+-----------
 * An invoker thread calls the RPCs but returns immediately
 * Each thread sleeps for 500ms between invocations
 ** This means it generates 2 invocations/sec, but the invocations take 2s to execute
-* Because the invocation rate (5 threads generate 10 invocations/sec) is greater than the delivery rate, RPCs
-  keep piling up in `MaxOneThreadPerSender`
+* Because the invocation rate (5 threads generate 10 invocations/sec) is greater than the delivery rate,
+  RPCs keep piling up in `MaxOneThreadPerSender`
 ** The invocation times keep increasing
 * OOB RPCs:
 ** 10 RPCs/sec: because all RPCs are handled in parallel, so it takes 1s for the 10 to get processed
@@ -281,115 +281,64 @@ Solution
 
 Lab: advanced 2
 ---------------
-* Change `config.xml`: set `thread_pool.max_threads="10"`
 * Run 3 instances of `bin/advanced.sh`
-* Start all of them
-* *RPCs take more than 5s. Why ?*
-
-Explanation
------------
-* We only have 2 threads handling 15 incoming messages
-* The 2 processing threads are almost always stuck in `sleep()`
-* The other (13) messages are added to the queue -> which is growing:
-----
-[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep regular
-UDP={regular_queue_size=23, regular_pool_size_active=2, regular_pool_size=2}
-UDP={regular_queue_size=25, regular_pool_size_active=2, regular_pool_size=2}
-UDP={regular_queue_size=22, regular_pool_size_active=2, regular_pool_size=2}
-----
-* Sender could be starved for processing, e.g. if we have a queue: `A1` -> `A2` -> `B1` -> `A3` -> `A4` -> `B2` -> `C1`:
-** (Thread T1 and T2)
-** Sec 1: `A1` is processed by T1, `A2` is added to table-A by T2, `B1` is processed by T2
-** Sec 2: `A2` is processed by T1, `A3` and `A4` are added to table-A by T2, `B2` is processed by T2
-** Sec 3: `A3` is processed by T1, `C1` is processed by T2
-** Sec 4: `A4` is processed by T1
-* `C1` starts processing after ~ 2 s
-
-
-Possible fixes
---------------
-* Same as in lab 1
-* Increase `UDP.thread_pool.min_threads` to 4 (in the running system, or the config, but the latter requires a restart):
-----
-probe.sh op=UDP.setThreadPoolMinThreads[4]
-----
-** 3 threads are busy processing `sleep()`
-* 1 thread takes all other incoming messages and adds them to the respective tables
-** Downside: this will increase the tables sizes
-* Resulting queue and pool sizes:
-----
-[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.regular_|grep UDP
-UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
-UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
-UDP={regular_queue_size=0, regular_pool_size_active=3, regular_pool_size=4}
-----
-* The block times are now back to 5s
-
-
-
-Lab: advanced 3
----------------
-* Run 3 instances of `bin/advanced.sh`
-* Start all of them
-* Press `[o]` to use `OOB` RPCs
+* in each of them:
+** Press `[o]` to use `OOB` RPCs
+** Press `[3]` and set the number of threads to 10
+* Now start all of them (`[1]`)
 * *RPCs take more then 1s. Why?*
 
 
 Explanation
 -----------
-* The OOB thread is configured as follows: `min=1`, `max=8`, no queue
-** Will create up to 8 threads to handle the 15 incoming messages
-** 8 threads are almost always in `sleep()`
-** The other 7 messages are discarded (`rejection_policy="discard"`)
-*** They will get retransmitted
+* The thread pool is configured as follows: `min=0`, `max=20`
+* Each instance has ca. 10 messages (requests and responses) in flight at any given time
+* This requires ~30 threads, but the thread pool is configured to a max-size of 20
+* We can see the size of the thread pool and the number of rejected messages because of a full pool (edited):
 ----
-[mac] /Users/bela/workshop/bin$ ./probe.sh jmx=UDP.oob_pool,oob_queue|grep UDP
-UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=8}
-UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
-UDP={oob_pool_size=8, oob_queue_size=0, oob_pool_size_active=7}
-----
-* Retransmit requests:
-----
-mac] /Users/bela/JGroups$ probe.sh jmx=NAKACK2.xmit_r|grep xmit_r
-NAKACK2={xmit_rsps_sent=11, xmit_reqs_received=11, xmit_rsps_received=7, xmit_reqs_sent=8}
-NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=9, xmit_reqs_sent=10}
-NAKACK2={xmit_rsps_sent=9, xmit_reqs_received=9, xmit_rsps_received=13, xmit_reqs_sent=13}
+[mac] /Users/bela/workshop$ probe.sh jmx=UDP.thread_pool_,num_re
+#1 (208 bytes):
+UDP={num_rejected_msgs=14, thread_pool_size=20, thread_pool_size_active=14, thread_pool_size_largest=20}
+UDP={num_rejected_msgs=25, thread_pool_size=20, thread_pool_size_active=18, thread_pool_size_largest=20}
+UDP={num_rejected_msgs=21, thread_pool_size=20, thread_pool_size_active=18, thread_pool_size_largest=20}
 ----
 
+The largest thread pool size is 20, which means max-size has been reached (and probably exceeded). The
+`num_rejected_msgs` attribute shows the number of messages dropped because of a full thread pool.
+
+* Retransmit requests:
+----
+[mac] probe.sh jmx=NAKACK2.xmit_r
+NAKACK2={xmit_reqs_received=65, xmit_reqs_sent=60, xmit_rsps_received=55, xmit_rsps_sent=65}
+NAKACK2={xmit_reqs_received=75, xmit_reqs_sent=68, xmit_rsps_received=62, xmit_rsps_sent=75}
+NAKACK2={xmit_reqs_received=59, xmit_reqs_sent=71, xmit_rsps_received=60, xmit_rsps_sent=59}
+----
+
+Here we can see the number of retransmit requests and responses. Typically, these numbers should be
+very low or 0. Running this command multiple times, or using a tool such as `watch`, we can see
+that they are increasing over time.
 
 
 Possible fixes
 --------------
-* Increase `UDP.oob_thread_pool.max_size` to 15:
+* Increase `UDP.oob_thread_pool.max_size` to 50:
 ----
-probe.sh op=UDP.setOOBThreadPoolMaxThreads[15]
+probe.sh op=UDP.setOOBThreadPoolMaxThreads[50]
 ----
 * Now each request takes ~ 1s again
 
 
-Recommended configs
--------------------
-
-[width="90%",cols="2,10",frame="topbot",options="header"]
-|====
-| Pool | Recommendation
-| OOB | No queue -> OOB messages are executed on a thread or dropped. +
-Set `min_size` to a small size (more threads are created if needed), `max_threads` should be higher than the max number of OOB messages received
-at any given time
-|Regular| Queue is enabled and quite large, to handle message peaks. +
-Set `min_threads` to the number of cluster nodes plus a few more (D), `max_threads` to a slightly higher value. +
-In a cluster of N, we never have more than N threads passing messages up, so we need D additional threads to
-handle all other regular messages and add them to the retransmission tables. This is quick so D can be small.
-|Internal| Leave the default config (min=2,max=4), don't touch
-| Timer | Defaults (min=2,max=4,small queue) should be sufficient
-|====
-
 
 Thread pool sizing
 ------------------
-* Disable the queue
+* Set min-size to 0
+* How about max_size?
 * Keep track of the average and max active threads
-* Set min to average and enable the queue again to be at least max active threads to cover spikes
+** This should give you a good estimate of what the max-size should be
+* Or just don't bother and set max-size to a large value!
+** Threads will not be created until needed and idle threads will be removed from the pool
+   after max-idle-time anyway
+** See monitoring section in the Admin part
 
 
 

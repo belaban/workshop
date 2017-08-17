@@ -724,6 +724,14 @@ version=3.6.1.Final
 [mac] /Users/bela/workshop/bin$
 ----
 
+
+Which attributes to monitor for early detection of problems?
+------------------------------------------------------------
+
+Which attributes to look at when something went wrong?
+------------------------------------------------------
+
+
 * Ref: http://www.jgroups.org/manual/index.html#Probe
 
 

@@ -21,7 +21,7 @@
          thread_naming_pattern="cl"
 
          thread_pool.min_threads="0"
-         thread_pool.max_threads="50"
+         thread_pool.max_threads="20"
          thread_pool.keep_alive_time="10000"/>
 
     <!--DISCARD gui="true"/-->
