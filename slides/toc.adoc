@@ -2,7 +2,7 @@
 
 Workshop outline
 ================
-author: Bela Ban belaban@yahoo.com
+Author: Bela Ban belaban@yahoo.com
 
 Modules and labs for a JGroups workshop. The different modules can be combined into a custom workshop.
 
@@ -22,6 +22,8 @@ For supported JGroups configurations, please refer to the documentation for thes
 Red Hat does not support use of JGroups directly from application code or as a standalone module.
 The objective of this workshop/training is to provide deeper knowledge of JGroups internals, it does not imply
 Red Hat support for this material.
+
+
 
 
 Day 1: Overview, architecture, API, protocols
@@ -48,7 +50,7 @@ include::./using.adoc[Overview]
 include::./prot_overview.adoc[Protocol overview]
 
 
-Day 2: Building blocks
+Day 1-2: Building blocks
 ----------------------
 * Remote procedure calls across a cluster
 ** Asynchronous invocation API
@@ -60,7 +62,7 @@ include::./blocks.adoc["Building blocks"]
 
 
 
-Day 3: A closer look at protocols
+Day 2: A closer look at protocols
 ----------------------------------
 * Transports
 ** UDP, TCP, TCP_NIO2
@@ -154,7 +156,7 @@ include::./advanced.adoc["Advanced"]
 
 
 
-Day 5: Admin
+Day 4: Admin
 ------------
 
 * Tuning

@@ -1,9 +1,6 @@
 package org.lab;
 
-import org.jgroups.JChannel;
-import org.jgroups.MembershipListener;
-import org.jgroups.Message;
-import org.jgroups.View;
+import org.jgroups.*;
 import org.jgroups.annotations.ManagedAttribute;
 import org.jgroups.blocks.*;
 import org.jgroups.jmx.JmxConfigurator;

@@ -114,11 +114,25 @@ Message msg=new Message(null, "hello")
 channel.send(msg);
 ----
 
+
+MessageBatch
+------------
+* Contains an array of messages *from the same sender*
+* Only created on the receiver side
+* Example:
+
+[source,java]
+----
+MessageBatch batch=...;
+int total_size=batch.stream().map(Message::getLength).reduce(0, (l, r) -> l+r);
+----
+
+
 Receiving messages
 ------------------
 * The _push model_ is used
 * Callbacks are used to receive messages and view changes
-* Users typically extend `ReceiverAdapter` and override `receive()` and `viewAccepted()`:
+* Users typically extend `ReceiverAdapter` and override `receive(Message)` / `receive(MessageBatch)` and `viewAccepted()`:
 
 [source,java]
 ----
@@ -128,11 +142,19 @@ public void receive(Message msg) {
     System.out.printf("received %s from %s\n", greeting, sender);
 }
 
+public void receive(MessageBatch batch) { // <1>
+    Address sender=batch.sender();
+    for(Message msg: batch) {
+        String greeting=(String)msg.getObject();
+        System.out.printf("received %s from %s\n", greeting, sender);
+    }
+}
+
 public void viewAccepted(View view) {
     System.out.printf("received view %s\n", view);
 }
 ----
-
+<1> The default implementation of `receive(MessageBatch)` calls `receive(Message)` for each message in the batch
 
 
 JChannel
