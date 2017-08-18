@@ -134,7 +134,7 @@ The internal thread pool
 * Handles JGroups internal messages (e.g. heartbeats)
 ** Can *not* be configured via XML (max-size is computed as a function of the number of cores)
 * When full, new threads are spawned (should never happen)
-** This needs to be done so important items (such as timer tasks) are not dropped
+** This needs to be done, so important items (such as timer tasks) are not dropped
 ** (OOB and regular) messages are retransmitted, so they may be dropped
 
 
@@ -252,6 +252,42 @@ Possible fixes
 ** Reduced thread use in the regular and OOB pools, but more use of the application's thread pool
 
 
+Monitoring
+----------
+* See the current pending requests (edited):
+----
+[belasmac] /Users/bela/workshop$ probe.sh  requests
+local_addr=A [ip=127.0.0.1:54829, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=advanced, 1 mbr(s)]
+requests=134: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+135: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+136: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+137: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+
+138: GroupRequest, mode=GET_ALL, entries:
+A: received=false, suspected=false
+----
+
+* Timing details on RPCs:
+[.small]
+----
+[belasmac] /Users/bela/workshop$ probe.sh rpcs-details
+
+#1 (212 bytes):
+local_addr=A [ip=127.0.0.1:54829, version=4.0.6-SNAPSHOT (Schiener Berg), cluster=advanced, 1 mbr(s)]
+rpcs-details=
+<all>: async: 0, sync: 180, round-trip min/avg/max (us): 5001802.73 / 5011800.38 / 5022800.32
+----
+
+
+
+
 Extra credit
 ------------
 * Change Advanced to have invoker threads invoke the RPCs in the background
@@ -295,9 +331,10 @@ Explanation
 * Each instance has ca. 10 messages (requests and responses) in flight at any given time
 * This requires ~30 threads, but the thread pool is configured to a max-size of 20
 * We can see the size of the thread pool and the number of rejected messages because of a full pool (edited):
+
+[.small]
 ----
 [mac] /Users/bela/workshop$ probe.sh jmx=UDP.thread_pool_,num_re
-#1 (208 bytes):
 UDP={num_rejected_msgs=14, thread_pool_size=20, thread_pool_size_active=14, thread_pool_size_largest=20}
 UDP={num_rejected_msgs=25, thread_pool_size=20, thread_pool_size_active=18, thread_pool_size_largest=20}
 UDP={num_rejected_msgs=21, thread_pool_size=20, thread_pool_size_active=18, thread_pool_size_largest=20}
@@ -307,6 +344,8 @@ The largest thread pool size is 20, which means max-size has been reached (and p
 `num_rejected_msgs` attribute shows the number of messages dropped because of a full thread pool.
 
 * Retransmit requests:
+
+[.small]
 ----
 [mac] probe.sh jmx=NAKACK2.xmit_r
 NAKACK2={xmit_reqs_received=65, xmit_reqs_sent=60, xmit_rsps_received=55, xmit_rsps_sent=65}
@@ -347,7 +386,7 @@ Thread pool sizing
 Asynchronous invocation API
 ---------------------------
 * A method invoked in an RpcDispatcher is dispatched to application code
-  by calling method handle from `RequestHandler`:
+  by calling method handle in `RequestHandler`:
 
 [source,java]
 ----
@@ -358,18 +397,21 @@ public interface RequestHandler {
 
 * `RpcDispatcher.handle()` converts the message's contents into a method call,
   invokes the method against the target object and returns the result. The return value
-  is then sent back to the caller.
+  is then marshalled and sent back to the caller.
 
-* The invocation is _synchronous_, ie. done on the thread dispatching the
+* The invocation is *synchronous*, ie. done on the thread dispatching the
   message from the network up to the application. The thread is
-  _busy_ for the duration of the method invocation.
+  *busy* for the duration of the method invocation.
 
 * If the invocation takes a while, e.g. because locks are acquired or the application waits on some I/O,
   another thread will be used for a different request. This can quickly lead to the thread pool being
   exhausted or many messages getting queued if the pool has a queue.
 
-* Therefore a new way of dispatching messages to the application was devised; the asynchronous invocation API
-* A new interface `AsyncRequestHandler` (derived from `RequestHandler`) is introduced
+* Therefore a new way of dispatching messages to the application was devised; the *asynchronous invocation API*
+* A new interface `AsyncRequestHandler` (extending `RequestHandler`) was introduced
+
+* This allows a request thread to be returned to the thread pool immediately, and the response to be sent later when
+  the request has completed
 
 
 AsyncRequestHandler
@@ -418,9 +460,9 @@ Use of the asynchronous invocation API
 ---------------------------------------
 * An application can subclass `RpcDispatcher`, or it can set a custom request handler via
   `setRequestHandler()`, and implement `AsyncRequestHandler.handle()` by
-  dispatching the processing to a thread pool.
+  dispatching the processing to an *application thread pool*.
 
-* The JGroups thread handling the request will immediately be released and can be used to process other messages.
+* The JGroups thread handling the request is released immediately and can be used to process other messages.
 
 * The response will be sent when the invocation of application code is done, and thus the thread is not blocked
   on I/O, or trying to acquire locks that blocks in application code.
@@ -432,6 +474,10 @@ Use of the asynchronous invocation API
   knows (JGroups doesn't) which requests can be processed in parallel and which ones can't.
 
 * Benefit: request dispatching (and ordering !) is now under application control
+
+* Caution: because ordering is done by the application; *the order established by JGroups can be destroyed!*
+** E.g. P1 and P2 (sender-ordered) are delivered by JGroups and the application adds them to its thread pool. There's
+   no guarantee in which order P1 and P2 are processed.
 
 
 
@@ -467,10 +513,13 @@ Lab: advanced 4
 
 
 
+
+
+
 Message batching
 ----------------
-* For historic reasons, term message _bundling_ is used on the sender, _batching_ on the receiver
-** Let's use the term _batching_ only
+* For historic reasons, the term *message bundling* is used on the sender, *message batching* on the receiver
+** Let's use the term *batching* only
 * When sending many smaller messages, it is better to queue them and send them as a _message batch_
 ** Payload / header ratio is better (e.g. payload of 5, header of 30 !)
 * Simple sender algorithm:
@@ -481,7 +530,7 @@ LOOP(while there are messages pending for destination D):
 ENDLOOP
 - Send batch if size > 0
 ----
-* This collects many messages into a batch until the `max_bundle_size` has been reached, but sends individual messages
+* This collects many messages into a batch until `max_bundle_size` has been reached, but sends individual messages
   immediately
 * E.g. message P1-5 are sent at time T1, and P6 at time T20: this create a batch for P1-5 and a single message for P6
 
@@ -495,11 +544,22 @@ Message batching on the receiver
 ** Locks are acquired once for a batch (say of 10) rather than 10 times -> less context switching
 ** `NAKACK` / `UNICAST`: add N messages into the retransmission table *in one step* rather than *N steps*
 ** The destination and sender addresses are sent *only once rather than N times*
-* API for reception of a batch:
+* API for reception of a batch (`Receiver`):
 [source,java]
 ----
 public void receive(MessageBatch batch);
 ----
+
+
+Do I have to change my code?
+----------------------------
+* No: by default `receive(MessageBatch)` calls `receive(Message)` for each message in a batch
+* However, it may be more efficient to process multiple messages in one go
+
+NOTE: messages in a regular message batch should still be processed in order, or else ordering is destroyed
+
+
+
 
 
 

@@ -60,7 +60,7 @@ public class Advanced implements MembershipListener {
         disp=new RpcDispatcher(ch, this).setMembershipListener(this);
         if(use_async_request_handler) {
             disp.asyncDispatching(true);
-            disp.setRequestHandler(new MyAsyncHandler(disp));
+            disp.setRequestHandler(new MyAsyncHandler());
         }
         ch.connect("advanced");
         Util.registerChannel(ch, "advanced-cluster");
@@ -229,17 +229,12 @@ public class Advanced implements MembershipListener {
 
 
     protected class MyAsyncHandler implements RequestHandler {
-        protected final RpcDispatcher d;
-
-        public MyAsyncHandler(RpcDispatcher d) {
-            this.d=d;
-        }
 
         @Override
         public void handle(final Message request, final Response response) throws Exception {
             app_thread_pool.execute(() -> {
                 try {
-                    Object result=d.handle(request);
+                    Object result=disp.handle(request);
                     response.send(result, false);
                 }
                 catch(Exception e) {
@@ -250,7 +245,7 @@ public class Advanced implements MembershipListener {
 
         @Override
         public Object handle(Message msg) throws Exception {
-            return d.handle(msg);
+            return disp.handle(msg);
         }
     }
 }
