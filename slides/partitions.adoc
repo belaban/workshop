@@ -17,21 +17,47 @@ Handling network partitions
 
 
 
-Handling network partitions (split brain)
------------------------------------------
+Network partitions (split brain)
+--------------------------------
 * Cluster: `v4={A,B,C,D,E}` (coord=`A`)
-* Assume a switch connecting to members `{D,E}` fails -> network partition between `{A,B,C}` and `{D,E}`
-** `A`, `B` and `C` can ping each other, but not `D` or `E`, and vice versa
+** Members `{D,E}` are in a different subnet, connected to `{A,B,C}` by a switch
+* Assume the switch connecting the 2 subnets fails -> the network is partitioned `{A,B,C}` and `{D,E}`
+** The members in `{A,B,C}` can ping each other, but not `{D,E}`, and vice versa
+** Each partition thinks the other one is dead -> *split brain*
 * JGroups detects this and creates 2 subclusters: `v5={A,B,C}` (`A` remains coordinator) and `v5={D,E}` (`D` becomes coord)
 * Clients may be able to access one or both of the partitions (or none)
 * When the partition heals, JGroups will merge the subclusters back into _MergeView_ `v6={A,B,C,D,E}`
 ** A MergeView has a list of all subviews (partitions)
 *** We know which members were part of which partition before the split healed
-* However, JGroups won't be able to merge the (possibly divergent) _application data_
+* However, *JGroups won't be able to merge the application data*
+
+
+Data inconsistency
+------------------
+* Partitions `{A,B,C}` and `{D,E}`
+* Clients might be able to access both, one or none of the partitions
+* A client sets `x=10` in `{A,B,C}` and a different client sets `x=20` in `{D,E}`
+* What do we do when the partition heals?
+** MergeView: `{A,B,C,D,E}`
+
+image::../images/NetworkPartition.png[Data inconsistency,width="80%",align=left,valign=top]
+
 
 
 Strategies for keeping application data consistent
 --------------------------------------------------
+* Basically 2 strategies:
+. Merge the divergent data
+** Decide whether `x` should be `10` or `20` in all members of the merged view
+. Prevent divergent data altogether
+** Prevent clients from writing to both partitions, or
+** Clients can only write to te majority partition `{A,B,C}`
+
+
+CAP
+---
+
+
 * CAP: either CP or AP (P can never be forfeited as partitions do happen)
 * CP: consistency & partition handling
 ** System may not be available all the time
