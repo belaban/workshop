@@ -122,12 +122,6 @@ Day 3-4: Advanced
 
 * Fork channels: light weight channels over the same protocol stack
 
-* Network partitions (split brain)
-** What causes partitions?
-** Strategies to handle them (CAP)
-** Primary partition, merging data
-** Raft, eventual consistency
-* Examples: distributed counters in JGroups and jgroups-raft
 
 * Writing a simple protocol
 ** Callbacks
@@ -152,7 +146,18 @@ include::./advanced.adoc["Advanced"]
 
 
 
+Day 4: Handling network partitions (split brain)
+------------------------------------------------
+* Network partitions (split brain)
+** What causes partitions?
+** Strategies to handle them (CAP)
+** Primary partition, merging data
+** jgroups-raft, eventual consistency
+* Examples: distributed counters in JGroups and jgroups-raft
 
+
+
+include::./partitions.adoc["Network partitions"]
 
 
 

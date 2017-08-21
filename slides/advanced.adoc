@@ -565,7 +565,7 @@ NOTE: messages in a regular message batch should still be processed in order, or
 
 Generating custom addresses
 ---------------------------
-* Address generation is pluggable: an application can make JGroups use custom addresses.
+* Address generation is pluggable: an application can use custom addresses.
 * To use custom addresses, `org.jgroups.stack.AddressGenerator` has to be implemented:
 
 [source,java]
@@ -575,7 +575,7 @@ public interface AddressGenerator {
 }
 ----
 
-* The default address type is `UUID`
+* The default `Address` implementation is `UUID`
 * Use `ExtendedUUID` (subclass of `UUID`) as custom address.
 ** Can be used to pass additional data around with an address, for example information
    about the location of the node to which the address is assigned
@@ -597,15 +597,15 @@ ch.connect("cluster");
 
 Controlling view generation
 ---------------------------
-* View generation is pluggable; application code can be called to create a view
+* `View` generation is pluggable, too: application code can be called to create a view
 * The first member of a view is always the _coordinator_
 ** The application can therefore pick the coordinator
 ** Useful to
-*** Pin the coordinatorship to only certain 'beefy' servers
+*** Pin the coordinatorship to only certain servers
 *** Make sure that one of the previous coordinators becomes the new coordinator after a merge. This
     reduces the frequency at which the coordinator moves around and increases stability for
     singleton services.
-* To do this, interface +MembershipChangePolicy+ has to be implemented
+* To do this, interface `MembershipChangePolicy` has to be implemented
 
 [source,java]
 ----
@@ -617,8 +617,8 @@ public interface MembershipChangePolicy {
   List<Address> getNewMembership(Collection<Collection<Address>> views); // <2>
 }
 ----
-<1> Create a regular view: `current_members` is a list of the current members, `joiners`
-  of new members, `leavers` of members which want to leave and `suspects` of members which have crashed
+<1> Create a regular view: `current` is a list of the current members, `joiners`
+  of new members, `leavers` of members which want to leave gracefully and `suspects` of members which have crashed
 <2> Accepts a list of membership lists; each list is a subview that needs to get merged into a new `MergeView`
 
 
@@ -654,7 +654,7 @@ Sample view generation
 ----
 if(beefy)
     channel.setAddressGenerator(() -> {
-            return ExtendedUUID.randomUUID(channel.getName());
+        return ExtendedUUID.randomUUID(channel.getName());
     });
 ----
 
@@ -673,7 +673,7 @@ public List<Address> getNewMembership(Collection<Address> current,
                                       Collection<Address> joiners,
                                       Collection<Address> leavers,
                                       Collection<Address> suspects) {
-    Membership retval=new Membership();
+    Membership retval=new Membership(); // prevents duplicates
     for(Address addr: current_members)
         if(addr instanceof ExtendedUUID)
             retval.add(addr);
@@ -700,6 +700,8 @@ public List<Address> getNewMembership(Collection<Address> current,
 
 
 
+
+
 Fork channels
 -------------
 * A fork channel is a light-weight channel, forked off of a main channel (`JChannel`)
@@ -717,8 +719,7 @@ Fork channels
 *** To do so, it can create a fork stack with `COUNTER` and a fork channel connecting to that stack, and it will now
     have distributed atomic counter functionality on its fork stack, not available in the main stack
 
-NOTE:
-Fork channels are exposed directly in WildFly 9
+NOTE: Fork channels are exposed directly in WildFly 9
 
 
 
@@ -845,91 +846,6 @@ public ForkChannel(final JChannel main_channel,
 
 
 
-Handling network partitions (split brain)
------------------------------------------
-* Cluster: `v4={A,B,C,D,E}` (coord=`A`)
-* Assume a switch connecting to members `{D,E}` fails -> network partition between `{A,B,C}` and `{D,E}`
-** `A`, `B` and `C` can ping each other, but not `D` or `E`, and vice versa
-* JGroups detects this and creates 2 subclusters: `v5={A,B,C}` (`A` remains coordinator) and `v5={D,E}` (`D` becomes coord)
-* Clients may be able to access one or both of the partitions (or none)
-* When the partition heals, JGroups will merge the subclusters back into _MergeView_ `v6={A,B,C,D,E}`
-** A MergeView has a list of all subviews (partitions)
-*** We know which members were part of which partition before the split healed
-* However, JGroups won't be able to merge the (possibly divergent) _application data_
-
-
-Strategies for keeping application data consistent
---------------------------------------------------
-* CAP: either CP or AP (P can never be forfeited as partitions do happen)
-* CP: consistency & partition handling
-** System may not be available all the time
-** jgroups-raft
-* AP: availability & partition handling
-** Consistency not guaranteed all the time
-** Eventual consistency: possibility to see stale data but eventual convergence of data
-** Infinispan eventual consistency
-
-
-Consistency and partition handling (CP)
----------------------------------------
-* Only a majority partition is allowed to perform reads and writes
-** The majority partition can also be defined differently as long as the decision is deterministic
-   (only one majority partition), e.g.
-*** A given node needs to be present
-*** Access to a given resource (e.g. DB)
-**** Whoever has access to the DB is allowed to write, others shut down or become read-only
-* A minority partition rejects client access (stale reads might be allowed)
-* Advantage: no merging of data
-* Disadvantage: system unavailable when no majority
-
-
-Example: primary partition handling
------------------------------------
-
-[source,java]
------
-static final int majority=3;
-boolean is_primary;
-
-public void viewAccepted(View new_view) {
-    int size=new_view.size();
-    if(is_primary) {
-        if(size < majority) {
-            is_primary=false;
-            // go into read-only mode (or reject all requests)
-        }
-    }
-    else {
-        if(size >= majority) {
-            is_primary=true;
-            // 1. go into read-write mode
-            // 2. overwrite state with state from primary partition
-        }
-    }
-}
------
-* A cluster becomes a primary partition as soon as it has `majority` members
-* A read-only, non-primary partition exists when the view size drops below `majority` members
-
-
-
-
-Availability and partition handling (AP)
-----------------------------------------
-* All partitions are allowed to make progress (read-write)
-* Partitions can diverge if the same data is modified in different partitions
-* When the network partition heals, data has to be merged
-* Merge strategies:
-** Timestamps, physical time, logical clocks
-** Member precedence
-** Causal vectors (_eventual consistency_)
-*** Has to contact application if data collision cannot be resolved automatically
-* Advantage: system is always available and accepts writes
-* Disadvantage: merging data can be hard (and we may have to consult the application)
-
-
-
-
 Writing a protocol
 ------------------
 * Let's write a simple protocol which prints the number of bytes for each sent or received message to stdout
@@ -939,20 +855,14 @@ Writing a protocol
 ----
 @MBean(description="A sample protocol printing the number of bytes of all received messages")
 public class PRINT_BYTES extends Protocol {
-    protected static final short ID=2015;
-
-    static {
-        ClassConfigurator.addProtocol(ID, PRINT_BYTES.class);
-    }
 
     @Property(description="Suppresses printing to stdout if false")
     protected boolean do_print=true;
 }
 ----
 * The `@MBean` annotation makes all attributes and operations available via JMX (see below)
-* Each protocol has a unique ID, which needs to be registered
-** The IDs of all JGroups protocols are defined in `conf/jg-protocol-ids.xml`
 * There's a property `do_print` which can be set via configuration and JMX, e.g. `<PRINT_BYTES do_print="false".../>`
+** When on (default), the size of all messages is printed. This attribute can be changed at runtime.
 
 
 Methods to be overridden
@@ -966,8 +876,10 @@ Methods to be overridden
 |start()|Called on `JChannel.connect()`
 |stop()| Called on `JChannel.disconnect()`
 |destroy()| Called when a channel is closed (`JChannel.close()`)
-|down(Event)| Called when an event (e.g. a message) is sent
-|up(Event)| Called when an event (e.g. a message) is received
+|down(Event)|Called when an event is sent down the stack
+|down(Message)| Called when a message is sent
+|up(Event)|Called when an event is sent up the stack
+|up(Message)| Called when a message is received
 |up(MessageBatch) | Called when a message batch is received
 |=================
 
@@ -975,10 +887,10 @@ Methods to be overridden
 A few facts about protocols
 ---------------------------
 * Each protocol has a neighbor above it (`up_prot`) and below it (`down_prot`)
-* _Events_ are passed between protocols
+* Messages and message batches are sent on the network, between members
+* Events are sent between protocols and are never sent out on the network
 ** An Event has a `type` and `arg` (`Object`)
 *** E.g. `type`=`VIEW_CHANGE` -> `arg` = `View`
-*** `type`=`MSG` -> `arg`=`Message`
 
 
 Example: printing a view change
@@ -986,66 +898,74 @@ Example: printing a view change
 
 [source,java]
 ----
-public Object down(Event evt) {  // <1>
-    switch(evt.getType()) {      // <2>
-         case Event.VIEW_CHANGE: // <3>
-             View view=(View)evt.getArg(); // <4>
+public Object down(Event evt) {      // <1>
+    switch(evt.getType()) {          // <2>
+         case Event.VIEW_CHANGE:     // <3>
+             View view=evt.getArg(); // <4>
              System.out.println("view = " + view);
              break;
     }
-    return down_prot.down(evt);
+    return down_prot.down(evt);      // <5>
 }
 ----
 <1> Intercepting a view change in the down direction
 <2> Switching based on the type of the event
 <3> Handling a view change
-<4> Getting the argument and casting it to a `View`
+<4> Getting the view argument
+<5> Passing the view down the stack
 
 
 Caveats
 -------
-* GMS sends a `VIEW_CHANGE` up and down
+* GMS is the protocol which sends a `VIEW_CHANGE` up and down
 * If `PRINT_BYTES` is *above* GMS, it won't handle the view change
 ** Need to handle `VIEW_CHANGE` in the down and up direction
 
 
 Printing the sent messages
 --------------------------
-* To do this, we need to override `down()`:
+* To do this, we need to override `down(Message)`:
 
 [source,java]
 ----
-case Event.MSG:
-    if(do_print) { // <1>
-        Message msg=(Message)evt.getArg(); // <2>
-        int num_bytes=msg.getLength();     // <3>
+public Object down(Message msg) {
+    if(do_print) {                     // <1>
+        int num_bytes=msg.getLength(); // <2>
         if(num_bytes > 0)
-            System.out.printf("-- sending %d bytes\n", num_bytes);
+            System.out.printf("-- sending %d bytes, headers: %s\n",
+                               num_bytes, msg.printHeaders());
     }
-    break;
+    return down_prot.down(msg);
+}
 ----
 <1> Only print if `do_print` is true
-<2> Cast the event's argument to `Message`
-<3> `Message.getLength()` returns the number of bytes of the message's payload
+<2> `Message.getLength()` returns the number of bytes of the message's payload
 
 
 
 
 Printing the received bytes
 ---------------------------
-* We have to override methods `up(Event)` and `up(MessageBatch)`
-* `up(Event)` is more or less the same code as `down(Event)`
-* `up(MessageBatch)`:
+* We have to override methods `up(Message)` and `up(MessageBatch)`:
 
 [source,java]
 ----
+public Object up(Message msg) {
+    if(do_print) {
+        int num_bytes=msg.getLength();
+        if(num_bytes > 0)
+            System.out.printf("-- received %d bytes from %s\n", num_bytes, msg.src());
+    }
+    return up_prot.up(msg);
+}
+
 public void up(MessageBatch batch) {
     int total_bytes=0;
     for(Message msg: batch)
         total_bytes+=msg.getLength();
     // alternative: total_bytes=batch.length();
-    System.out.printf("received batch of %d messages: total size is %d bytes\n",
-                      batch.size(), total_bytes);
+    System.out.printf("received batch of %d messages from %s: size is %d bytes\n",
+                      batch.size(), batch.sender(), total_bytes);
     if(!batch.isEmpty())
         up_prot.up(batch);
 }
@@ -1058,7 +978,6 @@ Register dynamically to JMX
 
 [source,java]
 ----
-
 @ManagedOperation(description="Dynamically register with JMX")
 public synchronized void register(boolean register) {
     TP tp=getTransport();
@@ -1098,8 +1017,10 @@ Running the demo
 * Extra credit
 . Maintain the number of sent messages / bytes in variables and expose them with `@ManagedAttribute`
 . Disable and re-enable printing of messages via probe.sh
-. Print the headers (`Message.printHeaders()`)
 . Dynamically remove `PRINT_BYTES` via `probe.sh remove-protocol ...`
+. What's the output if the protocol is moved up the stack? What if it is moved down the stack?
+
+
 
 
 
@@ -1108,8 +1029,9 @@ Debugging
 * Failure detection protocols depending on heartbeats should be disabled
 * Otherwise, stopping member P in a breakpoint for more than the failure detection timeout would
   suspect and exclude P
-** Disable FD_ALL, FD
-** FD_SOCK is fine
+** This would be a simulation of a network partition (see below)
+** Disable `FD_ALL`, `FD`
+** `FD_SOCK` is fine
 * Alternatively stop only the current thread (config in debugger)
 
 
@@ -1119,7 +1041,8 @@ Simulation
 ----------
 * JGroups ships with a number of protocols for simulation of
 ** Message drops: `DISCARD`
-** Network partitions: `DISCARD` (demo)
+** Network partitions: `DISCARD`
+*** Let's run simulate a *network partition* (split brain) and subsequent healing
 ** Duplicate messages: `DUPL`
 ** High latency: `DELAY`
 ** Message reordering: `SHUFFLE`
@@ -1137,6 +1060,21 @@ Byteman
 ** Byteman rules can be removed at runtime -> no overhead
 ** Can be used even in production
 
+Byteman rule
+------------
+* Simple rule language:
+----
+RULE down
+CLASS ^org.jgroups.protocols.TP
+METHOD down(org.jgroups.Message)
+AT ENTRY
+IF TRUE
+   DO System.out.println("--> " + $1.printHeaders());
+ENDRULE
+----
+* For protocol `TP` and subclasses (`UDP`, `TCP` etc), in method `down(Message):
+** On entering `down()`, print the headers of the sent message
+* Try writing similar rules for reception of single messages and message batches
 
 
 
@@ -1165,6 +1103,8 @@ world
 --> MSG, arg=[dst: <null>, src: <null> (1 headers), size=0 bytes, flags=INTERNAL, transient_flags=DONT_LOOPBACK] (headers=MERGE3: INFO: view_id=[A|0], logical_name=A, physical_addr=127.0.0.1:63360)
 ----
 * Uninstall the rule: `./bm-submit -u`
+* Change the rule, install it again
+
 
 
 
