@@ -21,10 +21,12 @@ Network partitions (split brain)
 --------------------------------
 * Cluster: `v4={A,B,C,D,E}` (coord=`A`)
 ** Members `{D,E}` are in a different subnet, connected to `{A,B,C}` by a switch
-* Assume the switch connecting the 2 subnets fails -> the network is partitioned `{A,B,C}` and `{D,E}`
+* Assume the switch connecting the 2 subnets fails -> the network is partitioned into `{A,B,C}` and `{D,E}`
 ** The members in `{A,B,C}` can ping each other, but not `{D,E}`, and vice versa
 ** Each partition thinks the other one is dead -> *split brain*
-* JGroups detects this and creates 2 subclusters: `v5={A,B,C}` (`A` remains coordinator) and `v5={D,E}` (`D` becomes coord)
+* JGroups detects this and creates 2 subclusters: `{A,B,C}` (`A` remains coordinator) and `{D,E}` (`D` becomes coord)
+** These views may not be installed at exactly the same (wall clock) time
+*** E.g. `A` may have installed view `{A,B,C}`, but `E` may still have view `{A,B,C,D,E}` before `{D,E}` is installed
 * Clients may be able to access one or both of the partitions (or none)
 * When the partition heals, JGroups will merge the subclusters back into _MergeView_ `v6={A,B,C,D,E}`
 ** A MergeView has a list of all subviews (partitions)
@@ -49,23 +51,68 @@ Strategies for keeping application data consistent
 * Basically 2 strategies:
 . Merge the divergent data
 ** Decide whether `x` should be `10` or `20` in all members of the merged view
+** How?
+*** Timestamps? Counters?
 . Prevent divergent data altogether
-** Prevent clients from writing to both partitions, or
-** Clients can only write to te majority partition `{A,B,C}`
+** Prevent clients from writing to either partition, or
+** Clients can only write to the majority partition `{A,B,C}`
 
 
 CAP
 ---
-
-
+* **C**onsistency, **A**vailability, **P**artition handling
 * CAP: either CP or AP (P can never be forfeited as partitions do happen)
-* CP: consistency & partition handling
-** System may not be available all the time
-** jgroups-raft
 * AP: availability & partition handling
-** Consistency not guaranteed all the time
+** The system may not always be consistent
 ** Eventual consistency: possibility to see stale data but eventual convergence of data
-** Infinispan eventual consistency
+** Example: Amazon's Dynamo
+* CP: consistency & partition handling
+** The system is always consistent
+** The system may not be available all the time
+** Example: Raft (jgroups-raft)
+
+
+
+Availability and partition handling (AP)
+----------------------------------------
+* All partitions are allowed to make progress (read-write)
+* Partitions can diverge if the same data is modified in different partitions
+* When the network partition heals, data has to be merged
+* Merge strategies:
+** Timestamps, physical time, logical clocks
+** Member precedence
+** Causal vectors (*eventual consistency*)
+*** Has to contact application if data collision cannot be resolved automatically
+* Advantage: system is always available and accepts writes
+* Disadvantage: merging data can be hard (and we may have to consult the application)
+
+
+
+Eventual consistency (EV)
+-------------------------
+* "Dynamo: Amazon's Highly Available Key-Value Store"
+** http://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf
+* Each data has a version and a vector clock (array of members plus update count)
+* A write updates the vector at the member which performed the write, e.g.:
+** `x=10 (v26) A[3], B[2], C[1]` // 3 updates from A, 1 from C and 2 from B
+** `x=20 (v27) A[3], B[3], C[1]` // successor to `v26`, B made one more update
+* If a vector clock `V2` has the same fields as `V1` and all values are smaller or equal, then `V2` is causally
+  related to `V1` (ancestor) and `V1` can be dropped. `v26` above is an ancestor to `v27`
+* Otherwise, two vectors are parallel and a read needs to reconcile them:
+** `x=10 (v14) A[2], B[3], C[1]`
+** `x=20 (v17) A[2], B[2], C[2]`
+*** Here, neither vector is a descendent of the other, and therefore, the client needs to be asked for the correct
+    value (`x=10` or `x=20`).
+
+
+Properties of eventual consistency
+----------------------------------
+* Available even during network partitions (AP)
+* Reads and writes always succeed
+* Reads may have to ask the client to reconcile divergent data (callback or policy to handle collisions)
+* Reading stale data is possible
+
+
 
 
 Consistency and partition handling (CP)
@@ -111,19 +158,23 @@ public void viewAccepted(View new_view) {
 
 
 
+What's wrong with this example?
+-------------------------------
+* Views are not installed synchronously in all members, example:
+** There's a partition between `{A,B}` and `{C,D,E}`
+** At `T500`, failure detection in `{C,D,E}` detects connectivity problems, excludes `A` and `B` and installs view
+  `{C,D,E}`
+*** `{C,D,E}` continues to be the primary partition and accepts write requests
+** At `T800`, view `{A,B}` is installed in `A` and `B`; its members are not in the primary partition anymore,
+   and write requests are therefore rejected
+** However, for 300ms, `A` and `B` continued to accept write requests, and both partitions were primary partitions!
 
-Availability and partition handling (AP)
-----------------------------------------
-* All partitions are allowed to make progress (read-write)
-* Partitions can diverge if the same data is modified in different partitions
-* When the network partition heals, data has to be merged
-* Merge strategies:
-** Timestamps, physical time, logical clocks
-** Member precedence
-** Causal vectors (_eventual consistency_)
-*** Has to contact application if data collision cannot be resolved automatically
-* Advantage: system is always available and accepts writes
-* Disadvantage: merging data can be hard (and we may have to consult the application)
+
+
+
+
+
+
 
 
 

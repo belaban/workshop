@@ -725,6 +725,11 @@ version=3.6.1.Final
 ----
 
 
+Running performance tests
+-------------------------
+* UPerf, MPerf, IspnPerfTest
+
+
 Which attributes to monitor for early detection of problems?
 ------------------------------------------------------------
 
