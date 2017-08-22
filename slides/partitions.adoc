@@ -117,15 +117,18 @@ Properties of eventual consistency
 
 Consistency and partition handling (CP)
 ---------------------------------------
-* Only a majority partition is allowed to perform reads and writes
-** The majority partition can also be defined differently as long as the decision is deterministic
+* Only the majority partition is allowed to perform reads and writes
+** Majority: `N/2+1`
+* The majority partition can also be defined differently as long as the decision is deterministic
    (only one majority partition), e.g.
-*** A given node needs to be present
-*** Access to a given resource (e.g. DB)
-**** Whoever has access to the DB is allowed to write, others shut down or become read-only
+** A given node needs to be present
+** Access to a given resource (e.g. DB)
+*** Whoever has access to the DB is allowed to write, others shut down or become read-only
 * A minority partition rejects client access (stale reads might be allowed)
-* Advantage: no merging of data
-* Disadvantage: system unavailable when no majority
+* Advantage: no merging of data; the data in the majority partition is authoritative
+* Disadvantages
+** System unavailable when no majority
+** Adding / removing members is a bit more involved
 
 
 Example: primary partition handling
@@ -160,6 +163,8 @@ public void viewAccepted(View new_view) {
 
 What's wrong with this example?
 -------------------------------
+(Apart from starting more than 5 members. Assume we can only start a max of 5)
+
 * Views are not installed synchronously in all members, example:
 ** There's a partition between `{A,B}` and `{C,D,E}`
 ** At `T500`, failure detection in `{C,D,E}` detects connectivity problems, excludes `A` and `B` and installs view
@@ -168,6 +173,46 @@ What's wrong with this example?
 ** At `T800`, view `{A,B}` is installed in `A` and `B`; its members are not in the primary partition anymore,
    and write requests are therefore rejected
 ** However, for 300ms, `A` and `B` continued to accept write requests, and both partitions were primary partitions!
+
+
+Raft (CP)
+---------
+* Replicated state machine
+* Diego Ongaro's PhD thesis: https://github.com/ongardie/dissertation#readme
+* Cluster with a fixed max number of members (additions/removals are possible, but omitted here)
+* An *election protocol* elects a *leader*; everybody else is a *participant*
+* A request is forwarded to the leader
+* The leader computes the log index and broadcasts the request to all members and waits for acks
+* Each member appends the received request at the given index and sends an ack to the leader
+* The leader commits the element as soon as it has received a majority of acks and then broadcasts a commit message
+* Everybody commits on reception of the commit message
+** _Committing_ means taking the log entries from the last known commit index up to the current commit index and
+   applying them to a state machine, e.g. a replicated hashmap. Log entries could be puts, removes, or even gets
+
+
+Properties of Raft
+------------------
+* All progress is made through majority agreement
+** If a majority agreed on a value, that log entry can never be changed (a bit like blockchain), even if the leader
+   changed
+* Leader election is also by majority: this prevents having more than 1 leader at any given time
+* If we have less than `N/2-1` members:
+** No leader can be elected (unless a leader is already present)
+** No entries can be committed: writes fail (they're appended to the log, but cannot be committed). A non-committed
+   entry can still be overwritten by entries from a new leader. *Only committed entries can not be overwritten*.
+
+
+
+
+Example of Raft: jgroups-raft
+-----------------------------
+* Implementation pretty close to the Raft dissertation
+* Not targeted for prod
+** OTOH, there's relatively little code, and the heavy lifting is done by JGroups (which is mature) anyway...
+* https://github.com/belaban/jgroups-raft
+* jgroups-raft = JGroups + a few protocols (`RAFT`, `ELECTION` etc) + a few utility classes (`RaftHandle`)
+
+image::../images/jgroups-raft.png["Architecture of jgroups-raft,align=left,valign=top,width="80%"]
 
 
 
