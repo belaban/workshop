@@ -12,12 +12,12 @@ Admin
 :status:
 
 
-
+////
 Tuning
 ------
 * Let's take a (non exhaustive) look at things that can be tuned
 * Ref: https://developer.jboss.org/wiki/PerfTuning
-
+////
 
 
 Multicast routing
@@ -120,29 +120,17 @@ Transport resources
 
 Transport: default thread pool
 ------------------------------
-* For regular (sender-FIFO) messages
+* For regular (sender-FIFO) and `OOB` messages
 * (Conceptual) queues are created for each sender
 * Only 1 thread processes a queue, delivering _1 message at a time_
 * The other messages for the same sender consume threads only to add the messages to the queue, then the thread is
   put back into the pool
 * Recommendations for peak (receiving messages from N senders concurrently):
-** Set min-threads to N
-** Set max-threads to N+2 (2 spare threads)
-** Enable a queue to catch traffic peaks
-
-
-Transport: OOB thread pool
---------------------------
-* For OOB messages (no defined delivery order)
-* Each thread takes a message (or message batch) and passes it up to the application
-* Many messages from the same sender can be processed concurrently
-* Recommendations:
-** Disable the thread pool queue
-** Set min-threads to a small number (more threads will be created if needed)
-** Set max-threads to the max number of OOB messages expected to be received concurrently
+** Set min-threads to 0
+** Regular messages: set max-threads to N+2 (2 spare threads)
+** `OOB` messages: max number of OOB messages expected to be received concurrently
 *** This number can be high because we won't reach it unless we have many concurrent messages
 **** The thread idle time will reduce the active thread size after a while if not all threads > min-threads are used
-* Thread stack size: uses memory, make sure to size this as well
 
 
 ////
@@ -257,7 +245,7 @@ Top JGroups problems
 
 
 
-Problem #13: AWS
+Problem #12: AWS
 ----------------
 * Large packets sizes in EC2 are dropped
 ** The problem was that large packets using the default stack configuration for `FRAG2` (60k) were sometimes being dropped
@@ -270,15 +258,7 @@ Problem #13: AWS
 * Solution: use `FRAG2` sizes of <= 32k if you are running in `UDP` mode under EC2.
 
 
-Problem #12: last message dropped in `NAKACK2`
----------------------------------------------
-* Last message dropped issue
-* Solution: use `RSVP` to ack a batch of work, or set `resend_last_seqno` in `NAKACK2`
-
-
-
-
-Problem #11: `receive()` and `viewAccepted()` callbacks
+Problem #10: `receive()` and `viewAccepted()` callbacks
 ------------------------------------------------------
 * Invoking blocking RPCs or doing something long or blocking in these callbacks
 * Because JGroups calls these callbacks on a thread from the incoming thread pool, all messages behind this one are stuck
@@ -286,7 +266,7 @@ Problem #11: `receive()` and `viewAccepted()` callbacks
 * Solution: use a separate thread is some callback code needs to block, invoke a blocking RPC, or perform a long task
 
 
-Problem #10: reusing a message (the Sebastian problem)
+Problem #9: reusing a message (the Sebastian problem)
 ------------------------------------------------------
 [source,java]
 ----
@@ -295,12 +275,6 @@ for(int i=0; i < 10; i++)
    channel.send(msg)
 ----
 * Spot the problem ?
-
-
-Problem #9: MacOS
------------------
-* Multicast routing on Mac OS: https://developer.jboss.org/wiki/MulticastRoutingOnMacOSX
-* Solution: pick the correct `mcast_addr` in `UDP` based on the routing table and `bind_addr`
 
 
 
@@ -391,7 +365,8 @@ Problem #3: tinkering with configuration
 ** Removing `STABLE` causes OOMEs
 
 * Putting protocols in the wrong place
-** A configuration needs to be defined in a certain order; placing protocols in the wrong place almost always causes subtle issues
+** A configuration needs to be defined in a certain order; placing protocols in the wrong place almost always
+   causes subtle issues
 
 
 
