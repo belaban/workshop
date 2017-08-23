@@ -74,6 +74,7 @@ CAP
 * **C**onsistency, **A**vailability, **P**artition handling
 * CAP: either CP or AP (P can never be forfeited as partitions do happen)
 * AP: availability & partition handling
+** The system is always available
 ** The system may not always be consistent
 ** Eventual consistency: possibility to see stale data but eventual convergence of data
 ** Example: Amazon's Dynamo

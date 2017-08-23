@@ -6,8 +6,8 @@ Author: Bela Ban belaban@yahoo.com
 
 Modules and labs for a JGroups workshop. The different modules can be combined into a custom workshop.
 
-Requirements:
-
+Requirements
+------------
 * JDK 8
 * ant
 * IDE installed. I used IntelliJ, but eclipse works, too
@@ -15,6 +15,9 @@ Requirements:
 ** `git clone https://github.com/belaban/JGroups.git`
 * (optional) jgroups-raft source code imported into the IDE
 ** `git clone https://github.com/belaban/jgroups-raft.git`
+* (optional) Docker
+
+
 
 Disclaimer
 ----------
@@ -54,7 +57,7 @@ include::./using.adoc[Overview]
 include::./prot_overview.adoc[Protocol overview]
 
 
-Day 1-2: Building blocks
+Day 1: Building blocks
 ----------------------
 * Remote procedure calls across a cluster
 ** Asynchronous invocation API
@@ -109,7 +112,7 @@ include::./protocols.adoc["Protocols"]
 
 
 
-Day 3-4: Advanced
+Day 2-3: Advanced
 ------------------
 * Message flags (OOB, DONT_BUNDLE, NO_FC etc)
 
@@ -150,15 +153,14 @@ include::./advanced.adoc["Advanced"]
 
 
 
-Day 4: Handling network partitions (split brain)
-------------------------------------------------
+Day 3-4: Handling network partitions (split brain)
+--------------------------------------------------
 * Network partitions (split brain)
 ** What causes partitions?
 ** Strategies to handle them (CAP)
 ** Primary partition, merging data
 ** jgroups-raft, eventual consistency
 * Examples: distributed counters in JGroups and jgroups-raft
-
 
 
 include::./partitions.adoc["Network partitions"]
@@ -168,33 +170,18 @@ include::./partitions.adoc["Network partitions"]
 Day 4: Admin
 ------------
 
-* Tuning
-** Multicast routing
-** Buffers
-** Flow control
-** Transport thread pools
-** Jumbo frames
-** Misc (interrupt coalescing, NIC buffers, link bundling)
-** UDP vs. TCP
-** Message batching
-** Retransmission intervals and max retransmit sizes
-** Stability
+* Best practices for configuration
+** UDP versus TCP
+** Buffers and thread pools
+** Failure detection
 
+* The top ten problems
 
 * Diagnostics
-** Logging
-** JMX and jconsole
-** probe.sh
-*** Getting and setting properties, invoking methods, changing the log level at runtime, adding protocols dynamically
+* Logging
+* JMX and jconsole
+* probe.sh
 
-* The 12 most common pain points
-** Members don't find each other
-** IPv4 vs IPv6
-** Switch configuration (IGMP snooping)
-** Firewalls
-** etc
-* Multicast routing (mcast)
-** bind_addr and mcast_addr
-** Setting multicast routes for different mcast_addrs
+
 
 include::./admin.adoc["Admin"]
