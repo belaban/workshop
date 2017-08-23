@@ -9,8 +9,12 @@ Modules and labs for a JGroups workshop. The different modules can be combined i
 Requirements:
 
 * JDK 8
+* ant
 * IDE installed. I used IntelliJ, but eclipse works, too
-** JGroups master (= 4.x) source code imported into IDE
+* JGroups master (= 4.x) source code imported into the IDE
+** `git clone https://github.com/belaban/JGroups.git`
+* (optional) jgroups-raft source code imported into the IDE
+** `git clone https://github.com/belaban/jgroups-raft.git`
 
 Disclaimer
 ----------

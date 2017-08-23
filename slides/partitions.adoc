@@ -34,6 +34,17 @@ Network partitions (split brain)
 * However, *JGroups won't be able to merge the application data*
 
 
+Causes for network partitions
+-----------------------------
+* Switch / router crash
+* Garbage collection
+* Dropped heartbeat messages
+** Full thread pool
+** Lossy network
+** Buffer overflow
+* Misconfiguration (failure detection timeouts too low)
+
+
 Data inconsistency
 ------------------
 * Partitions `{A,B,C}` and `{D,E}`
@@ -196,10 +207,10 @@ Properties of Raft
 ** If a majority agreed on a value, that log entry can never be changed (a bit like blockchain), even if the leader
    changed
 * Leader election is also by majority: this prevents having more than 1 leader at any given time
-* If we have less than `N/2-1` members:
+* If we have less than `N/2+1` members:
 ** No leader can be elected (unless a leader is already present)
 ** No entries can be committed: writes fail (they're appended to the log, but cannot be committed). A non-committed
-   entry can still be overwritten by entries from a new leader. *Only committed entries can not be overwritten*.
+   entry can still be overwritten by entries from a new leader. *Only committed entries cannot be overwritten*.
 
 
 
@@ -207,14 +218,44 @@ Properties of Raft
 Example of Raft: jgroups-raft
 -----------------------------
 * Implementation pretty close to the Raft dissertation
-* Not targeted for prod
-** OTOH, there's relatively little code, and the heavy lifting is done by JGroups (which is mature) anyway...
 * https://github.com/belaban/jgroups-raft
 * jgroups-raft = JGroups + a few protocols (`RAFT`, `ELECTION` etc) + a few utility classes (`RaftHandle`)
 
 image::../images/jgroups-raft.png["Architecture of jgroups-raft,align=left,valign=top,width="80%"]
 
 
+jgroups-raft in action
+----------------------
+* Prerequisite: download and compile jgroups-raft:
+** `git clone https://github.com/belaban/jgroups-raft.git ; cd jgroups-raft ; ant`
+* Config: `jgroups-raft/conf/raft.xml`
+* Start 3 members in separate shells:
+** `bin/rsm.sh -name A`
+** `bin/rsm.sh -name B`
+** `bin/rsm.sh -name C`
+* Add a few key/value pairs to the replicated state machine (`[1]`)
+* Check in each process that the values are present
+* Look at the log (`[5]`) and the contents (`[4]`)
+* Now kill member `A` (the leader)
+** Observe that eiher `B` or `C` becomes leader
+* Add a few key/value pairs -> they're added to `B` and `C`
+* Verify that `last-applied` and `commit-log` are the same
+* Now kill the participant
+* Try adding values:
+** There's a TimeoutException
+** Observe that `last-applied` is higher than `commit-index`
+* Start the second member again
+** Observe that `last-applied` and `commit-index` are the same in both members
+* Start the third member -> it will also get updated and now all 3 members have the same state and log
+
+
+Conclusion
+----------
+* Be aware of the tradeoffs between availability and consistency
+* What does your application require?
+* JGroups by default provides availability (AP), but does not implement eventual consistency (EC)
+** EC can be implemented higher up the stack, e.g. in a replicated cache
+* JGroups can be configured to provide consistency (CP) with jgroups-raft
 
 
 
