@@ -469,7 +469,17 @@ public static void unregisterChannel(Channe channel) {
 
 JGroups and Docker
 ------------------
-* https://github.com/belaban/jgroups-docker
+* JGroups can be run inside docker as on a physical box
+* However, by default, docker uses the *bridged* network (`none`, `bridge`, `host`), which restricts communication to
+  docker containers on the local host only
+* To communicate across hosts use the *host* network: `--net=host`
+* Otherwise, the normal restrictions apply
+** If IP multicasting is disabled -> switch to TCP
+** Pick the correct `bind_addr` etc
+* Demo:
+** Bridge network: `docker run -it --rm belaban/jgroups`
+** Host network: `docker run -it --net=host --rm belaban/jgroups`
+* More info: https://github.com/belaban/jgroups-docker
 
 
 
