@@ -1,6 +1,6 @@
 
-= Status JGroups 2016
-:author: Bela Ban belaban@yahoo.com
+= Status JGroups 2017
+:author: Bela Ban belaban@mailbox.org
 :backend: deckjs
 :deckjs_transition: fade
 :navigation:
@@ -12,79 +12,10 @@
 
 
 
-= JGroups 3.6.10
-
-
-== Backport of encryption refactoring (JGRP-2021)
-* https://issues.jboss.org/browse/JGRP-2055
-* Replaced `ENCRYPT` with `SYM_ENCRYPT` and `ASYM_ENCRYPT`
-
-
-== Flow control bugs
-* https://issues.jboss.org/browse/JGRP-2071: fixes regression in 3.6.9 (3.6.8 is fine)
-* https://issues.jboss.org/browse/JGRP-2072: credits are not sent in time
-
-
-== Measure RTT with probe
-* https://issues.jboss.org/browse/JGRP-2049
-* `probe.sh rpcs-details` dumps timings for RPCs
-
-
-== TransferQueueBundler perf improvement
-* https://issues.jboss.org/browse/JGRP-2076
-* Remove chunks of messages from the queue rather than one by one
-* Minimal perf increase (ca. 3-5%)
-
-
-== Change message bundler at runtime
-* https://issues.jboss.org/browse/JGRP-2058
-* Bundler can now be changed at runtime, e.g. `probe.sh op=UDP.bundler["rb"]`
-
-
-
-
-
-= JGroups 3.6.11
-
-
-== New message bundler
-* https://issues.jboss.org/browse/JGRP-2087
-* Implementation of new bundlers: `ring-buffer`, `ring-buffer-lockless`, `ring-buffer-lockless2`, `no-bundler`,
-  `disruptor-bundler`
-* Experiment with bundler and their effect on performance without having to shutdown and restart a (warmed-up) cluster
-* `ring-bundler` is 10% faster than `transfer-queue`
-* Disruptor bundler
-** `yielding-wait` and `busy-spin` are ca. 15% faster that `transfer-queue`, but CPU usage is very high, even under no
-   load
-
-
-== MERGE3: merge never happens
-* https://issues.jboss.org/browse/JGRP-2092
-* If no member is coordinator of its own subcluster, this can happen, e.g. `A: BCA`, `B: CAB`, `C: ABC`
-* Can only happen when a previous merge failed to install the subviews in all members
-
-
-
-
-
-
-
 
 
 
 = JGroups 4.0
-* API changes (use of Java 8)
-* Removed all deprecated classes: NAKACK, UNICAST, UNICAST2, MuxDispatcher, FD_PING, MERGE2, PEER_LOCK, FC, SCOPE etc
-* Removed shared transport, MuxRpcDispatcher
-* RpcDispatcher: use CompletableFuture
-[source,java]
-----
-CompleteableFuture<RspList<Integer>> future=dispatcher.callRemoteMethodsWithFuture(...);
-future.whenComplete((result,ex) -> {
-    System.out.printf("result=%d\n", result);
-});
-----
-
 
 == Receive message batches
 * https://issues.jboss.org/browse/JGRP-2003
@@ -95,7 +26,7 @@ public void receive(MessageBatch batch) {
     for(Message msg: batch) {
         queue.add(msg);
     }
-    process(queue);
+    process(queue); // separate thread
 }
 ----
 
@@ -107,100 +38,50 @@ public void receive(MessageBatch batch) {
                                 .reduce(0, (l1,l2) -> l1+l2);
 }
 ----
+* This was discussed in Como, but IMO hasn't been properly addressed yet
 
-
-== Replace Java de-serialization with JGroups marshalling for internal classes
-* https://issues.jboss.org/browse/JGRP-2033
-
-
-== ENCRYPT
-* https://issues.jboss.org/browse/JGRP-2021
-
-
-== Bundler performance improvements and new bundlers
-* https://issues.jboss.org/browse/JGRP-2057
-* Removed SingletonAddress as shared transport was removed, too
-* New bundlers (cf. discussion above in 3.6.11)
-
-
-== New callbacks for handling messages
-* https://issues.jboss.org/browse/JGRP-2067
-* `up(Message)` and `down(Message)`
-* `down_prot.down(new Event(Event.MSG, msg))` is replaced by `down_prot.down(msg)`
-* Removes 1 Event creation for single up- and down- messages
-
-
-
-== IpAddressUUID
-* https://issues.jboss.org/browse/JGRP-2080
-* Every transport has a cache mapping UUIDs to IpAddresses (and logical names)
-* Sometimes, at startup, not everyone has the cache filled
-* If a mapping is not found, a request is sent out to fetch the mapping, and the request is dropped -> retransmission
-* The discovery traffic is also quite large, based on cluster size
-* Initial idea: incorporate the IP address and port into the UUID
-* Every address carries the physical address with it -> no need for a mapping cache
-* IpAddressUUID takes this idea and implements it in reverse: 'randomness' is added to an `IpAddress`
-* The discovery protocol now only has to send a response to a discovery request if the node is the coordinator
-** Less traffic during the discovery phase
-** Important for bandwidth constrained links, e.g. 128Kbps ~= 16KB
-* Caveat: doesn't (yet) work with `RELAY2` and address generators in general
-
-
-== Single thread pool
-* https://issues.jboss.org/browse/JGRP-2099
-* Blog: http://belaban.blogspot.ch/2016/09/removing-thread-pools-in-jgroups-40.html
-* Remove OOB, timer and internal thread pools and only use regular thread pool
-* This single thread pool has no queue
-* On `RejectedExecutionException`, submit task to internal thread pool (not exposed)
-* If this still fails, spawn a new thread
-* Advantage: much simpler configuration, reduction of management overhead of 4 thread pools
-
-
-== ForkJoinPool
-* https://issues.jboss.org/browse/JGRP-2099
-* Instead of the thread pool, a `ForkJoinPool` can be used
-* Either create a new one based on `max_threads` (default: number of cores), or use the existing one
-* Caveats:
-** FJP is a ThreadPoolExecutor with a fixed number of threads, a global submission queue and a per-thread worker queue,
-   plus work stealing. The queues are essentially unbounded (64 million elements)
-** There is no way to either execute a request immediately or get an exception, as the task may get queued
-** This is not acceptable for high-prio messages such as heartbeats
-
-
-== Timer: run non-blocking tasks on the timer's thread
-* https://issues.jboss.org/browse/JGRP-2100
-* When a task is submitted with parameter `non_blocking`=`true`, then it is run on the timer's thread and not submitted
-  to the timer's thread pool
-* This reduces the number of threads required for timer tasks
-
-
-
-== Miscellaneous performance fixes
-* Optimize in-memory size of Rsp: https://issues.jboss.org/browse/JGRP-2011
-* Optimize in-memory size of Request: https://issues.jboss.org/browse/JGRP-2012
-* Better perf for writing of headers: https://issues.jboss.org/browse/JGRP-2042
-** For a message with N headers, we save N hashmap lookups (for magic IDs)
-* Better perf for reading of headers: https://issues.jboss.org/browse/JGRP-2043
-** Reduction of header creation time from 300ns to 25ns
-* Reduce default thread pool size: https://issues.jboss.org/browse/JGRP-2047
-** min=0, max=<number of cores>, no queue, idle time = 30s
-* Replaced `Math.random()` with `ThreadLocalRandom.current().nextX()`
-** Supposedly faster and no contention
-
-
-
-== DELIVERY_TIME
-* https://issues.jboss.org/browse/JGRP-2101
-* Measures delivery time of `receive()`
-* Stats can be fetched with probe or JMX
-* Useless for Infinispan, as most messages are simply handed over to a thread pool and `MessageDispatcher.handle()`
-  returns immediately :-(
+== Problem with message batches
+* Regular messages: `| P10 | P11 | P12 ... | P20 |`
+** This is FIFO order
+** However, some apps might tolerate ordering changes, e.g.
+*** If `P12` is a `prepare` message, and `P20` a `rollback`, then `P20` could be delivered immediately.
+*** If we have `P5: x=20` -> `P8: x=10` -> `P15: delete(x)`, `P5` and `P8` might get skipped
+*** Several `puts` and `gets` to the same cache may want to order `puts`, but apply `gets` in a seperate thread (stale reads)
+* OOB messages: `| P15 | P10 | P11 | P20 | P18 | ... |`
+** Order is undefined, but each message is delivered exactly once (no dupes, no loss)
+** Synchronous writes in Infinispan
+*** Triangle: `puts`, `backups`, `acks`:
+**** `puts` to the primary: OOB
+**** `backups` to the secondary: regular (FIFO)
+**** `acks` to the originator: OOB
+* Processing a message batch sequentially from head to tail is certainly correct as it does not destroy ordering, but
+  it is inefficient
+* Applications know their ordering constraints, and can reduce latency by weakening the strong ordering
+  established by JGroups!
 
 
 
 
+= JGroups 4.0.1
 
-= JGroups 4.1
+= JGroups 4.0.2
+= JGroups 4.0.3
+= JGroups 4.0.4
+= JGroups 4.0.5
+= JGroups 4.0.6
+= JGroups 4.0.7
+= JGroups 4.0.8
+
+
+
+
+= JGroups 5.0
+
+== Buffer management
+* A `Message` has a `byte[]` array
+** This forces users to pass `byte[]` arrays
+*** What if someone has an NIO `ByteBuffer`? -> Needs to be converted to a `byte[]` array -> copy!
+
 
 
 == Multiple transports
@@ -209,17 +90,12 @@ public void receive(MessageBatch batch) {
 * Multiple transports of the same type, e.g. UDP for load balancing purposes
 
 
-== Netty transport
-* https://issues.jboss.org/browse/JGRP-2091
-* Another transport implemented using Netty
-* Will live in github.com/jgroups-extras
-
-
-
 == Infiniband / RDMA support
 * https://issues.jboss.org/browse/JGRP-1680
 * Requires JNI, probably a showstopper
 * Update: JXIO offers Java support of RDMA, shared memory
 ** https://github.com/accelio/JXIO
+* Chronicle?
+** Fast message passing between processes on the same host by using shared memory
 
 
