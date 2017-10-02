@@ -141,11 +141,32 @@ public void receive(MessageBatch batch) {
 
 = JGroups 5.0
 
-== Buffer management
+== New buffer management
 * https://issues.jboss.org/browse/JGRP-2218
 * A `Message` has a `byte[]` array
 ** This forces users to pass `byte[]` arrays
 *** What if someone has an NIO `ByteBuffer`? -> Needs to be converted to a `byte[]` array -> copy!
+*** An Object needs to be marshalled into a `byte[]` array: additional copy
+* New `Payload` interface replaces `byte[]` array
+** Methods to read from a stream, write to a stream etc
+* Implementations:
+** `ByteArrayPayload`: wraps a `byte[]` array, offset and length (default)
+** `NioPayload`: wraps an NIO heap- or direct- buffer
+** `ObjectPayload`: wraps an object
+** `CompositePayload`: wraps multiple payloads, e.g. metadata and `byte[]` array
+*** Example: `UPerf`: currently, metadata and payload has to be copied into a new `byte[]` array
+** `PartialPayload`: ref to a payload, with offset and length
+*** Example use: fragmentation
+** `IntPayload`: wraps an `int`
+* Advantages
+** More flexible payload management:
+*** Install custom payload factories (e.g. possibly with ref-counting)
+*** Provide additional implementations, register with factory at runtime
+** Late serialization: e.g. an `ObjectPayload` could be serialized directly into a socket's output stream when sent
+** Late de-serialization: `ObjectPayload` carries `byte[]` array all the way up, until the object is accessed for the
+   first time
+** Possible optimizations in combination with gathering writes / scattering reads (NIO.2)
+
 
 
 
