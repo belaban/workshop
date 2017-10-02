@@ -167,7 +167,10 @@ public void receive(MessageBatch batch) {
    first time
 ** Possible optimizations in combination with gathering writes / scattering reads (NIO.2)
 
-
+=== Goals for buffer management
+* Sending a message: zero allocation of `byte[]` arrays / `ByteBuffers`
+* Receiving a message: _at most_ one allocation
+** `ObjectPayload` may even have zero allocation (walk through code)
 
 
 == Multiple transports
