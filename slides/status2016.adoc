@@ -1,6 +1,5 @@
 
-Status JGroups 2016
-===================
+= Status JGroups 2016
 :author: Bela Ban belaban@yahoo.com
 :backend: deckjs
 :deckjs_transition: fade
@@ -12,24 +11,20 @@ Status JGroups 2016
 :status:
 
 
-Agenda
-------
+== Agenda
 * 3.6.7, 3.6.8, 3.6.9, 4.0
 
 
 
-JGroups 3.6.7
-=============
+= JGroups 3.6.7
 
 
-Interoperability between TCP and TCP_NIO2
------------------------------------------
+== Interoperability between TCP and TCP_NIO2
 * https://issues.jboss.org/browse/JGRP-1952
 * This allows nodes that have TCP as transport to talk to nodes that have TCP_NIO2 as transport, and vice versa.
 
 
-Transport: reuse of receive buffers
------------------------------------
+== Transport: reuse of receive buffers
 * https://issues.jboss.org/browse/JGRP-1998
 * On message reception, the transport would create a new buffer in TCP and TCP_NIO2 (not in UDP), read the message into
 that buffer and then pass it to the one of thread pools, copying single messages (not batches)
@@ -38,8 +33,7 @@ buffers, de-serializing the message (or message batch) and then passing it to on
 * The effect is a much lower memory allocation rate.
 
 
-Message bundling: reuse of send buffers
----------------------------------------
+== Message bundling: reuse of send buffers
 * https://issues.jboss.org/browse/JGRP-1989
 * When sending messages, a new buffer would be created for marshalling for every message (or message bundle).
 * This was changed from prev versions for TCP_NIO2 (see below)
@@ -47,16 +41,14 @@ Message bundling: reuse of send buffers
 allocation rate on the send path.
 
 
-TCP_NIO2: copy on-demand when sending messages
-----------------------------------------------
+== TCP_NIO2: copy on-demand when sending messages
 * https://issues.jboss.org/browse/JGRP-1991
 * If a message sent by TCP_NIO2 cannot be put entirely into the network buffer of the OS, then the remainder of that
 message is copied.
 * This is needed to implement reusing of send buffers, see JGRP-1989 above.
 
 
-TCP_NIO2: single selector slows down writes and reads
------------------------------------------------------
+== TCP_NIO2: single selector slows down writes and reads
 * https://issues.jboss.org/browse/JGRP-1999
 * This transport used to have a single selector, processing both writes and reads in the same thread. Writes are not
 expensive, but reads can be, as de-serialization adds up.
@@ -68,8 +60,7 @@ available to be read.
 same as TCP.
 
 
-Headers: collapse 2 arrays into 1
----------------------------------
+== Headers: collapse 2 arrays into 1
 * https://issues.jboss.org/browse/JGRP-1990
 * A Message had a Headers instance which had an array for header IDs and another one for the actual headers.
 * These 2 arrays were collapsed into a single array and Headers is not a separate class anymore, but the array is managed
@@ -77,37 +68,32 @@ directly inside Message.
 * This reduces the memory needed for a message by ca 22 bytes!
 
 
-RpcDispatcher: removal of unneeded field in a request
------------------------------------------------------
+== RpcDispatcher: removal of unneeded field in a request
 * https://issues.jboss.org/browse/JGRP-2001
 * The request-id was carried in both the Request (UnicastRequest or MulticastRequest) and the header, which is duplicate
 and a waste. Removed from Request and also removed rsp_expected from the header, total savings ca. 9 bytes per RPC.
 
 
-Switched back from DatagramSocket to MulticastSocket for sending of IP multicasts
----------------------------------------------------------------------------------
+== Switched back from DatagramSocket to MulticastSocket for sending of IP multicasts
 * https://issues.jboss.org/browse/JGRP-1970
 * This caused some issues in MacOS based systems: when the routing table was not setup correctly, multicasting
 would not work (nodes wouldn't find each other).
 * Also, on Windows, IPv6 wouldn't work: https://github.com/belaban/JGroups/wiki/FAQ.
 
 
-Make the default number of headers in a message configurable
-------------------------------------------------------------
+== Make the default number of headers in a message configurable
 * https://issues.jboss.org/browse/JGRP-1985
 * The default was 3 (changed to 4 now) and if we had more headers, then the headers array needed to be resized
 (unneeded memory allocation).
 
 
-Message bundling optimization
------------------------------
+== Message bundling optimization
 * https://issues.jboss.org/browse/JGRP-1986
 * When the threshold of the send queue was exceeded, the bundler thread would send messages one-by-one, leading
 to bad performance.
 
 
-TransferQueueBundler: switch to array from linked list for queue
-----------------------------------------------------------------
+== TransferQueueBundler: switch to array from linked list for queue
 * https://issues.jboss.org/browse/JGRP-1987
 * Less memory allocation overhead, new bundler by Radim
 * Needs perf testing
@@ -118,12 +104,10 @@ TransferQueueBundler: switch to array from linked list for queue
 
 
 
-JGroups 3.6.8
-=============
+= JGroups 3.6.8
 
 
-Probe improvements
-------------------
+== Probe improvements
 * https://issues.jboss.org/browse/JGRP-2004
 * https://issues.jboss.org/browse/JGRP-2005
 * Proper discarding of messages from a different cluster with '-cluster' option.
@@ -132,32 +116,28 @@ Probe improvements
 ** http://www.jgroups.org/manual/index.html#_looking_at_details_of_rpcs_with_probe
 
 
-DONT_BUNDLE and OOB: messages are not removed from batch when execution fails
------------------------------------------------------------------------------
+== DONT_BUNDLE and OOB: messages are not removed from batch when execution fails
 * https://issues.jboss.org/browse/JGRP-2015
 * Messages are not removed from batch when execution fails
 * Rejections are not counted to num_rejected_msgs
 
 
 
-RpcDispatcher: don't copy the first anycast
--------------------------------------------
+== RpcDispatcher: don't copy the first anycast
 * https://issues.jboss.org/browse/JGRP-2010
 * When sending an anycast to 3 destinations, JGroups sends a copy of the original message to all 3. However, the first
 doesn't need to be copied (less memory allocation pressure).
 * For an anycast to a single destination, no copy is needed, either.
 
 
-Compaction of in-memory size
-----------------------------
+== Compaction of in-memory size
 * https://issues.jboss.org/browse/JGRP-2011
 * https://issues.jboss.org/browse/JGRP-2012
 * Reduced size of Rsp (used in every RPC) from 32 -> 24 bytes
 * Request/UnicastRequest/GroupRequest: reduced size
 
 
-RequestCorrelator.done() is slow
---------------------------------
+== RequestCorrelator.done() is slow
 * https://issues.jboss.org/browse/JGRP-2013
 * Used by RpcDispatcher. Fixed by eliminating the linear search done previously.
 
@@ -165,81 +145,69 @@ RequestCorrelator.done() is slow
 
 
 
-JGroups 3.6.9
-=============
+= JGroups 3.6.9
 
 * Classloader regression: https://issues.jboss.org/browse/JGRP-2035
 
 
 
 
-JGroups 4.0
-===========
+= JGroups 4.0
 * API changes (use of Java 8)
 * RpcDispatcher: use CompletableFuture
 * Removed all deprecated classes: NAKACK, UNICAST, UNICAST2, MuxDispatcher, FD_PING, MERGE2, PEER_LOCK, FC, SCOPE etc
 * Removed shared transport
 
 
-Receive message batches
------------------------
+== Receive message batches
 * https://issues.jboss.org/browse/JGRP-2003
 * JChannel has a new `receive(MessageBatch)` callback
 
 
-Replace Java de-serialization with JGroups marshalling for internal classes
----------------------------------------------------------------------------
+== Replace Java de-serialization with JGroups marshalling for internal classes
 * https://issues.jboss.org/browse/JGRP-2033
 
 
-RpcDispatcher CompletableFuture bugs
-------------------------------------
+== RpcDispatcher CompletableFuture bugs
 * https://issues.jboss.org/browse/JGRP-2038
 * https://issues.jboss.org/browse/JGRP-2039
 
-ENCRYPT
--------
+== ENCRYPT
 * https://issues.jboss.org/browse/JGRP-2021
 
 
 
 
-JGroups 4.1
-===========
+= JGroups 4.1
 
 
-Multiple transports
--------------------
+== Multiple transports
 * https://issues.jboss.org/browse/JGRP-1424
 * Runs multiple transports in the same stack, e.g. TCP and UDP
 * Multiple transports of the same type, e.g. UDP for load balancing purposes
 
 
 
-Shared memory transport
------------------------
+== Shared memory transport
 * https://issues.jboss.org/browse/JGRP-1672
 * For members on the same physical box
 * Difficult to implement, high complexity
 
 
 
-Infiniband / RDMA support
---------------------------
+== Infiniband / RDMA support
 * https://issues.jboss.org/browse/JGRP-1680
 * Requires JNI, probably a showstopper
 
 
 
-Counter enhancements
---------------------
+== Counter enhancements
 * https://issues.jboss.org/browse/JGRP-2025
 * Better handling of network partitions
 
 
 
-SEQUENCER3
-----------
+== SEQUENCER3
 * https://issues.jboss.org/browse/JGRP-1830
 * Special form of Counter
 * Reconciliation phase after split / coordinator failover
