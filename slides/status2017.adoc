@@ -64,20 +64,85 @@ public void receive(MessageBatch batch) {
 
 = JGroups 4.0.1
 
-= JGroups 4.0.2
-= JGroups 4.0.3
-= JGroups 4.0.4
-= JGroups 4.0.5
-= JGroups 4.0.6
-= JGroups 4.0.7
-= JGroups 4.0.8
+* Custom code to pick bind address in the transport: +
+`bind_addr="custom:com.acme.BindAddressPicker"`
+** The class needs to implement `Supplier<InetAddress>`
 
+
+= JGroups 4.0.2
+* `DNS_PING`: https://issues.jboss.org/browse/JGRP-2139 (jgroups-extras)
+* Eliminated 1 byte[] array copy in TCP when receiving data: https://issues.jboss.org/browse/JGRP-2165
+* Configuration now also uses env variables (in addition to sysprops): https://issues.jboss.org/browse/JGRP-2166
+** Needed for `KUBE_PING` (Openshift discovery protocol, see later)
+
+
+= JGroups 4.0.4
+
+== `GOOGLE_PING2`
+* In jgroups-extras
+* https://github.com/jgroups-extras/jgroups-google
+* Uses a native GCP API, instead of extending `S3_PING` (deprecated)
+
+== `RemoveQueueBundler`
+* https://issues.jboss.org/browse/JGRP-2171
+* Guaranteed upper boundary on latency
+
+== Non-blocking flow control
+* https://issues.jboss.org/browse/JGRP-2172
+* Docs: http://www.jgroups.org/manual4/index.html#NonBlockingFlowControl
+* When no credits are left, instead of blocking the sender thread -> add the message to a queue and return immediately
+* When credits are received -> drain as many messages from the queue as possible
+* The queue can be bounded -> still blocking in the end
+
+== Misc
+* More bundler stats: https://issues.jboss.org/browse/JGRP-2173
+
+
+= JGroups 4.0.5
+
+== New discovery protocol `native-s3-ping`
+* https://github.com/jgroups-extras/native-s3-ping
+* Uses the native S3 API
+* `S3_PING` has been deprecated
+
+== New discovery protocol `KUBE_PING`
+* https://github.com/jgroups-extras/jgroups-kubernetes
+* This is a rewrite of the old `KUBE_PING`
+** I removed 50% of the code and a few nasty deps (DMR, JBoss webserver)
+* Uses Kubernetes API to discover nodes
+* Default in JDG/Openshift/Online
+
+== ASYM_ENCRYPT
+* https://issues.jboss.org/browse/JGRP-2133
+* https://issues.jboss.org/browse/JGRP-2157
+* Dynamic key exchange is liable to mitm attacks
+** `SSL_KEY_EXCHANGE` uses SSL to exchange shared key
+** Configured with certificate chains
+** Client (= joiners) certs are checked, too (not the default with SSL)
+
+== AUTH issue
+* https://issues.jboss.org/browse/JGRP-2207
+* No rejection if a joiner does not use AUTH, but the coord does
+** Result: joiner was not able to join but formed a separate cluster
+** Fix: rejection message is sent to the joiner
+
+
+= JGroups 4.0.6
+
+== SSL_KEY_EXCHANGE issues
+* Keystore password is exposed via JMX/probe: https://issues.jboss.org/browse/JGRP-2213
+* Hook to verify SSL session: https://issues.jboss.org/browse/JGRP-2214
+
+
+= JGroups 4.0.7
+* Fixed deadlock in testsuite: https://issues.jboss.org/browse/JGRP-2219
 
 
 
 = JGroups 5.0
 
 == Buffer management
+* https://issues.jboss.org/browse/JGRP-2218
 * A `Message` has a `byte[]` array
 ** This forces users to pass `byte[]` arrays
 *** What if someone has an NIO `ByteBuffer`? -> Needs to be converted to a `byte[]` array -> copy!
@@ -99,3 +164,9 @@ public void receive(MessageBatch batch) {
 ** Fast message passing between processes on the same host by using shared memory
 
 
+= Workshop
+* Revamped, uses 4.x
+* Removed sections, added sections on split brain
+* Shortened to 4 days
+* https://github.com/belaban/workshop/blob/master/slides/toc.adoc
+* Held in Rome (Nov 7-10) and Berlin (Nov 21-24)
