@@ -147,6 +147,9 @@ public void receive(MessageBatch batch) {
 ** This forces users to pass `byte[]` arrays
 *** What if someone has an NIO `ByteBuffer`? -> Needs to be converted to a `byte[]` array -> copy!
 *** An Object needs to be marshalled into a `byte[]` array: additional copy
+
+
+
 * New `Payload` interface replaces `byte[]` array
 ** Methods to read from a stream, write to a stream etc
 * Implementations:
@@ -166,6 +169,8 @@ public void receive(MessageBatch batch) {
 ** Late de-serialization: `ObjectPayload` carries `byte[]` array all the way up, until the object is accessed for the
    first time
 ** Possible optimizations in combination with gathering writes / scattering reads (NIO.2)
+
+image::../images/ObjectPayload.png[byte[] array versus payload,width="80%",align=left,valign=top]
 
 === Goals for buffer management
 * Sending a message: zero allocation of `byte[]` arrays / `ByteBuffers`
