@@ -247,7 +247,7 @@ Possible fixes
 ** Press `'o'` to switch to `OOB` RPCs
 ** Each message now takes 1s to process
 ** However, messages are delievered in random order (no FIFO-per-sender anymore)
-** This also uses more thread of the pool; up to 5 more if all RPCs arrive at the same time
+** This also uses more threads of the pool; up to 5 more if all RPCs arrive at the same time
 * Fix 2: use the asynchronous invocation API (see below)
 ** Reduced thread use in the regular and OOB pools, but more use of the application's thread pool
 
