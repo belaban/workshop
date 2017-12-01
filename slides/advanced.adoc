@@ -1,6 +1,5 @@
 
-Advanced topics
-===============
+= Advanced topics
 :author: Bela Ban belaban@yahoo.com
 :backend: deckjs
 :deckjs_transition: fade
@@ -15,8 +14,7 @@ Advanced topics
 
 
 
-Message flags
--------------
+== Message flags
 * Message flags are used to override default behavior of the protocols in a stack
 * Examples:
 ** Mark a message as OOB (out-of-band) to deliver multiple messages from the same sender concurrently
@@ -39,8 +37,7 @@ Message msg=new Message(null, "hello").setFlag(Message.Flag.OOB).name("A");
 ----
 
 
-Provided message flags
-----------------------
+== Provided message flags
 `Message.OOB`: Marks a message as *out-of-band*. OOB messages don't not provide any ordering guarantees,
              although they're are reliable (no loss) and are delivered only once.
 
@@ -61,8 +58,7 @@ Provided message flags
 
 
 
-Ordering of regular messages
-----------------------------
+== Ordering of regular messages
 * Messages from sender P are delivered sequentially, *in P's send order*
 ** P sends messages 1-3: P1 is delivered first, then P2, then P3
 ** P3 has to wait until both P1 and P2 have been processed
@@ -72,8 +68,7 @@ Ordering of regular messages
 *** At N: `(P1-2 || Q1) -> (Q2-3 || P3)`
 ** Make sure your `receive()` callback is reentrant
 
-Ordering of OOB messages
-------------------------
+== Ordering of OOB messages
 * OOB messages are delivered *exactly once*, no loss and no duplicates
 * However, the delivery order is undefined
 * P sending messages 1-3; possible deliveries are:
@@ -83,8 +78,7 @@ Ordering of OOB messages
 
 
 
-The transport
--------------
+== The transport
 * Lowest protocol in the stack
 * Serializes messages and puts them on the network
 * Receives messages from the network, de-serializes them, and passes them up the stack
@@ -93,15 +87,13 @@ The transport
 . Internal thread pool
 
 
-The big picture
----------------
+== The big picture
 image::../images/Transport.png[The transport,width=60%",align=left,valign=top]
 
 
 
 
-The default thread pool
------------------------
+== The default thread pool
 * Used to pass received messages up the stack to the application
 ** Can be configured with min-size, max-size and thread idle time (*no queue*)
 *** When all pooled threads are busy, new threads are created (up to max-size)
@@ -113,8 +105,7 @@ The default thread pool
 
 
 
-Configuration of default thread pool
-------------------------------------
+== Configuration of default thread pool
 * A thread pool must `java.util.concurrent.Executor` and the default implementation uses
   `java.util.concurrent.ThreadPoolExecutor`
 * The following attributes are used:
@@ -129,8 +120,7 @@ Configuration of default thread pool
 |====
 
 
-The internal thread pool
-------------------------
+== The internal thread pool
 * Handles JGroups internal messages (e.g. heartbeats)
 ** Can *not* be configured via XML (max-size is computed as a function of the number of cores)
 * When full, new threads are spawned (should never happen)
@@ -139,8 +129,7 @@ The internal thread pool
 
 
 
-Assignment of messages to thread pools
---------------------------------------
+== Assignment of messages to thread pools
 * This is done by an instance of `MessageProcessingPolicy` (pluggable)
 * It determines how messages or message batches are handled (e.g. forwarded to thread pool, queued, dropped etc)
 * Currently JGroups ships with 2 policies:
@@ -149,14 +138,12 @@ Assignment of messages to thread pools
 * Can be set / changed via attribute `message_processing_policy` or `setMessageProcessingPolicy(String policy)`
 
 
-SubmitToThreadPool
-------------------
+== SubmitToThreadPool
 * All messages (or batches) are added to the default thread pool, increasing its size (up to max-size)
 * If full, internal messages are forwarded to the internal thread pool, all other messages are dropped
 
 
-MaxOneThreadPerSender
----------------------
+== MaxOneThreadPerSender
 * Subclass of `SubmitToThreadPool`
 * OOB and internal messages are handled by the parent `SubmitToThreadPool`
 * Regular messages:
@@ -170,22 +157,19 @@ MaxOneThreadPerSender
 
 
 
-Processing regular messages
----------------------------
+== Processing regular messages
 image::../images/RegularThreadPool.png[Regular thread pool,width="100%"]
 
 
 
-Processing OOB messages
------------------------
+== Processing OOB messages
 image::../images/OOBThreadPool.png[OOB thread pool,width="100%"]
 
 
 
 
 
-Available transports
---------------------
+== Available transports
 * Currently `UDP`, `TCP` and `TCP_NIO2`
 * UDP uses _IP multicasting_
 ** A message to N cluster nodes is sent *once*, as a datagram packet to a multicast (class D) address
@@ -200,8 +184,7 @@ Available transports
 *** http://belaban.blogspot.ch/2014/07/running-jgroups-cluster-in-google.html
 
 
-TCP_NIO2
---------
+== TCP_NIO2
 * New transport based on non-blocking IO
 * Uses a single thread to handle connections, sends and receives
 ** As optimization, we can have multiple receiver threads
@@ -211,15 +194,13 @@ TCP_NIO2
 
 
 
-The path of a message from reception to delivery
-------------------------------------------------
+== The path of a message from reception to delivery
 * `TP.receive()` (`JGroups/src/org/jgroups/protocols/TP.java`)
 
 
 
 
-Lab: advanced 1
----------------
+== Lab: advanced 1
 * Run one instance of `bin/advanced.sh`
 ** A member P has *5 threads invoking synchronous RPCs on all cluster members*
 ** The called method sleeps for 1 second
@@ -228,8 +209,7 @@ Lab: advanced 1
 * *All subsequent RPCs take 5s. Why ?*
 
 
-Explanation
------------
+== Explanation
 // * What's going on?
 // * (Explanation commented, uncomment in the source code to make visible)
 * The same sender P has 5 threads invoking synchronous RPCs
@@ -241,8 +221,7 @@ Explanation
 ** Total processing time of 5s
 
 
-Possible fixes
---------------
+== Possible fixes
 * Fix 1: use OOB messages (see below)
 ** Press `'o'` to switch to `OOB` RPCs
 ** Each message now takes 1s to process
@@ -252,8 +231,7 @@ Possible fixes
 ** Reduced thread use in the regular and OOB pools, but more use of the application's thread pool
 
 
-Monitoring
-----------
+== Monitoring
 * See the current pending requests (edited):
 ----
 [belasmac] /Users/bela/workshop$ probe.sh  requests
@@ -288,8 +266,7 @@ rpcs-details=
 
 
 
-Extra credit
-------------
+== Extra credit
 * Change Advanced to have invoker threads invoke the RPCs in the background
 ** Use `RpcDispatcher.callRemoteMethodsWithFuture()` and call `whenComplete()` on the returned `CompletableFuture`.
 ** Add a small sleep of 500ms between invocations
@@ -298,8 +275,7 @@ Extra credit
 * What's the outcome if we switched to OOB RPCs?
 
 
-Explanation
------------
+== Explanation
 * An invoker thread calls the RPCs but returns immediately
 * Each thread sleeps for 500ms between invocations
 ** This means it generates 2 invocations/sec, but the invocations take 2s to execute
@@ -315,8 +291,7 @@ Explanation
 
 
 
-Lab: advanced 2
----------------
+== Lab: advanced 2
 * Run 3 instances of `bin/advanced.sh`
 * in each of them:
 ** Press `[o]` to use `OOB` RPCs
@@ -325,8 +300,7 @@ Lab: advanced 2
 * *RPCs take more then 1s. Why?*
 
 
-Explanation
------------
+== Explanation
 * The thread pool is configured as follows: `min=0`, `max=20`
 * Each instance has ca. 10 messages (requests and responses) in flight at any given time
 * This requires ~30 threads, but the thread pool is configured to a max-size of 20
@@ -358,8 +332,7 @@ very low or 0. Running this command multiple times, or using a tool such as `wat
 that they are increasing over time.
 
 
-Possible fixes
---------------
+== Possible fixes
 * Increase `UDP.oob_thread_pool.max_size` to 50:
 ----
 probe.sh op=UDP.setOOBThreadPoolMaxThreads[50]
@@ -368,8 +341,7 @@ probe.sh op=UDP.setOOBThreadPoolMaxThreads[50]
 
 
 
-Thread pool sizing
-------------------
+== Thread pool sizing
 * Set min-size to 0
 * How about max_size?
 * Keep track of the average and max active threads
@@ -383,8 +355,7 @@ Thread pool sizing
 
 
 
-Asynchronous invocation API
----------------------------
+== Asynchronous invocation API
 * A method invoked in an RpcDispatcher is dispatched to application code
   by calling method handle in `RequestHandler`:
 
@@ -414,8 +385,7 @@ public interface RequestHandler {
   the request has completed
 
 
-AsyncRequestHandler
--------------------
+== AsyncRequestHandler
 
 [source,java]
 ----
@@ -456,8 +426,7 @@ public void handle(Message request, Response response) throws Exception {
 
 
 
-Use of the asynchronous invocation API
----------------------------------------
+== Use of the asynchronous invocation API
 * An application can subclass `RpcDispatcher`, or it can set a custom request handler via
   `setRequestHandler()`, and implement `AsyncRequestHandler.handle()` by
   dispatching the processing to an *application thread pool*.
@@ -481,8 +450,7 @@ Use of the asynchronous invocation API
 
 
 
-Example: replicated web sessions
---------------------------------
+== Example: replicated web sessions
 * If a cluster node A has 1000 web sessions, then replication of updates across the cluster generates messages from A.
 * Because JGroups delivers messages from the _same_ sender _sequentially_, even
   updates to unrelated web sessions are delivered in strict order.
@@ -495,8 +463,7 @@ Example: replicated web sessions
 
 
 
-Lab: advanced 4
-----------------
+== Lab: advanced 4
 * Run `bin/advanced.sh -use_async_handler`
 * Run `jconsole` and observe attributes of `advanced:advanced-obj`
 ** Alternative: `probe.sh adv`
@@ -516,8 +483,7 @@ Lab: advanced 4
 
 
 
-Message batching
-----------------
+== Message batching
 * For historic reasons, the term *message bundling* is used on the sender, *message batching* on the receiver
 ** Let's use the term *batching* only
 * When sending many smaller messages, it is better to queue them and send them as a _message batch_
@@ -535,8 +501,7 @@ ENDLOOP
 * E.g. message P1-5 are sent at time T1, and P6 at time T20: this create a batch for P1-5 and a single message for P6
 
 
-Message batching on the receiver
---------------------------------
+== Message batching on the receiver
 * On the receiver, we create instances of `MessageBatch` for batches (one for each destination) and pass the batches
   up rather than the individual messages
 * Advantages:
@@ -551,8 +516,7 @@ public void receive(MessageBatch batch);
 ----
 
 
-Do I have to change my code?
-----------------------------
+== Do I have to change my code?
 * No: by default `receive(MessageBatch)` calls `receive(Message)` for each message in a batch
 * However, it may be more efficient to process multiple messages in one go
 
@@ -563,8 +527,7 @@ NOTE: messages in a regular message batch should still be processed in order, or
 
 
 
-Generating custom addresses
----------------------------
+== Generating custom addresses
 * Address generation is pluggable: an application can use custom addresses.
 * To use custom addresses, `org.jgroups.stack.AddressGenerator` has to be implemented:
 
@@ -595,8 +558,7 @@ ch.connect("cluster");
 
 
 
-Controlling view generation
----------------------------
+== Controlling view generation
 * `View` generation is pluggable, too: application code can be called to create a view
 * The first member of a view is always the _coordinator_
 ** The application can therefore pick the coordinator
@@ -623,8 +585,7 @@ public interface MembershipChangePolicy {
 
 
 
-Generating a MergeView
-----------------------
+== Generating a MergeView
 * For example, we could have +{A,B,C}+, +{M,N,O,P}+ and +{X,Y,Z}+:
 * A, M and X are the respective coordinators of the subviews and the task of the code
   is to determine the _single coordinator_ of the merged view.
@@ -644,8 +605,7 @@ Generating a MergeView
 
 
 
-Sample view generation
-----------------------
+== Sample view generation
 * The following example shows how to pin coordinatorship to a certain subset of nodes in a cluster.
 * Beefy nodes need to be marked as such, and this is done by using a special address, generated by an
   `AddressGenerator`:
@@ -664,8 +624,7 @@ if(beefy)
   address is an `ExtendedUUID`.
 
 
-A sample MembershipChangePolicy
--------------------------------
+== A sample MembershipChangePolicy
 
 [source,java]
 ----
@@ -702,8 +661,7 @@ public List<Address> getNewMembership(Collection<Address> current,
 
 
 
-Fork channels
--------------
+== Fork channels
 * A fork channel is a light-weight channel, forked off of a main channel (`JChannel`)
 ** Used as a private communication channel for a subsystem
 ** Additional protocols can be attached to a fork channel
@@ -723,8 +681,7 @@ NOTE: Fork channels are exposed directly in WildFly 9
 
 
 
-Architecture of fork channels
------------------------------
+== Architecture of fork channels
 
 image::../images/ForkArchitecture.png[Fork channels,width="60%"]
 
@@ -741,8 +698,7 @@ image::../images/ForkArchitecture.png[Fork channels,width="60%"]
 
 
 
-Architecture of fork channels
------------------------------
+== Architecture of fork channels
 * Fork channels have an ID, e.g. `"fork-ch1"`
 * The combination of fork stack ID and fork channel ID is used to demultiplex incoming messages
 * If fork channel 2 sends a message, it'll pass through `COUNTER` and into `FORK`
@@ -761,8 +717,7 @@ Architecture of fork channels
    the same name, they would still not see each other's changes, as they'd have 2 different `COUNTER` protocols.
 
 
-FORK configuration
-------------------
+== FORK configuration
 
 [source,xml]
 ----
@@ -791,8 +746,7 @@ FORK configuration
   or they can dynamically create new fork stacks
 
 
-Creation of fork channels
--------------------------
+== Creation of fork channels
 * A fork channel is created by instantiating a new `ForkChannel` object:
 
 [source,java]
@@ -819,8 +773,7 @@ fork_ch.connect("bla");                               // <3>
   fork channels atttached to it are in closed state, too, and trying to send a message will throw an exception.
 
 
-Dynamically inserting a FORK protocol
--------------------------------------
+== Dynamically inserting a FORK protocol
 * The example above showed the simplified constructor, which requires the `FORK` protocol to be present in the
   stack. There's another constructor which allows for FORK to be created dynamically if not present:
 
@@ -846,8 +799,7 @@ public ForkChannel(final JChannel main_channel,
 
 
 
-Writing a protocol
-------------------
+== Writing a protocol
 * Let's write a simple protocol which prints the number of bytes for each sent or received message to stdout
 * To do this, we have to extend `Protocol`:
 
@@ -865,8 +817,7 @@ public class PRINT_BYTES extends Protocol {
 ** When on (default), the size of all messages is printed. This attribute can be changed at runtime.
 
 
-Methods to be overridden
-------------------------
+== Methods to be overridden
 * The table below lists the most important methods to be overridden by a protocol:
 
 [align="left",width="90%",cols="2,10",options="header"]
@@ -884,8 +835,7 @@ Methods to be overridden
 |=================
 
 
-A few facts about protocols
----------------------------
+== A few facts about protocols
 * Each protocol has a neighbor above it (`up_prot`) and below it (`down_prot`)
 * Messages and message batches are sent on the network, between members
 * Events are sent between protocols and are never sent out on the network
@@ -893,8 +843,7 @@ A few facts about protocols
 *** E.g. `type`=`VIEW_CHANGE` -> `arg` = `View`
 
 
-Example: printing a view change
--------------------------------
+== Example: printing a view change
 
 [source,java]
 ----
@@ -915,15 +864,13 @@ public Object down(Event evt) {      // <1>
 <5> Passing the view down the stack
 
 
-Caveats
--------
+== Caveats
 * GMS is the protocol which sends a `VIEW_CHANGE` up and down
 * If `PRINT_BYTES` is *above* GMS, it won't handle the view change
 ** Need to handle `VIEW_CHANGE` in the down and up direction
 
 
-Printing the sent messages
---------------------------
+== Printing the sent messages
 * To do this, we need to override `down(Message)`:
 
 [source,java]
@@ -944,8 +891,7 @@ public Object down(Message msg) {
 
 
 
-Printing the received bytes
----------------------------
+== Printing the received bytes
 * We have to override methods `up(Message)` and `up(MessageBatch)`:
 
 [source,java]
@@ -972,8 +918,7 @@ public void up(MessageBatch batch) {
 ----
 
 
-Register dynamically to JMX
----------------------------
+== Register dynamically with JMX
 * Add the following code to `PRINT_BYTES` protocol
 
 [source,java]
@@ -1000,8 +945,7 @@ public synchronized void register(boolean register) {
 probe.sh op=PRINT_BYTES.register[true]
 ----
 
-Running the demo
-----------------
+== Running the demo
 * Add `PRINT_BYTES` to `config.xml`:
 
 [source,xml]
@@ -1024,8 +968,7 @@ Running the demo
 
 
 
-Debugging
----------
+== Debugging
 * Failure detection protocols depending on heartbeats should be disabled
 * Otherwise, stopping member P in a breakpoint for more than the failure detection timeout would
   suspect and exclude P
@@ -1037,8 +980,7 @@ Debugging
 
 
 
-Simulation
-----------
+== Simulation
 * JGroups ships with a number of protocols for simulation of
 ** Message drops: `DISCARD`
 ** Network partitions: `DISCARD`
@@ -1052,16 +994,14 @@ Simulation
 
 
 
-Byteman
--------
+== Byteman
 ** Adding behavior to a running JVM via dynamic byte code rewriting
 ** Even to a JVM that was started _without a byteman agent_ (with `bminstall`)
 ** Dynamically install byteman rules (`bmsubmit`), e.g. to print the bytes of sent / received messages
 ** Byteman rules can be removed at runtime -> no overhead
 ** Can be used even in production
 
-Byteman rule
-------------
+== Byteman rule
 * Simple rule language:
 ----
 RULE down
@@ -1078,8 +1018,7 @@ ENDRULE
 
 
 
-Byteman demo
-------------
+== Byteman demo
 * Make sure `JAVA_HOME` is set or copy `tools.jar` from the JDK to `workshop/lib`
 * Run a ChatDemo, e.g. `./run.sh org.lab.ChatDemo -name A -props config.xml`
 * Find out the Java process ID:
