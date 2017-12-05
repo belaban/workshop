@@ -335,7 +335,7 @@ that they are increasing over time.
 == Possible fixes
 * Increase `UDP.oob_thread_pool.max_size` to 50:
 ----
-probe.sh op=UDP.setOOBThreadPoolMaxThreads[50]
+probe.sh op=UDP.setThreadPoolMaxThreads[50]
 ----
 * Now each request takes ~ 1s again
 
