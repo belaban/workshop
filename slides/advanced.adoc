@@ -633,13 +633,13 @@ public List<Address> getNewMembership(Collection<Address> current,
                                       Collection<Address> leavers,
                                       Collection<Address> suspects) {
     Membership retval=new Membership(); // prevents duplicates
-    for(Address addr: current_members)
+    for(Address addr: current)
         if(addr instanceof ExtendedUUID)
             retval.add(addr);
     for(Address addr: joiners)
         if(addr instanceof ExtendedUUID)
             retval.add(addr);
-    retval.add(current_members).add(joiners);
+    retval.add(current).add(joiners);
     retval.remove(leavers).remove(suspects);
     return retval.getMembers();
 }
