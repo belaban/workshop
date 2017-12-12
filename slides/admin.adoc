@@ -272,7 +272,7 @@ Problem #9: reusing a message (the Sebastian problem)
 ----
 Message msg=new Message(null, "hello");
 for(int i=0; i < 10; i++)
-   channel.send(msg)
+   channel.send(msg);
 ----
 * Spot the problem ?
 
