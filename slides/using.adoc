@@ -332,6 +332,7 @@ Util.registerChannel((JChannel)ch, "jgroups");
 
 image::../images/jconsole.png[jconsole,width="60%"]
 
+* Set `-Dcom.sun.management.jmxremote` to enable JMX
 
 Receiving messages
 ------------------
