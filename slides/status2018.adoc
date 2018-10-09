@@ -69,67 +69,113 @@ be present
 
 
 = JGroups 4.0.16
-* Fix for JGRP-2277: https://issues.jboss.org/browse/JGRP-2293
+* Fix for JGRP-2277: graceful leave of coord and next-in-line(s) leaves the cluster with incorrect views
+** https://issues.jboss.org/browse/JGRP-2293
+
+* Discovery protocol for members in the same process
+** Replacement for `TEST_PING`
+** Not the same as `SHARED_LOOPBACK_PING` (which can only be used with `SHARED_LOOPBACK`)
+** https://issues.jboss.org/browse/JGRP-2284
 
 
 
 = JGroups 5.0
 
-== New buffer management
-* https://issues.jboss.org/browse/JGRP-2218
-* A `Message` has a `byte[]` array
-** This forces users to pass `byte[]` arrays
-*** What if someone has an NIO `ByteBuffer`? -> Needs to be converted to a `byte[]` array -> copy!
-*** An Object needs to be marshalled into a `byte[]` array: additional copy
+== API changes
+* `Message` is now an interface
+* Different implementations such as `BytesMessage`, `ObjectMessage`, `NioMessage` etc
+** Every message still has a destination and sender address, headers and flags
+* Ability to create and register own message types
+
+== MessageFactory
+[source,java]
+----
+public interface MessageFactory {
+
+    /**
+     * Creates a message based on the given ID
+     * @param id The ID
+     * @param <T> The type of the message
+     * @return A message
+     */
+    <T extends Message> T create(byte id);
+
+    /**
+     * Registers a new creator of messages
+     * @param type The type associated with the new payload.
+     * @param generator The creator of the payload associated with the given type
+     */
+    void register(byte type, Supplier<? extends Message> generator);
+}
+----
+* The message factory can be set and retrieved from the transport with `get/setMessageFactory()`
+
+== Message implementations
+
+=== BytesMessage
+* Equivalent to old `Message`: has a byte array, an offset and a length
+* JOL shows exactly the same memory layout as before:
+
+----
+[belasmac] /Users/bela$ jol-size.sh org.jgroups.BytesMessage
+
+org.jgroups.BytesMessage object internals:
+ OFFSET  SIZE     TYPE DESCRIPTION                    VALUE
+      0     4          (object header)                ...
+      4     4          (object header)                ...
+      8     4          (object header)                ...
+     12     2    short BaseMessage.flags              0
+     14     1     byte BaseMessage.transient_flags    0
+     15     1          (alignment/padding gap)        N/A
+     16     4  Address BaseMessage.dest_addr          null
+     20     4  Address BaseMessage.src_addr           null
+     24     4 Header[] BaseMessage.headers            [null, null, null, null]
+     28     4      int BytesMessage.offset            0
+     32     4      int BytesMessage.length            0
+     36     4   byte[] BytesMessage.buf               null
+Instance size: 40 bytes
+Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
+----
+* This is still the most frequently used message used internally by JGroups (followed by `EmptyMessage`)
+
+==== Allocation and performance
+* 8 nodes, UPerf with UDP, 80% reads / 20% writes
+* Performance is the same as with the old `Message` (~42'000/sec/node)
+* Allocation
+** TLABs: 7.4GB (master: 7.32), allocation rate TLABs: 126.33MB/sec (master: 124.9)
+** Objects: 33.39GB (master: 37.68), allocation rate: 569.98kB/sec (master: 643.08kB/sec)
 
 
+=== EmptyMessage
+* No payload
+* Used by JGroups to send messages which contain only flags and headers
+* Compact size:
+----
+[belasmac] /Users/bela$ jol-size.sh org.jgroups.EmptyMessage
 
-* New `Payload` interface replaces `byte[]` array
-** Methods to read from a stream, write to a stream etc
-* Implementations:
-** `ByteArrayPayload`: wraps a `byte[]` array, offset and length (default)
-** `NioPayload`: wraps an NIO heap- or direct- buffer
-** `ObjectPayload`: wraps an object
-** `CompositePayload`: wraps multiple payloads, e.g. metadata and `byte[]` array
-*** Example: `UPerf`: currently, metadata and payload has to be copied into a new `byte[]` array
-** `PartialPayload`: ref to a payload, with offset and length
-*** Example use: fragmentation
-** `IntPayload`: wraps an `int`
-* Advantages
-** More flexible payload management:
-*** Install custom payload factories (e.g. possibly with ref-counting)
-*** Provide additional implementations, register with factory at runtime
-** Late serialization: e.g. an `ObjectPayload` could be serialized directly into a socket's output stream when sent
-** Late de-serialization: `ObjectPayload` carries `byte[]` array all the way up, until the object is accessed for the
-   first time
-** Possible optimizations in combination with gathering writes / scattering reads (NIO.2)
+org.jgroups.EmptyMessage object internals:
+ OFFSET  SIZE     TYPE DESCRIPTION                    VALUE
+      0     4          (object header)                ...
+      4     4          (object header)                ...
+      8     4          (object header)                ...
+     12     2    short BaseMessage.flags              0
+     14     1     byte BaseMessage.transient_flags    0
+     15     1          (alignment/padding gap)        N/A
+     16     4  Address BaseMessage.dest_addr          null
+     20     4  Address BaseMessage.src_addr           null
+     24     4 Header[] BaseMessage.headers            [null, null, null, null]
+     28     4          (loss due to the next object alignment)
+Instance size: 32 bytes
+Space losses: 1 bytes internal + 4 bytes external = 5 bytes total
+----
 
-image::../images/ObjectPayload.png[byte[] array versus payload,width="80%",align=left,valign=top]
+=== NioMessage
 
-=== Goals for buffer management
-* Sending a message: zero allocation of `byte[]` arrays / `ByteBuffers`
-* Receiving a message: _at most_ one allocation
-** `ObjectPayload` may even have zero allocation (walk through code)
+=== NioDirectMessage
 
+=== ObjectMessage
 
-== Multiple transports
-* https://issues.jboss.org/browse/JGRP-1424
-* Runs multiple transports in the same stack, e.g. TCP and UDP
-* Multiple transports of the same type, e.g. UDP for load balancing purposes
+=== ObjectSerializable
 
 
-== Infiniband / RDMA support
-* https://issues.jboss.org/browse/JGRP-1680
-* Requires JNI, probably a showstopper
-* Update: JXIO offers Java support of RDMA, shared memory
-** https://github.com/accelio/JXIO
-* Chronicle?
-** Fast message passing between processes on the same host by using shared memory
-
-
-= Workshop
-* Revamped, uses 4.x
-* Removed sections, added sections on split brain
-* Shortened to 4 days
-* https://github.com/belaban/workshop/blob/master/slides/toc.adoc
-* Held in Rome (Nov 7-10) and Berlin (Nov 21-24)
+=== FragmentedMessage
