@@ -309,3 +309,19 @@ fragmented, leading to possible size problems at the transport (e.g. UDP max dat
 * What else can be removed?
 * Breakout session: reduce memory allocation in Infinispan when sending commands
 ** `EmptyMessage`, `ObjectMessage`?
+
+
+=== Other stuff in 5.0
+* Default bundler (https://issues.jboss.org/browse/JGRP-1997)
+* JDK 11
+* Make TCP_NIO2 the default transport (currently, TCP is faster than TCP_NIO2)
+** https://issues.jboss.org/browse/JGRP-2108
+* Multiple discovery protocols without `MULTI_PING` (https://issues.jboss.org/browse/JGRP-2230)
+* Changes in signatures of `Streamable` and `Marshaller`: https://issues.jboss.org/browse/JGRP-2242
+* Handle ObjectMessage with incorrect size: https://issues.jboss.org/browse/JGRP-2285 and
+  https://issues.jboss.org/browse/JGRP-2289
+
+=== Roadmap after 5.0
+* Let 5.0 bake for a while to see whether the API is OK
+* Work with Infinispan team to port to 5.0 may also require some changes
+* New functionality in minor releases (no API changes)
