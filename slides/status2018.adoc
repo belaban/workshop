@@ -285,21 +285,27 @@ fragmented, leading to possible size problems at the transport (e.g. UDP max dat
 * Contains multiple messages
 * Messages can have different types
 * Similar to `MessageBatch` (for sending)
-
+* Not sure this is useful
 
 
 === FRAG4
-* Use this protocol with `ObjectMessage`, or else we have superfluous marshalling of the object into a byte array
-  (1 unneeded byte array allocation)
+* Use this protocol with `ObjectMessage`, `CompositeMessage` or `NioDirectMessage`
+* Or else we have superfluous marshalling of the object into a byte array (1 unneeded byte array allocation)
+* `FRAG4` creates N `FragmentedMessage` instances, each with an offset and length, and a reference to the original
+  message
+* When serialized, the `FragmentedMessage` uses a `PartialOutputStream` to marshal only the subset of the original
+  output stream between offset and length to the output stream
 
-=== FragmentedMessage
 
 
 === More message types
 * A message containing multiple payloads?
 * `IntMessage`, `LongMessage`
 
+
 === Misc
 * Remove `dest` field from `BaseMessage`?
 * Message without headers?
 * What else can be removed?
+* Breakout session: reduce memory allocation in Infinispan when sending commands
+** `EmptyMessage`, `ObjectMessage`?
