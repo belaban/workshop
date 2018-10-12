@@ -86,6 +86,9 @@ be present
 * Different implementations such as `BytesMessage`, `ObjectMessage`, `NioMessage` etc
 ** Every message still has a destination and sender address, headers and flags
 * Ability to create and register own message types
+* This is WIP, will become `master` soon (current master will become `4.x` branch)
+* Subsequent releases (`5.1`, `5.2`...) will contain new functionality, but no API changes
+
 
 == MessageFactory
 [source,java]
@@ -170,12 +173,133 @@ Space losses: 1 bytes internal + 4 bytes external = 5 bytes total
 ----
 
 === NioMessage
+* Has a heap-based `ByteBuffer` as payload
+* Creation fails if a direct byte buffer is passed to the constructor
+* On serialization (in the transport, at send time), the contents of the byte buffer are written to the output stream
+directly:
+[source,java]
+----
+protected void writePayload(DataOutput out) throws Exception {
+    out.writeInt(buf != null? getLength() : -1);
+    if(buf != null) {
+        byte[] buffer=buf.array();
+        int offset=buf.arrayOffset()+buf.position(), length=buf.remaining();
+        out.write(buffer, offset, length);
+    }
+}
+----
+* This avoids the conversion of `ByteBuffer` into a byte array, which was passed to the constructor of the old `Message`,
+eliminating 1 byte array allocation
 
 === NioDirectMessage
+* Subclass of `NioMessage`
+* Has a direct `ByteBuffer` as payload
+* Contents are written using a _transfer buffer_:
+[source,java]
+----
+protected void writePayload(DataOutput out) throws Exception {
+    out.writeInt(buf != null? getLength() : -1);
+    if(buf != null) {
+        out.writeBoolean(use_heap_memory);
+        // We need to duplicate; or else writing it to the output stream would modify
+        // position; this would break potential retransmission
+
+        ByteBuffer copy=buf.duplicate();
+        byte[] transfer_buf=new byte[Math.max(copy.remaining()/10, 128)];
+        while(copy.remaining() > 0) {
+            int bytes=Math.min(transfer_buf.length, copy.remaining());
+            copy.get(transfer_buf, 0, bytes);
+            out.write(transfer_buf, 0, bytes);
+        }
+    }
+}
+----
+* We need a transfer buffer as there is no way to transfer the contents of a ByteBuffer directly to
+  an output stream; once we have a transport that directly supports ByteBuffers, we can change this
+
+==== Reading an NioDirectMessage from the network
+* There's an option (`use_heap_memory`) to use heap memory when reading, otherwise direct (off-heap) memory is used
+* A message is read as follows:
+[source,java]
+----
+protected void readPayload(DataInput in) throws Exception {
+    int len=in.readInt();
+    if(len < 0)
+        return;
+    use_heap_memory=in.readBoolean();
+    byte[] tmp=new byte[len];
+    in.readFully(tmp, 0, tmp.length);
+    // todo: replace with factory; so users can provide their own allocation mechanism (e.g. pooling)
+    buf=createBuffer(tmp, 0, tmp.length);
+}
+----
+
+[source,java]
+----
+protected ByteBuffer createBuffer(byte[] array, int offset, int length) {
+    return use_heap_memory? super.createBuffer(array, offset, length) :
+    (ByteBuffer)ByteBuffer.allocateDirect(length).put(array, offset, length).flip();
+}
+----
+* Note that memory allocation will be pluggable
+* If a pool is to be used, we'd probably need to add a `release()` method to `Message`
+
 
 === ObjectMessage
+* Has an object as payload
+* The object has to implement `SizeStreamable`:
+[source,java]
+----
+public interface SizeStreamable extends Streamable {
+    /** Returns the size (in bytes) of the marshalled object */
+    int serializedSize();
+}
+----
 
-=== ObjectSerializable
+[source,java]
+----
+public interface Streamable {
+    void writeTo(DataOutput out) throws Exception;
+    void readFrom(DataInput in)  throws Exception;
+}
+----
+* Method `serializedSize()` must give the *exact number of bytes* when the object is marshalled
+** This will be changed with https://issues.jboss.org/browse/JGRP-2289
+* For fragmentation, if this method is incorrect and returns a value that's too low, an `ObjectMessage` may not get
+fragmented, leading to possible size problems at the transport (e.g. UDP max datagram packet size of 65k).
+* So, once JGRP-2289 is in place, it is better to return a size that errs on the side of too big rather than too small
+* The transport calls `Streamable.writeTo(DataOutput)` when the `ObjectMessage` is sent to the network
+* The transport calls `Streamable.readFrom(DataInput)` to create the `ObjectMessage` when received from the network
 
+
+=== ObjectMessageSerializable
+* Subclass of `ObjectMessage`, but the payload (`Object`) does not have to implement any interface
+* To be used when we have an object whose size we don't know
+* The object is serialized into a byte array which is stored along with the object
+** This is done just-in-time (e.g. on `getLength()`)
+* The byte array is sent to the network
+* Use `ObjectMessage` when possible
+
+
+=== CompositeMessage
+* Contains multiple messages
+* Messages can have different types
+* Similar to `MessageBatch` (for sending)
+
+
+
+=== FRAG4
+* Use this protocol with `ObjectMessage`, or else we have superfluous marshalling of the object into a byte array
+  (1 unneeded byte array allocation)
 
 === FragmentedMessage
+
+
+=== More message types
+* A message containing multiple payloads?
+* `IntMessage`, `LongMessage`
+
+=== Misc
+* Remove `dest` field from `BaseMessage`?
+* Message without headers?
+* What else can be removed?
