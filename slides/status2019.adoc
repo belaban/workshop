@@ -192,7 +192,7 @@ quarkus.log.category."org.jgroups.protocols.TCP".level=OFF
 ** https://issues.jboss.org/browse/JGRP-2391
 
 
-== JGroups 4.1.8 (wip)
+== JGroups 4.1.8
 * Support for concurrent startup in `LOCAL_PING` and `SHARED_LOOPBACK_PING`
 ** Produces no merging at all
 ** https://issues.jboss.org/browse/JGRP-2395
