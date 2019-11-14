@@ -213,10 +213,11 @@ quarkus.log.category."org.jgroups.protocols.TCP".level=OFF
 == JGroups 5.0
 
 == API changes
-* `Message` is now an interface
-* Different implementations such as `BytesMessage`, `ObjectMessage`, `NioMessage` etc
-** Every message still has a destination and sender address, headers and flags
-* Ability to create and register own message types
+* In 4.x, Message was a *class* accepting only *byte arrays* as payload
+* In 5.0, `Message` is now an *interface*
+* Implementations accept many different payloads, e.g. byte arrays, objects, NIO ByteBuffers
+** Different implementations such as `BytesMessage`, `ObjectMessage`, `NioMessage` etc
+* Ability to write own message types
 * This is WIP, will become `master` soon (current master will become `4.x` branch)
 * Subsequent releases (`5.1`, `5.2`...) will contain new functionality, but no API changes
 
@@ -297,6 +298,37 @@ Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
 * This is still the most frequently used message used internally by JGroups (followed by `EmptyMessage`)
 * Change: from `new Message()` -> `new BytesMessage()`
 
+
+==== Example
+* Old:
+
+[source,java]
+----
+Message msg=new Message(null, "hello world".getBytes());
+channel.send(msg);
+----
+
+* New:
+
+[source,java]
+----
+Message msg=new BytesMessage(null, "hello world".getBytes());
+channel.send(msg);
+----
+
+* Message reception:
+
+[source,java]
+----
+public void receive(Message msg) {
+    BytesMessage m=(BytesMessage)msg; // if you know you're sending only BytesMessages
+    // or use the generic methods (might throw exceptions though)
+    String s=new String(msg.getArray(), msg.getOffset(), msg.getLength());
+}
+----
+
+
+
 ==== Allocation and performance
 * 8 nodes, UPerf with UDP, 80% reads / 20% writes
 * Performance is the same as with the old `Message` (~42'000/sec/node)
@@ -329,6 +361,17 @@ Instance size: 32 bytes
 Space losses: 1 bytes internal + 4 bytes external = 5 bytes total
 ----
 
+==== Example
+
+[source,java]
+----
+// GMS:
+Message msg=new EmptyMessage(address).setFlag(OOB, INTERNAL)
+              .putHeader(gms.getId(), new GmsHeader(LEAVE_RSP));
+channel.send(msg);
+----
+
+
 === NioMessage
 * Has a (heap-based or direct-memory) `ByteBuffer` as payload
 * On serialization (in the transport, at send time), the contents of the byte buffer are written to the
@@ -347,6 +390,17 @@ Space losses: 1 bytes internal + 4 bytes external = 5 bytes total
 * Memory allocation should probably be pluggable
 * If a memory pool is to be used, we probably need ref-counting `Message`
 ** JGroups can only release in `NAKACK2` or `UNICAST3`
+
+
+==== Example
+[source,java]
+----
+byte[] array="hello world".getBytes();
+NioMessage msg=new NioMessage(null, ByteBuffer.wrap(array));
+channel.send(msg);
+----
+
+
 
 
 === ObjectMessage
@@ -375,6 +429,13 @@ fragmented, leading to possible size problems at the transport (e.g. UDP max dat
 * The transport calls `Streamable.writeTo(DataOutput)` when the `ObjectMessage` is sent to the network
 * The transport calls `Streamable.readFrom(DataInput)` to create the `ObjectMessage` when received from the network
 
+==== Example
+[source,java]
+----
+Person p=new Person("Bela Ban", 322649, array); // Person implements SizeStreamable
+Message msg=new ObjectMessage(dest, p);
+channel.send(p);
+----
 
 === ObjectMessageSerializable
 * Subclass of `ObjectMessage`, but the payload (`Object`) does not have to implement any interface
@@ -387,9 +448,25 @@ fragmented, leading to possible size problems at the transport (e.g. UDP max dat
 
 === CompositeMessage
 * Contains multiple messages
+** Use case: send an NIO ByteBuffer and a byte[] array
+** Previously, one would have had to create a byte[] array with space for both and then copy both
+   into the byte array, and pass the byte array to the Message constructor
 * Messages can have different types
+* All messages have to have the same destination
 * Similar to `MessageBatch` (for sending)
 * Not sure this is useful
+
+==== Example
+[source,java]
+----
+CompositeMessage msg=new CompositeMessage(null, new EmptyMessage(null));
+IntStream.of(10000, 15000, 5000).forEach(n -> msg.add(new BytesMessage(null, new byte[n])));
+Person p=new Person("Bela Ban", 53, array);
+msg.add(new ObjectMessageSerializable(null, p));
+msg.add(new NioMessage(null, ByteBuffer.wrap(array)));
+msg.add(new NioMessage(null, Util.wrapDirect(array)).useDirectMemory(false));
+channel.send(msg);
+----
 
 
 === FRAG4
