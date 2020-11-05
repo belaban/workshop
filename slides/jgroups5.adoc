@@ -1,0 +1,265 @@
+
+= JGroups 5
+:author: Bela Ban belaban@mailbox.org
+:backend: deckjs
+:deckjs_transition: fade
+:navigation:
+:deckjs_theme: web-2.0
+:goto:
+:menu:
+:toc:
+:status:
+
+
+
+
+== API changes
+* In 4.x, Message was a *class* accepting only *byte arrays* as payload
+* In 5.0, `Message` is now an *interface*
+* Implementations accept many payloads, e.g. byte arrays, objects, NIO ByteBuffers
+** Different implementations: `BytesMessage`, `ObjectMessage`, `NioMessage` etc
+* Ability to write own message types
+* Status: 5.0 final has been released, 5.1 is next
+* Subsequent releases (`5.2`, `5.3` etc) will contain new functionality, but no API changes
+
+* `Message`:
+
+[source,java]
+----
+public interface Message extends SizeStreamable, Constructable<Message> {
+    Supplier<Message>             create();
+
+    Address                       getDest();
+    <T extends Message> T         setDest(Address new_dest);
+
+    Address                       getSrc();
+    <T extends Message> T         setSrc(Address new_src);
+
+    <T extends Message> T         putHeader(short id, Header hdr);
+    <T extends Header> T          getHeader(short id);
+
+    <T extends Message> T         setFlag(Flag... flags);
+
+    <T extends Message> T         copy(boolean copy_payload, boolean copy_headers);
+
+    boolean                       hasPayload();
+
+    boolean                       hasArray();
+    byte[]                        getArray();
+    <T extends Message> T         setArray(byte[] b, int offset, int length);
+
+    int                           getOffset();
+    int                           getLength();
+
+    <T extends Object> T          getObject();
+    <T extends Message> T         setObject(Object obj);
+
+    int                           size();
+}
+----
+
+
+== MessageFactory
+[source,java]
+----
+public interface MessageFactory {
+    <T extends Message> T create(byte id);
+
+    void register(byte type, Supplier<? extends Message> generator);
+}
+----
+* The message factory can be set and retrieved from the transport with `get/setMessageFactory()`
+
+== Message implementations
+
+=== BytesMessage
+* Equivalent to old `Message`: has a byte array, an offset and a length
+* JOL shows exactly the same memory layout as before:
+
+----
+[belasmac] /Users/bela$ jol-size.sh org.jgroups.BytesMessage
+
+org.jgroups.BytesMessage object internals:
+ OFFSET  SIZE     TYPE DESCRIPTION                    VALUE
+      0     4          (object header)                ...
+      4     4          (object header)                ...
+      8     4          (object header)                ...
+     12     2    short BaseMessage.flags              0
+     14     1     byte BaseMessage.transient_flags    0
+     15     1          (alignment/padding gap)        N/A
+     16     4  Address BaseMessage.dest_addr          null
+     20     4  Address BaseMessage.src_addr           null
+     24     4 Header[] BaseMessage.headers            [null, null, null, null]
+     28     4      int BytesMessage.offset            0
+     32     4      int BytesMessage.length            0
+     36     4   byte[] BytesMessage.buf               null
+Instance size: 40 bytes
+Space losses: 1 bytes internal + 0 bytes external = 1 bytes total
+----
+* This is still the most frequently used message used internally by JGroups (followed by `EmptyMessage`)
+* Change: from `new Message()` -> `new BytesMessage()`
+
+
+==== Example
+* Old:
+
+[source,java]
+----
+Message msg=new Message(null, "hello world".getBytes());
+channel.send(msg);
+----
+
+* New:
+
+[source,java]
+----
+Message msg=new BytesMessage(null, "hello world".getBytes());
+channel.send(msg);
+----
+
+or better:
+[source,java]
+----
+Message msg=new ObjectMessage(null, "hello world");
+channel.send(msg);
+----
+
+
+* Message reception:
+
+[source,java]
+----
+public void receive(Message msg) {
+    BytesMessage m=(BytesMessage)msg; // if you know you're sending only BytesMessages
+    // or use the generic methods (might throw exceptions though)
+    String s=new String(msg.getArray(), msg.getOffset(), msg.getLength());
+}
+----
+
+* For the ObjectMessage above:
+[source,java]
+----
+public void receive(Message msg) {
+    // if you know you're sending only ObjectMessages
+    Message m=(ObjectMessage)msg;
+    String s=m.getObject();
+}
+----
+
+
+
+=== EmptyMessage
+* No payload
+* Example: leave request
+* Used by JGroups to send messages which contain only flags and headers
+* Compact size
+
+
+==== Example
+
+[source,java]
+----
+// GMS:
+Message msg=new EmptyMessage(address).setFlag(OOB, INTERNAL)
+              .putHeader(gms.getId(), new GmsHeader(LEAVE_RSP));
+channel.send(msg);
+----
+
+
+=== NioMessage
+* Has a (heap-based or direct-memory) `ByteBuffer` as payload
+* On serialization (in the transport, at send time), the contents of the byte buffer are written to the
+  output stream directly, no copying
+* This avoids the conversion of `ByteBuffer` into a byte array, which was passed to the constructor of the
+  old `Message`, eliminating a byte array allocation
+* For off-heap ByteBuffers, we need a transfer buffer as there is no way to transfer the contents of a
+  `ByteBuffer` directly to an output stream
+
+==== Reading a direct NioMessage from the network
+* There's an option (`use_direct_memory_for_allocations`) to use direct (off-heap)memory when reading,
+  otherwise heap memory is used
+
+==== Example
+[source,java]
+----
+byte[] array="hello world".getBytes();
+NioMessage msg=new NioMessage(null, ByteBuffer.wrap(array));
+channel.send(msg);
+----
+
+
+
+
+=== ObjectMessage
+* Has an object as payload
+* Primitive types such as `int`, `String`, `Boolean` or `bool` are marshalled by JGroups
+* If the object implements `SizeStreamable`, the marshalling is more efficient
+* Otherwise, a wrapper is created which eagerly marshalls the object into a byte array on first access
+(e.g. `getLength()`)
+
+==== Example
+[source,java]
+----
+Person p=new Person("Bela Ban", 322649, array);
+Message msg=new ObjectMessage(dest, p);
+channel.send(msg)
+
+// or
+
+msg=new ObjectMessage(null, "hello world");
+channel.send(msg);
+----
+
+
+=== CompositeMessage
+* Contains multiple messages
+** Use case: send an NIO ByteBuffer and a byte[] array
+** Previously, one would have had to create a byte[] array with space for both and then copy both
+   into the byte array, and pass the byte array to the Message constructor
+* Messages can have different types
+* All messages have to have the same destination
+* Similar to `MessageBatch` (for sending)
+* Not sure if this is useful
+
+==== Example
+[source,java]
+----
+CompositeMessage msg=new CompositeMessage(null, new EmptyMessage(null));
+IntStream.of(10000, 15000, 5000).forEach(n -> msg.add(new BytesMessage(null, new byte[n])));
+Person p=new Person("Bela Ban", 53, array);
+msg.add(new ObjectMessageSerializable(null, p));
+msg.add(new NioMessage(null, ByteBuffer.wrap(array)));
+msg.add(new NioMessage(null, Util.wrapDirect(array)).useDirectMemory(false));
+channel.send(msg);
+----
+
+=== LongMessage
+* Has a simple long:
+[source,java]
+----
+Message msg=new LongMessage(null, 322649);
+channel.send(msg);
+----
+
+
+== Other notable changes
+
+* Reduce merging on startup
+** https://issues.redhat.com/browse/JGRP-2412
+
+* Random Early Drop (RED): message bundler drops messages if queue gets near exhaustion
+** https://issues.redhat.com/browse/JGRP-2462
+
+* Versioned configuration
+** A config now has a version number, e.g. 3.6.19. If a different JGroups version (e.g. 4.0.19) tries
+   to be used, the channel won't start. A diff in the micro version is fine.
+** https://issues.redhat.com/browse/JGRP-2401
+
+* SOS reports
+** New protocol `SOS`, which periodically dumps vitals to file (useful for support)
+** https://issues.redhat.com/browse/JGRP-2402
+
+* Dump information in panic scenarios
+** When the thread pool is full, a message with the full stack trace is logged
+** This only happens once; subsequent exhaustions do not cause logging to happen
+** https://issues.redhat.com/browse/JGRP-2403
