@@ -263,3 +263,20 @@ channel.send(msg);
 ** When the thread pool is full, a message with the full stack trace is logged
 ** This only happens once; subsequent exhaustions do not cause logging to happen
 ** https://issues.redhat.com/browse/JGRP-2403
+
+* Native GossipRouter
+** Use GraalVM to compile GossipRouter to native
+** https://issues.redhat.com/browse/JGRP-2469
+
+* More legible output in probe
+** E.g. 234M instead of 234000000, or 10m instead of 600000 (ms)
+** https://issues.redhat.com/browse/JGRP-2457
+
+* RpcDispatcher: use ObjectMessage
+** Optimization: saves 4 memory allocations with every sync RPC
+** https://issues.redhat.com/browse/JGRP-2475
+
+* MethodCall reduce size
+** From 186b to 28b
+** https://issues.redhat.com/browse/JGRP-2476
+
