@@ -241,8 +241,23 @@ Message msg=new LongMessage(null, 322649);
 channel.send(msg);
 ----
 
+=== Ref-counted message
+* If the payload needs to be reused, we can have ref-counted messages
+** Pre-allocate a fixed number of buffers
+** Use them in messages as payload
+** Pass a lambda with each message that decides what to do when the msg can be reused (e.g. add them
+   back to a pool)
+*** http://www.jgroups.org/manual5/index.html#Refcounting
+
+-> Reduces memory allocation on the send path
+
+-> This could also be done on the receive path
+
+
 
 == Other notable changes
+
+=== 5.0.x
 
 * Reduce merging on startup
 ** https://issues.redhat.com/browse/JGRP-2412
@@ -269,7 +284,7 @@ channel.send(msg);
 ** https://issues.redhat.com/browse/JGRP-2469
 
 * More legible output in probe
-** E.g. 234M instead of 234000000, or 10m instead of 600000 (ms)
+** E.g. `234M` instead of `234000000`, or `10m` instead of `600000` (ms)
 ** https://issues.redhat.com/browse/JGRP-2457
 
 * RpcDispatcher: use ObjectMessage
@@ -280,3 +295,31 @@ channel.send(msg);
 ** From 186b to 28b
 ** https://issues.redhat.com/browse/JGRP-2476
 
+* Support for virtual threads (fibers)
+** Huge perf diff for UDP (mainly to changes in Java 14, not virtual threads)
+** https://issues.redhat.com/browse/JGRP-2478
+
+* Rewrite of MPerf
+** Performs like UPerf (time-based)
+** https://issues.redhat.com/browse/JGRP-2490
+
+* Handle ObjectMesssage whose payload returns an incorrect size
+** Implementations of size() don't need to be strict
+** https://issues.redhat.com/browse/JGRP-2285
+** Ditto for FRAG4: https://issues.redhat.com/browse/JGRP-2289
+
+=== 5.1
+
+* Multiple discovery protocols without the need for MULTI_PING
+** https://issues.redhat.com/browse/JGRP-2230
+
+* Ref-counting for messages
+** https://issues.redhat.com/browse/JGRP-2417
+
+* GossipRouter: more efficient routing
+** When NIO is used
+** https://issues.redhat.com/browse/JGRP-2430
+
+* Receive buffer is ignored in TCP and TCP_NIO2
+** Might lead to poor throughput
+** https://issues.redhat.com/browse/JGRP-2504
