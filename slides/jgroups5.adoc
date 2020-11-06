@@ -64,7 +64,6 @@ public interface Message extends SizeStreamable, Constructable<Message> {
 ----
 public interface MessageFactory {
     <T extends Message> T create(byte id);
-
     void register(byte type, Supplier<? extends Message> generator);
 }
 ----
@@ -131,7 +130,6 @@ channel.send(msg);
 ----
 public void receive(Message msg) {
     BytesMessage m=(BytesMessage)msg; // if you know you're sending only BytesMessages
-    // or use the generic methods (might throw exceptions though)
     String s=new String(msg.getArray(), msg.getOffset(), msg.getLength());
 }
 ----
@@ -152,7 +150,7 @@ public void receive(Message msg) {
 * No payload
 * Example: leave request
 * Used by JGroups to send messages which contain only flags and headers
-* Compact size
+* Compact size (32 bytes)
 
 
 ==== Example
@@ -176,7 +174,7 @@ channel.send(msg);
   `ByteBuffer` directly to an output stream
 
 ==== Reading a direct NioMessage from the network
-* There's an option (`use_direct_memory_for_allocations`) to use direct (off-heap)memory when reading,
+* There's an option (`use_direct_memory_for_allocations`) to use direct (off-heap) memory when reading,
   otherwise heap memory is used
 
 ==== Example
