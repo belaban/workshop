@@ -16,59 +16,164 @@
 
 == JGroups 5.1
 
-* Support for TLS
-** Applicable to TCP, GossipRouter
-** Implemented via changes in DefaultSocketFactory
-** https://issues.redhat.com/browse/JGRP-2374
+=== Support for TLS
+* Applicable to TCP, GossipRouter
+* Implemented via changes in DefaultSocketFactory
+* https://issues.redhat.com/browse/JGRP-2374
 
-* Message batches ignore destination address
-** https://issues.redhat.com/browse/JGRP-2509
 
-* Threaddump when pool is full
-** Controlled by thread_dumps_threshold (default: 1)
-** https://issues.redhat.com/browse/JGRP-2403
+=== Threaddump when pool is full
+* Controlled by thread_dumps_threshold (default: 1)
+* https://issues.redhat.com/browse/JGRP-2403
 
-* Poor throughput over TCP on high-latency links
-** ServerSocket's buffersize must be set *before* `accept()`
-** https://issues.redhat.com/browse/JGRP-2504
+=== Poor throughput over TCP on high-latency links
+* ServerSocket's buffersize must be set *before* `accept()`
+* https://issues.redhat.com/browse/JGRP-2504
+
 
 
 == JGroups 5.1.4
 
-* Removed XML parser
-** `jg-magic-map.xml` and `jg-protocol-ids.xml` required use of XML parser
-** The XML classes remain in memory, although never used again
-** Replaced XML parser with simple parser -> no dependencies on `javax.xml.*` anymore
-** https://issues.redhat.com/browse/JGRP-2524
+=== Removed XML parser
+* `jg-magic-map.xml` and `jg-protocol-ids.xml` required use of XML parser
+* The XML classes remain in memory, although never used again
+* Replaced XML parser with simple parser -> no dependencies on `javax.xml.*` anymore
+* https://issues.redhat.com/browse/JGRP-2524
 
-* Limit max number of bytes to read over TCP/TCP_NIO2
-** Both protocols precede the data by a length field (4 bytes)
-** When garbage is read, the int can become huge -> temp OOME
-** New attribute to cap max number of bytes read: `max_length`
-** https://issues.redhat.com/browse/JGRP-2523
+=== Limit max number of bytes to read over TCP/TCP_NIO2
+* Both protocols precede the data by a length field (4 bytes)
+* When garbage is read, the int can become huge -> temp OOME
+* New attribute to cap max number of bytes read: `max_length`
+* https://issues.redhat.com/browse/JGRP-2523
+
 
 
 == JGroups 5.1.6
 
-* FlowControl should not send credits to self for `DONT_LOOPBACK` messages
-** Infinispan sets `DONT_LOOPBACK` on _all_ messages
-** This increases the number of threads to be handled by the internal thread pool
-** Potential spawning of temporary threads
-** https://issues.redhat.com/browse/JGRP-2532
+=== FlowControl should not send credits to self for DONT_LOOPBACK messages
+* Infinispan sets `DONT_LOOPBACK` on _all_ messages
+* This increases the number of threads to be handled by the internal thread pool
+* Potential spawning of temporary threads
+* https://issues.redhat.com/browse/JGRP-2532
 
-* Support for unresolved hostnames in TCPPING
-** When xsite starts, not all hostnames may resolve yet, as the Openshift DNS service may not yet have been started
-** Solution: resolve the hostnames we _can_ resolve and add them to `initial_hosts`
-** The ones we can't, we try to resolve every time `fetchMembers()` is called
-** `TCPPING` will work even if we can only resolve 2 out of 3 hostnames
-** https://issues.redhat.com/browse/JGRP-2535
+=== Support for unresolved hostnames in TCPPING
+* When xsite starts, not all hostnames may resolve yet, as the Openshift DNS service may not yet have been started
+* Solution: resolve the hostnames we _can_ resolve and add them to `initial_hosts`
+* The ones we can't, we try to resolve every time `fetchMembers()` is called
+* `TCPPING` will work even if we can only resolve 2 out of 3 hostnames
+* https://issues.redhat.com/browse/JGRP-2535
 
-* Disable spawning of new threads when thread pool is full
-** When an internal message is forwarded to the internal pool, and the pool is full, a new thread is spawned
-** On a hiccup, e.g. many retransmission requests (internal messages), a high number of temporary threads
-   might be created. This could lead to resource exhaustion
-** Better to simply drop the internal message
-*** This would even be beneficial, to reduce the burden on the system
-*** Note: timer tasks can _never_ be dropped, but the timer has its own logic
-** https://issues.redhat.com/browse/JGRP-2539
+=== Disable spawning of new threads when thread pool is full
+* When an internal message is forwarded to the internal pool, and the pool is full, a new thread is spawned
+* On a hiccup, e.g. many retransmission requests (internal messages), a high number of temporary threads
+  might be created. This could lead to resource exhaustion
+* Better to simply drop the internal message
+** This would even be beneficial, to reduce the burden on the system
+** Note: timer tasks can _never_ be dropped, but the timer has its own logic
+* https://issues.redhat.com/browse/JGRP-2539
+
+=== Deprecate internal thread pool
+* https://issues.redhat.com/browse/JGRP-2548
+
+
+
+== JGroups 5.1.7
+
+=== FD_SOCK2
+* FD_SOCK was written in 2001 (!)
+** Complicated & brittle code
+** Needs to run complex code which discover the cache of addresses:socket addresses
+* New: use a fixed port, offset from the actual port of a given member
+** Example: `bind_port: 2107`, `FD_SOCK2 listener port = 2117` (`offset`: 10)
+* Thread reduction: from 3 -> 1 (thanks to use of NioServer)
+* Details: https://github.com/belaban/JGroups/blob/master/doc/design/FD_SOCK2.txt
+* Result: `FD_SOCK`: 1235 LOC, `FD_SOCK2`: 724 LOC
+* https://issues.redhat.com/browse/JGRP-2521
+
+=== Slow view installation when multiple members crash
+* `GMS: A: failed to collect all ACKs (expected=2) for view [A|4] after 10012 ms, missing 2 ACKs from (2) C, B`
+* https://issues.redhat.com/browse/JGRP-2556
+* Also helped by new `VERIFY_SUSPECT2`
+
+=== VERIFY_SUSPECT2
+* https://issues.redhat.com/browse/JGRP-2558
+
+
+=== probe.sh simplification
+* `probe.sh jmx=NAKACK2.level` -> `probe.sh NAKACK2.level`
+* `probe.sh op=UNICAST3.dumpRoutingTable` -> `probe.sh UNICAST3.dumpRoutingTable[]`
+* https://issues.redhat.com/browse/JGRP-2413
+
+
+
+== JGroups 5.2.0
+
+=== TLS support for TCP / GossipRouter
+* https://issues.redhat.com/browse/JGRP-2487
+
+
+=== Drop internal thread pool
+* Currently, we have a regular and an internal thread pool
+* The internal pool is supposed to handle only internal messages
+** Heartbeats for example are not stuck behind regular messages
+* Disadvanteges of internal pool:
+** Increased code complexity and configuration
+*** We have to maintain 2 thread pools instead of 1
+** Work stealing in `UNICAST3` / `NAKACK2` defeats the purpose of the internal pool: an internal thread
+   might deliver regular messages (and vice versa). Since regular messages may block, the internal pool
+   can become exhausted
+** Due to work stealing, when the regular pool is exhausted, the chances of the internal pool getting exhausted
+   are high, so we might as well just have 1 pool
+** Internal messages are dropped when the internal pool is full (changed in JGRP-2539)
+   -> this doesn't require an internal pool
+** SUMMARY: the internal thread pool processeing only internal messages is not achievable with work stealing in
+   place, therefore we might as well abolish it -> less code complexity and configuration.
+* https://issues.redhat.com/browse/JGRP-2541
+
+
+=== Break TP up into smaller pieces
+* TP has over 2000 LOC
+* Introduction of components to break it up
+** `@Component(name="bundler") proteced Bundler bundler;`
+* A component can be configured through XML: +
+  `<TCP bunder_type="tq" bundler.max_size="64K".../>`
+** `max_bundle_size` -> `bundler.max_size`
+* probe.sh to look at bundler: +
+----
+c:> probe.sh TCP.bundler.
+TCP={bundler.average_fill_count=min/avg/max=39/60,25/90, bundler.capacity=8.096, bundler.max_size=64KB,bundler.num_sends_because_full_queue=0, bundler.num_sends_because_no_msgs=42, bundler.size=0}
+----
+* Programmatic config: `transport.getBundler().setCapacity(4096);`
+* Current components: Diagnostics, Bundler, MsgStats, MessageProcessingPolicy
+** Planned: thread pool, timer etc
+* This is WIP
+* https://issues.redhat.com/browse/JGRP-2567
+
+
+=== Provide access to GossipRouter via probe.sh
+* Use components to expose attributes and operations
+* probe.sh can then be used to get information about GossipRouters running in a network, in
+  addition to all nodes
+* https://issues.redhat.com/browse/JGRP-2577
+
+
+=== Shared memory for sending of message between members on the same host
+
+* https://issues.redhat.com/browse/JGRP-1672
+
+
+=== Remove flow control, retransmission, fragmentation over selected transports
+
+* https://issues.redhat.com/browse/JGRP-2566
+
+
+=== Topology-aware routing
+* https://issues.redhat.com/browse/JGRP-2571
+
+
+== Issues
+
+* No good lab for perftests
+** clusterXX boxes have old Linux version; not maintained, no sudo/root privileges
+
 
