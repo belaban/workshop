@@ -1,0 +1,74 @@
+
+= Status JGroups 2021
+:author: Bela Ban belaban@mailbox.org
+:backend: deckjs
+:deckjs_transition: fade
+:navigation:
+:deckjs_theme: web-2.0
+:goto:
+:menu:
+:toc:
+:status:
+
+
+
+
+
+== JGroups 5.1
+
+* Support for TLS
+** Applicable to TCP, GossipRouter
+** Implemented via changes in DefaultSocketFactory
+** https://issues.redhat.com/browse/JGRP-2374
+
+* Message batches ignore destination address
+** https://issues.redhat.com/browse/JGRP-2509
+
+* Threaddump when pool is full
+** Controlled by thread_dumps_threshold (default: 1)
+** https://issues.redhat.com/browse/JGRP-2403
+
+* Poor throughput over TCP on high-latency links
+** ServerSocket's buffersize must be set *before* `accept()`
+** https://issues.redhat.com/browse/JGRP-2504
+
+
+== JGroups 5.1.4
+
+* Removed XML parser
+** `jg-magic-map.xml` and `jg-protocol-ids.xml` required use of XML parser
+** The XML classes remain in memory, although never used again
+** Replaced XML parser with simple parser -> no dependencies on `javax.xml.*` anymore
+** https://issues.redhat.com/browse/JGRP-2524
+
+* Limit max number of bytes to read over TCP/TCP_NIO2
+** Both protocols precede the data by a length field (4 bytes)
+** When garbage is read, the int can become huge -> temp OOME
+** New attribute to cap max number of bytes read: `max_length`
+** https://issues.redhat.com/browse/JGRP-2523
+
+
+== JGroups 5.1.6
+
+* FlowControl should not send credits to self for `DONT_LOOPBACK` messages
+** Infinispan sets `DONT_LOOPBACK` on _all_ messages
+** This increases the number of threads to be handled by the internal thread pool
+** Potential spawning of temporary threads
+** https://issues.redhat.com/browse/JGRP-2532
+
+* Support for unresolved hostnames in TCPPING
+** When xsite starts, not all hostnames may resolve yet, as the Openshift DNS service may not yet have been started
+** Solution: resolve the hostnames we _can_ resolve and add them to `initial_hosts`
+** The ones we can't, we try to resolve every time `fetchMembers()` is called
+** `TCPPING` will work even if we can only resolve 2 out of 3 hostnames
+** https://issues.redhat.com/browse/JGRP-2535
+
+* Disable spawning of new threads when thread pool is full
+** When an internal message is forwarded to the internal pool, and the pool is full, a new thread is spawned
+** On a hiccup, e.g. many retransmission requests (internal messages), a high number of temporary threads
+   might be created. This could lead to resource exhaustion
+** Better to simply drop the internal message
+*** This would even be beneficial, to reduce the burden on the system
+*** Note: timer tasks can _never_ be dropped, but the timer has its own logic
+** https://issues.redhat.com/browse/JGRP-2539
+
