@@ -183,13 +183,19 @@ TCP={bundler.average_fill_count=min/avg/max=39/60,25/90, bundler.capacity=8.096,
 
 
 === Remove flow control, retransmission, fragmentation over selected transports
-
+* When running over TCP/TCP_NIO2, we can remove
+** Flow control (`MFC`, `UFC`)
+** Retransmission (`UNICAST3`, `NAKACK2`, `STABLE`)
+** Fragmentation (`FRAG2,3,4`)
+* Caveats:
+** Sender cannot drop messages (`RED`)
+** Receiver cannot drop messages, e.g. due to full thread pool
+*** `CallerRunsPolicy` or a special rejection policy?
+** Bundlers such as `NoBundler` won't work (`TransferQueueBundler` will a it has a single send thread)
+** If we remove NAKACK2 altogether, then state transfer won't be possible, as we won't have digests +
+-> perhaps `NAKACK2` and `UNICAST3` can be changed to disable only retransmission, but leave ordering in place?
 * https://issues.redhat.com/browse/JGRP-2566
 
-
-
-== JGroups 5.3.0
-* Not yet started
 
 
 == Misc
@@ -198,4 +204,10 @@ TCP={bundler.average_fill_count=min/avg/max=39/60,25/90, bundler.capacity=8.096,
 * clusterXX boxes have old Linux version; not maintained, no sudo/root privileges
 
 === Daisychaining and total order
+* `DAISY2`
+* `EARLYBATCH`: batches smaller messages on the sender side into bigger messages, extracts them on the receiver side
+** Similar to batching on the sender side
+** Performance boost (4 nodes, MPerf with 100 threads sending 100-byte messages), preliminary results:
+*** Without `EARLYBATCH`: 49.5MB/sec/node
+*** With `EARLYBATCH`: 200MB/sec/node!
 
