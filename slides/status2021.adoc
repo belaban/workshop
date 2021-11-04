@@ -158,8 +158,28 @@ TCP={bundler.average_fill_count=min/avg/max=39/60,25/90, bundler.capacity=8.096,
 
 
 === Shared memory for sending of message between members on the same host
-
+* Use of shared memory for sending of messages to members on the same host
+** Faster than TCP/IP sockets (also UNIX domain sockets), as the TCP/IP stack / kernel is not involved
+* If a dest is local -> use local transport, otherwise use socket
+* Code maintains cache of local members
+* Can be enabled/disabled (`local_transport_class`)
+* Implementation: https://github.com/jgroups-extras/SharedMemoryTransport
+** Uses Unsafe / VarHandles
+** Code copied from Agrona and changed by Francesco Nigro
+* Performance: speedup of 2x-... (better on more recent Linux versions)
+** Enabling virtual threads (`TCP.use_fibers="true"`) helps, too
 * https://issues.redhat.com/browse/JGRP-1672
+
+
+=== Topology-aware routing
+* Scenario: 4 hosts `{A,B,C,D}` with 4 member processes each (e.g. `{B1..B4}`) -> 16 members
+* `A3` sends a message `M` to all members
+* Current N-1 approach: `A1,A2,A4,B1..B4,C1..C4,D1..D4` (15 times)
+** Change: send `M` locally, and then only to *one member of each host*, e.g. `B2`, `C1` and `D4`
+** They disseminate `M` to members on the same host
+* Topology information collected dynamically (separate protocol), or defined statically (config file)
+* Similarity to xsite, daisychaining
+* https://issues.redhat.com/browse/JGRP-2571
 
 
 === Remove flow control, retransmission, fragmentation over selected transports
@@ -167,13 +187,15 @@ TCP={bundler.average_fill_count=min/avg/max=39/60,25/90, bundler.capacity=8.096,
 * https://issues.redhat.com/browse/JGRP-2566
 
 
-=== Topology-aware routing
-* https://issues.redhat.com/browse/JGRP-2571
+
+== JGroups 5.3.0
+* Not yet started
 
 
-== Issues
+== Misc
 
-* No good lab for perftests
-** clusterXX boxes have old Linux version; not maintained, no sudo/root privileges
+=== No good lab for perftests
+* clusterXX boxes have old Linux version; not maintained, no sudo/root privileges
 
+=== Daisychaining and total order
 
