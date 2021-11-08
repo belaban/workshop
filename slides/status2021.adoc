@@ -205,6 +205,9 @@ TCP={bundler.average_fill_count=min/avg/max=39/60,25/90, bundler.capacity=8.096,
 
 === Daisychaining and total order
 * `DAISY2`
+* Work on daisychaining revivived (Univ. of Newcastle)
+* In conjuntion with total order (paper @ EPFL)
+** https://github.com/belaban/JGroups/blob/master/doc/design/CLOUD_TCP.txt
 * `EARLYBATCH`: batches smaller messages on the sender side into bigger messages, extracts them on the receiver side
 ** Similar to batching on the sender side
 ** Performance boost (4 nodes, MPerf with 100 threads sending 100-byte messages), preliminary results:
