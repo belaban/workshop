@@ -1,5 +1,5 @@
 
-= Status JGroups 2021
+= Status JGroups 2022
 :author: Bela Ban belaban@mailbox.org
 :backend: deckjs
 :deckjs_transition: fade
@@ -25,13 +25,96 @@
 
 
 
-== JGroups 5.2.2
-
-
 == JGroups 5.2.3
-== JGroups 5.2.4
+
+=== Support for unresolved hostnames in TUNNEL
+* Useful in cases where Kubernetes doesn't yet have DNS for a pod, when the pod is started
+* Instead of failing pod startup, the name will be resolved on a subsequent reconnect
+* https://issues.redhat.com/browse/JGRP-2615
+
+=== Messages with NO_RELIABILITY are delivered twice
+* https://issues.redhat.com/browse/JGRP-2620
+
+
 == JGroups 5.2.5
+
+=== Perf regression from 4.x
+* Regression in Infinispan with 100% writes
+** Makes sense?
+* Haven't been able to reproduce so far
+* Working on tools to pinpoint cause of regression, see JGRP-2640
+* https://issues.redhat.com/browse/JGRP-2632
+
+
+=== Measure RTT times for requests
+* Kind of moot as `RpcDispatcher` is not used any longer (`JChannel` is)
+* Output:
+
+[source]
+----
+A:
+  total: 191,74us/7,25ms/247,85ms
+  down-req: 4,35us/1,60ms/125,96ms
+  network req: 25,46us/277,89us/75,01ms
+  network rsp: 31,46us/349,90us/93,22ms
+  up-req: 5,27us/1,03ms/122,01ms
+  up-rsp: 14,16us/1,01ms/125,71ms
+  processing time: 724ns/6,27us/18,32ms
+----
+* https://issues.redhat.com/browse/JGRP-2604
+
+
+=== Non-blocking API for counters
+* Is implemented by jgroups-raft
+* Used to implement *Strong Counters* in Infinispan
+* Sample code:
+[source,java]
+----
+public void testChainAddAndGet() {
+    List<AsyncCounter> counters = createAsyncCounters("chain-add-and-get");
+
+    CompletionStage<Long> stage = counters.get(0).addAndGet(5)
+            .thenCompose(value -> counters.get(0).addAndGet(value));
+    stage.thenAccept(value -> assertEquals(10L, (long) value))
+         .toCompletableFuture().join();
+
+    List<CompletionStage<Boolean>> checkValueStage = new ArrayList<>(counters.size());
+    Function<Long, Boolean> isTen = value -> value == 10;
+    for (AsyncCounter c : counters) {
+        checkValueStage.add(c.get().thenApply(isTen));
+    }
+    for (CompletionStage<Boolean> c : checkValueStage) {
+        assertTrue(c.toCompletableFuture().join());
+    }
+    assertAsyncValues(counters, 10);
+}
+----
+* https://issues.redhat.com/browse/JGRP-2614
+
+=== Multi-release JAR
+* To use *virtual threads* (fibers)
+* Problem with Wildfly: they cannot use preview features
+* Currently disabled: building with JDK 11 rather than 20
+* https://issues.redhat.com/browse/JGRP-2631
+
+
 == JGroups 5.2.6
-== JGroups 5.2.7
-== JGroups 5.2.8
+
+=== Add heartbeating to TUNNEL
+* Firewalls or hanging GossipRouters would not remove a connection -> delays trying to send over
+  a failed connection (with multiple connections)
+* Added client -> GossipRouter heartbeating (not the other way round!)
+* https://issues.redhat.com/browse/JGRP-2634
+
+
 == JGroups 5.2.9
+
+=== Measure how long each protocol takes to process messages
+* Down (send) and up (receive) direction
+* Implemented with byteman code injection and a probe handler
+* https://issues.redhat.com/browse/JGRP-2640
+
+
+== jgroups-raft 1.0.0
+
+== jgroups-raft 1.0.1
