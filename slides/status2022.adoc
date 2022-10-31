@@ -1,0 +1,37 @@
+
+= Status JGroups 2021
+:author: Bela Ban belaban@mailbox.org
+:backend: deckjs
+:deckjs_transition: fade
+:navigation:
+:deckjs_theme: web-2.0
+:goto:
+:menu:
+:toc:
+:status:
+
+
+
+
+
+== JGroups 5.2.1
+
+=== Incorrect credits with STABLE
+* https://issues.redhat.com/browse/JGRP-2605
+
+=== OOME with DONT_LOOPBACK
+* Affects `NAKACK2` and `UNICAST3`
+* https://issues.redhat.com/browse/JGRP-2607
+
+
+
+== JGroups 5.2.2
+
+
+== JGroups 5.2.3
+== JGroups 5.2.4
+== JGroups 5.2.5
+== JGroups 5.2.6
+== JGroups 5.2.7
+== JGroups 5.2.8
+== JGroups 5.2.9
