@@ -115,6 +115,26 @@ public void testChainAddAndGet() {
 * https://issues.redhat.com/browse/JGRP-2640
 
 
+== Future
+
+=== io_uring based transport
+* Fully asynchronous and no copying between user- and kernel-space
+* Uses the Netty impl
+* Should speed up things on Linux
+* https://issues.redhat.com/browse/JGRP-2579
+
+== send-async and piggyback
+* Sending doesn't block at all
+* Messages sent down can hitch a ride on another message (piggy-back)
+* Useful when a thread processing an incoming message (batch) needs to send a message down
+  (on the same thread)
+* https://issues.redhat.com/browse/JGRP-2603
+
+=== Remove flow control, retransmission, fragmentation on selected transports
+* https://issues.redhat.com/browse/JGRP-2566
+
+
+
 == jgroups-raft 1.0.0
 
 == jgroups-raft 1.0.1
