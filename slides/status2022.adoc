@@ -12,6 +12,14 @@
 
 
 
+== JGroups
+* Small library providing *clustering* to Java applications
+* Join / leave a cluster
+* Get the cluster *view*: list of members (e.g. `{node1,node-2,node-3}`)
+* Send messages (byte[] arrays or objects) to *individual* members
+* Send messages to *all* members
+* Notification when message is received
+* Used by Infinispan to send and receive messages (gets and puts) and to rebalance on view changes
 
 
 == JGroups 5.2.1
@@ -113,6 +121,7 @@ public void testChainAddAndGet() {
 * Down (send) and up (receive) direction
 * Implemented with byteman code injection and a probe handler
 * https://issues.redhat.com/browse/JGRP-2640
+* Demo
 
 
 == Future
@@ -135,6 +144,14 @@ public void testChainAddAndGet() {
 
 
 
-== jgroups-raft 1.0.0
+== jgroups-raft
+* Implements the Raft consensus protocol
+* Replicated state (e.g. caches, counters) in a *cluster* (3 or more members)
+* State can never diverge, even in the case of a partition (split brain)
+* State is stored in stable storage
+* Changes to state (e.g. `x = 5`) have to be approved by a majority -> then `x = 5` is *committed*
+* Committed changes will never be lost
+* No progress when a majority of members is down
 
-== jgroups-raft 1.0.1
+=== Demo
+
