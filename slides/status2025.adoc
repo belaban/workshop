@@ -132,9 +132,64 @@ processing, and it would be better if the send was asynchronous
 * Requirement by Keycloak
 * https://issues.redhat.com/browse/JGRP-2795
 
+=== Metrics
+* Code to expose numerical attributes and properties to Micrometer
+* https://issues.redhat.com/browse/JGRP-2796
 
 
-== JGroups 5.4.x
+=== Time units in attributes
+* E.g. `max_time="30s"`, `xmit_interval="300ms"`
+* https://issues.redhat.com/browse/JGRP-2811
+
+
+=== Show round trip times between members
+* Can be invoked either programmatically or via probe, e.g.
+```
+[mac] /Users/bela/JGroups$ probe UDP.rtt.rtt[1000,true,false]
+#1 (189 bytes):
+C [ip=192.168.1.110:7802, 3 mbr(s), cluster=chat, version=5.4.0.Final (Alpe d'Huez) (java 21+35-2513)]
+RTT.rtt:
+B: 778us/851us/970us
+C: 22us/75.10us/163us
+A: 935us/995.20us/1.02ms
+
+#2 (192 bytes):
+A [ip=192.168.1.110:7800, 3 mbr(s), cluster=chat, version=5.4.0.Final (Alpe d'Huez) (java 21+35-2513)]
+RTT.rtt:
+B: 841us/884.40us/956us
+C: 861us/894.40us/916us
+A: 88us/131.30us/226us
+
+#3 (193 bytes):
+B [ip=192.168.1.110:7801, 3 mbr(s), cluster=chat, version=5.4.0.Final (Alpe d'Huez) (java 21+35-2513)]
+RTT.rtt:
+B: 81us/107.60us/245us
+C: 939us/955.10us/1.00ms
+A: 1.01ms/1.02ms/1.03ms
+
+3 responses (3 matches, 0 non matches)
+```
+* https://issues.redhat.com/browse/JGRP-2812
+
+
+=== GossipRouter certificate reloading
+* https://issues.redhat.com/browse/JGRP-2813
+
+
+=== TCPPING: configure via file
+* `initial_hosts_file=hosts.txt`
+* Useful in cloud environments; CLIs can usually generate this file
+* Format: `host1,host2[7800],host3[7800]`
+* Used by IspnPerfTest to run tests on AWS, GCP
+* https://issues.redhat.com/browse/JGRP-2859
+
+
+
+== JGroups 5.4.0 - 5.4.12
+
+
+
+
 
 == JGroups 5.5.x
 
