@@ -1,0 +1,87 @@
+
+= Status JGroups 2022
+:author: Bela Ban belaban@mailbox.org
+:backend: deckjs
+:deckjs_transition: fade
+:navigation:
+:deckjs_theme: web-2.0
+:goto:
+:menu:
+:toc:
+:status:
+
+
+
+== JGroups
+* Small library providing *clustering* to Java applications
+* Join / leave a cluster
+* Get the cluster *view*: list of members (e.g. `{node1,node-2,node-3}`)
+* Send messages (byte[] arrays or objects) to *individual* members
+* Send messages to *all* members
+* Notification when message is received
+* Used by Infinispan to send and receive messages (gets and puts) and to rebalance on view changes
+
+== Highlights 5.2.x - 5.5.x
+* Routing in asymmetric networks with `RELAY3`
+* New reliable retransmission protocols based on fixed buffers: `NAKACK4`, `UNICAST4`
+** Faster stability in `NAKACK4`
+** No need for `STABLE`, `UFC`, `MFC` etc
+* Support for Keycloak deployments (`JDBC_PING2`)
+* Convergence on a single bundler (`PerDestinationBundler`)
+* Tons of performance (and bug) fixes
+* Configuration changes (simplification, reuse)
+* Extensive perftests with IspnPerfTest
+
+
+== JGroups 5.2.3 - 5.2.29
+
+=== TCP supports TLS
+* https://issues.redhat.com/browse/JGRP-2689 (thanks to Tristan)
+
+=== GossipRouter enhancements
+* TLS, mainly used by operator
+
+=== PerDestinationBundler
+* More on this later
+
+=== io_uring transport
+* Used Netty: https://issues.redhat.com/browse/JGRP-2579
+* Not really used; performance didn't show great improvements
+
+=== Disable retransmissions
+* https://issues.redhat.com/browse/JGRP-2675 and
+* https://issues.redhat.com/browse/JGRP-2676
+
+=== Routing in asymmetric networks
+* `RELAY3`: https://issues.redhat.com/browse/JGRP-1506
+* More on this later
+
+=== Simplified stack when transport is TCP
+* Remove flow control, retransmission and fragmentation when transport == `TCP`
+* TCP/IP provides for this anyway
+* Nice idea, but devil lies in the details
+* Showstoppers:
+** `RED`, bounded queue in bundler could lead to discarded messages
+* TCP connection reaping or concurrent connection establishment, too
+* Also: full thread pool (not applicable for vthreads) or processing policy
+* TLS also poses problems (handshake on connection establishment)
+* Turns out the long tail of issues is too long, and led to complex code to handle all possible
+  edge cases
+* https://issues.redhat.com/browse/JGRP-2681, fan out from there
+
+
+== JGroups 5.3.x
+
+== JGroups 5.4.x
+
+== JGroups 5.5.x
+
+
+== Misc
+
+=== IspnPerfTest
+* Used to test Infinispan on AWS, GCP
+* Added batch mode, ansible support (thanks Jose) to automate runs
+* Results: <Link to slides>
+
+
