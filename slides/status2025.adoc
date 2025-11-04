@@ -52,9 +52,6 @@
 * https://issues.redhat.com/browse/JGRP-2675 and
 * https://issues.redhat.com/browse/JGRP-2676
 
-=== Routing in asymmetric networks
-* `RELAY3`: https://issues.redhat.com/browse/JGRP-1506
-* More on this later
 
 === Simplified stack when transport is TCP
 * Remove flow control, retransmission and fragmentation when transport == `TCP`
@@ -70,8 +67,72 @@
 * https://issues.redhat.com/browse/JGRP-2681, fan out from there
 
 
+=== Heartbeating on GossipRouter
+* Heartbeats are exchanged between a client and a GossipRouter
+* Needed when GossipRouter is blocked or hangs
+* Useful for cross-site deployments
+* https://issues.redhat.com/browse/JGRP-2753
 
-== JGroups 5.3.x
+=== New protocol to measure rate
+* `RATE`: measures bytes per second, up or down
+* https://issues.redhat.com/browse/JGRP-2774
+```
+[mac] /Users/bela$ probe RATE.curr,high
+#1 (234 bytes):
+A [ip=192.168.1.110:7800, 4 mbr(s), cluster=uperf, version=5.5.1.Final-SNAPSHOT (Vorder Höhi) (java 17.0.16+8)]
+RATE={current_receive_rate=68.81MB, current_send_rate=69.24MB, highest_receive_rate=70.60MB, highest_send_rate=69.98MB}
+
+#2 (234 bytes):
+C [ip=192.168.1.110:7802, 4 mbr(s), cluster=uperf, version=5.5.1.Final-SNAPSHOT (Vorder Höhi) (java 17.0.16+8)]
+RATE={current_receive_rate=68.62MB, current_send_rate=68.08MB, highest_receive_rate=71.31MB, highest_send_rate=70.09MB}
+
+#3 (234 bytes):
+D [ip=192.168.1.110:7803, 4 mbr(s), cluster=uperf, version=5.5.1.Final-SNAPSHOT (Vorder Höhi) (java 17.0.16+8)]
+RATE={current_receive_rate=64.22MB, current_send_rate=65.55MB, highest_receive_rate=69.06MB, highest_send_rate=68.90MB}
+
+#4 (234 bytes):
+B [ip=192.168.1.110:7801, 4 mbr(s), cluster=uperf, version=5.5.1.Final-SNAPSHOT (Vorder Höhi) (java 17.0.16+8)]
+RATE={current_receive_rate=69.13MB, current_send_rate=68.76MB, highest_receive_rate=71.50MB, highest_send_rate=70.80MB}
+
+4 responses (4 matches, 0 non matches)
+
+```
+
+
+=== Bundlers drop message if queue is full
+* Removes one more point where sending can block
+* https://issues.redhat.com/browse/JGRP-2793
+
+
+
+== JGroups 5.3.0 - 5.3.22
+
+=== Routing in asymmetric networks: RELAY3
+* <Ref to manual>
+* Demo
+* https://issues.redhat.com/browse/JGRP-1506
+
+=== Async sending
+* When receiving a message (request to Infinispan), oftentimes the receiver sends another
+message while processing the request (e.g. JGroups sends credits). This delays the request
+processing, and it would be better if the send was asynchronous
+* Need to investigate better, as the send is usually very fast
+* https://issues.redhat.com/browse/JGRP-2603
+
+=== JDBC_PING2
+* Improvements over `JDBC_PING` (not really maintained)
+* (More) legible representation in DB table:
+```
+         address       | name | cluster |         ip         | coord
+-----------------------+------+---------+--------------------+-------
+ uuid://eb4c91b5-238c- | A    | chat    | 192.168.1.110:7800 | t
+ uuid://a023a43b-c68c- | B    | chat    | 192.168.1.110:7801 | f
+(2 rows)
+```
+* Requirement by Keycloak
+* https://issues.redhat.com/browse/JGRP-2795
+
+
 
 == JGroups 5.4.x
 
