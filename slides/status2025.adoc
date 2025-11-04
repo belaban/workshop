@@ -65,6 +65,8 @@
 * Turns out the long tail of issues is too long, and led to complex code to handle all possible
   edge cases
 * https://issues.redhat.com/browse/JGRP-2681, fan out from there
+* https://issues.redhat.com/browse/JGRP-2566
+* https://issues.redhat.com/browse/JGRP-2682
 
 
 === Heartbeating on GossipRouter
@@ -76,7 +78,9 @@
 === New protocol to measure rate
 * `RATE`: measures bytes per second, up or down
 * https://issues.redhat.com/browse/JGRP-2774
-```
+
+[source]
+----
 [mac] /Users/bela$ probe RATE.curr,high
 #1 (234 bytes):
 A [ip=192.168.1.110:7800, 4 mbr(s), cluster=uperf, version=5.5.1.Final-SNAPSHOT (Vorder Höhi) (java 17.0.16+8)]
@@ -96,7 +100,7 @@ RATE={current_receive_rate=69.13MB, current_send_rate=68.76MB, highest_receive_r
 
 4 responses (4 matches, 0 non matches)
 
-```
+----
 
 
 === Bundlers drop message if queue is full
@@ -122,13 +126,15 @@ processing, and it would be better if the send was asynchronous
 === JDBC_PING2
 * Improvements over `JDBC_PING` (not really maintained)
 * (More) legible representation in DB table:
-```
+
+[source]
+------------------------
          address       | name | cluster |         ip         | coord
 -----------------------+------+---------+--------------------+-------
  uuid://eb4c91b5-238c- | A    | chat    | 192.168.1.110:7800 | t
  uuid://a023a43b-c68c- | B    | chat    | 192.168.1.110:7801 | f
 (2 rows)
-```
+------------------------
 * Requirement by Keycloak
 * https://issues.redhat.com/browse/JGRP-2795
 
@@ -144,7 +150,9 @@ processing, and it would be better if the send was asynchronous
 
 === Show round trip times between members
 * Can be invoked either programmatically or via probe, e.g.
-```
+
+[source]
+----
 [mac] /Users/bela/JGroups$ probe UDP.rtt.rtt[1000,true,false]
 #1 (189 bytes):
 C [ip=192.168.1.110:7802, 3 mbr(s), cluster=chat, version=5.4.0.Final (Alpe d'Huez) (java 21+35-2513)]
@@ -168,7 +176,7 @@ C: 939us/955.10us/1.00ms
 A: 1.01ms/1.02ms/1.03ms
 
 3 responses (3 matches, 0 non matches)
-```
+----
 * https://issues.redhat.com/browse/JGRP-2812
 
 
@@ -187,8 +195,28 @@ A: 1.01ms/1.02ms/1.03ms
 
 == JGroups 5.4.0 - 5.4.12
 
+=== NAKACK4
+* <ADD>
+* https://issues.redhat.com/browse/JGRP-2780
 
 
+=== UNICAST4
+* <ADD>
+* https://issues.redhat.com/browse/JGRP-2843
+
+
+=== Bundle loopback messages
+* Messages sent to self, or multicast messages, were not bundled, but sent one by one
+* Performance increase with bundling, especially for smaller messages: 17% (`MPerf`)
+* May not be of value to Infinispan, as it doesn't use a lot of multicasts and doesn't
+  send unicasts to self (correct?)
+* https://issues.redhat.com/browse/JGRP-2831
+
+
+=== Removed pinned threads
+* When using virtual threads (JEP 491)
+* Replaced `synchronized` with locks
+* https://issues.redhat.com/browse/JGRP-2861 and others
 
 
 == JGroups 5.5.x
