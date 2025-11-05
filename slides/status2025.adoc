@@ -222,8 +222,9 @@ A: 1.01ms/1.02ms/1.03ms
 
 == JGroups 5.5.0 - 5.5.1 (current)
 
-=== New MPSC classes
+=== New MPSC queues
 * Optimized for a single consumer, but multiple producers
+* Replacement for `ArrayBlockingQueue`
 * Non-blocking, except when waiting on empty/full
 * Blocking on empty/full can be configured
 * Used by bundlers
@@ -231,7 +232,7 @@ A: 1.01ms/1.02ms/1.03ms
 ** Consumer uses efficient (lockless) `drainTo()` to get all messages and sends them
 * `ConcurrentBlockingLinkedQueue`: https://issues.redhat.com/browse/JGRP-2890
 * `ConcurrentBlockingRingBuffer`: https://issues.redhat.com/browse/JGRP-2900
-* Increased performance (see IspnPerfTests)
+* Increased performance (see IspnPerfTest below)
 
 
 === New default bundler
@@ -369,6 +370,26 @@ SIZE2.dumpUpSamples=[0 .. 100]: 4’613’013
 * Same test as before
 
 
+=== Move Java baseline from 11 -> 17
+
+=== Removed non blocking flow control protocols
+* https://issues.redhat.com/browse/JGRP-2925
+
+
+
+== Current (5.5.1)
+
+=== Reference counting
+* Used with Netty's `ByteBuf` pools
+* This is the *second* time this has been added (and probably removed) :-)
+* https://issues.redhat.com/browse/JGRP-2942
+* Undo: https://issues.redhat.com/browse/JGRP-2948
+
+
+=== MessageFactory: allow to configure in transport
+* Possibly necessary by `InfinispanMessage`
+* Hack
+* https://issues.redhat.com/browse/JGRP-2944
 
 
 == Misc
@@ -382,4 +403,7 @@ SIZE2.dumpUpSamples=[0 .. 100]: 4’613’013
 === Virtual threads as default
 * Starting with Java 21 as baseline
 * Optimizations and removal of classes (thread pool) when vthreads are used everywhere
+
+=== Nexus3 migration woes
+* Tempted to use Nexus Central directly
 
