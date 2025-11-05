@@ -24,8 +24,6 @@
 == Highlights 5.2.x - 5.5.x
 * Routing in asymmetric networks with `RELAY3`
 * New reliable retransmission protocols based on fixed buffers: `NAKACK4`, `UNICAST4`
-** Faster stability in `NAKACK4`
-** No need for `STABLE`, `UFC`, `MFC` etc
 * Support for Keycloak deployments (`JDBC_PING2`)
 * Convergence on a single bundler (`PerDestinationBundler`)
 * Tons of performance (and bug) fixes
@@ -196,6 +194,8 @@ A: 1.01ms/1.02ms/1.03ms
 == JGroups 5.4.0 - 5.4.12
 
 === NAKACK4
+* Faster stability
+* No need for `STABLE`, `UFC`, `MFC`
 * <ADD>
 * https://issues.redhat.com/browse/JGRP-2780
 
@@ -219,7 +219,107 @@ A: 1.01ms/1.02ms/1.03ms
 * https://issues.redhat.com/browse/JGRP-2861 and others
 
 
-== JGroups 5.5.x
+
+== JGroups 5.5.0 - 5.5.1 (current)
+
+=== New MPSC classes
+* Optimized for a single consumer, but multiple producers
+* Non-blocking, except when waiting on empty/full
+* Blocking on empty/full can be configured
+* Used by bundlers
+** Producers add to queue, drop if full
+** Consumer uses efficient (lockless) `drainTo()` to get all messages and sends them
+* `ConcurrentBlockingLinkedQueue`: https://issues.redhat.com/browse/JGRP-2890
+* `ConcurrentBlockingRingBuffer`: https://issues.redhat.com/browse/JGRP-2900
+* Increased performance (see IspnPerfTests)
+
+
+=== New default bundler
+* Ends the bundler wars (issue below is 10 years old!)
+* New default: `PerDestinationBundler`
+* `TransferQueueBundler` still available, as fallback (20 years old)
+* `NoBundler` also still available
+* 7 bundlers removed
+* https://issues.redhat.com/browse/JGRP-1997
+
+
+=== New protocols to show messages sizes
+* `SIZE`: https://issues.redhat.com/browse/JGRP-2893
+[source]
+----
+[mac] /Users/bela/JGroups$ probe SIZE.dumpUpSamples[]
+#1 (423 bytes):
+mac-54345(v=16.0.0) [ip=192.168.1.110:7803, 4 mbr(s), cluster=default, version=5.4.9.Final (Alpe d'Huez) (java 24+36-3646)]
+SIZE.dumpUpSamples=
+
+...
+
+#4 (424 bytes):
+mac-33618(v=16.0.0) [ip=192.168.1.110:7800, 4 mbr(s), cluster=default, version=5.4.9.Final (Alpe d'Huez) (java 24+36-3646)]
+SIZE.dumpUpSamples=
+1: 1’110’328
+29: 284’516
+30: 550’647
+31: 265’804
+37: 1’909
+38: 222’453
+39: 1’379’171
+40: 1’202’811
+1’026: 2’795’048
+1’126: 225
+1’127: 27’686
+1’128: 243’269
+1’129: 695’328
+1’130: 919’844
+1’131: 591’099
+1’132: 150’904
+
+4 responses (4 matches, 0 non matches)
+----
+* The above example is from IspnPerfTest: interesting to see how sizes increase...
+* `SIZE2`:
+* Samples size distribution into buckets:
+
+[source]
+----
+[mac] /Users/bela$ probe SIZE2.dumpUpSamples[]
+#1 (285 bytes):
+mac-1580(v=16.0.0) [ip=192.168.1.110:7803, 4 mbr(s), cluster=default, version=5.4.9.Final-SNAPSHOT (Alpe d'Huez) (java 24+36-3646)]
+SIZE2.dumpUpSamples=[0 .. 100]: 4’662’222
+[101 .. 1’000]: 6
+[1’001 .. 1’500]: 4’957’605
+[1’501 .. 2’000]: 6
+[2’001 .. 100’000]: 4
+
+#2 (287 bytes):
+mac-56987(v=16.0.0) [ip=192.168.1.110:7802, 4 mbr(s), cluster=default, version=5.4.9.Final-SNAPSHOT (Alpe d'Huez) (java 24+36-3646)]
+SIZE2.dumpUpSamples=[0 .. 100]: 4’634’174
+[101 .. 1’000]: 5
+[1’001 .. 1’500]: 4’867’320
+[1’501 .. 2’000]: 11
+[2’001 .. 100’000]: 7
+
+#3 (287 bytes):
+mac-8833(v=16.0.0) [ip=192.168.1.110:7801, 4 mbr(s), cluster=default, version=5.4.9.Final-SNAPSHOT (Alpe d'Huez) (java 24+36-3646)]
+SIZE2.dumpUpSamples=[0 .. 100]: 4’523’464
+[101 .. 1’000]: 6
+[1’001 .. 1’500]: 4’807’314
+[1’501 .. 2’000]: 12
+[2’001 .. 100’000]: 12
+
+#4 (286 bytes):
+mac-24327(v=16.0.0) [ip=192.168.1.110:7800, 4 mbr(s), cluster=default, version=5.4.9.Final-SNAPSHOT (Alpe d'Huez) (java 24+36-3646)]
+SIZE2.dumpUpSamples=[0 .. 100]: 4’613’013
+[101 .. 1’000]: 2
+[1’001 .. 1’500]: 4’778’180
+[1’501 .. 2’000]: 0
+[2’001 .. 100’000]: 0
+
+4 responses (4 matches, 0 non matches)
+----
+* Same test as before
+
+
 
 
 == Misc
@@ -227,6 +327,10 @@ A: 1.01ms/1.02ms/1.03ms
 === IspnPerfTest
 * Used to test Infinispan on AWS, GCP
 * Added batch mode, ansible support (thanks Jose) to automate runs
-* Results: <Link to slides>
+* 8 nodes on AWS / GCP, JDKs: 21, 24, 25, Infinispan 15.0.18,15.2.5/16.dev03, JG 5.5.0
+* Results: https://issues.redhat.com/browse/JGRP-2907
 
+=== Virtual threads as default
+* Starting with Java 21 as baseline
+* Optimizations and removal of classes (thread pool) when vthreads are used everywhere
 
