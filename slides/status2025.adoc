@@ -243,6 +243,55 @@ A: 1.01ms/1.02ms/1.03ms
 * https://issues.redhat.com/browse/JGRP-1997
 
 
+=== PerDestinationBundler
+* New bundler which uses *one queue per destination* (`null` is a seperate destination)
+* If `use_single_sender_thread=false`: 1 thread / queue, handling sending of messages
+* If `true`: a single thread handles all queues
+* `PerDestinationBundler` has less contention between producers and consumer than
+  `TransferQueueBundler` which uses a single queue for all messages
+* https://issues.redhat.com/browse/JGRP-2896
+* Performance
+** UPerf, 4 local nodes, tcp.xml
+|===
+| Bundler | requests/sec/node
+
+| TQB | 196'261
+| PDB -use_single_sender_thread | 202'360
+| PDB +use_single_sender_thread | *216'048*
+|===
+** IspnPerfTest
+|===
+| Bundler | requests/sec/node
+
+| TQB |  154'372
+| PDB -use_single_sender_thread | 127'387
+| PDB +use_single_sender_thread | *160'538*
+|===
+
+
+=== Inclusion in configuration
+* Stolen from Infinispan (thanks Tristan)
+* Define a transport only once and include it in other configurations, e.g.
+
+[source,xml]
+----
+<config>
+    <include file="${transport-config:/Users/bela/tcp-default.xml}"
+             bundler.use_single_sender_thread="false"
+             sock_conn_timeout="${conn-timeout:500}" />
+    <MPING/>
+    ...
+</config>
+----
+* `tcp-default.xml` defines the default transport
+** By setting `-Dtransport-config=udp-default.xml`, the transport can be chosen at startup time
+* Allows for overrides of attributes, e.g. `sock_conn_timeout`
+** This can also be overridden at startup time (makes no sense though...)
+* Multiple includes are possible, e.g. transport and discovery protocols
+* Cannot add or remove protocols
+* https://issues.redhat.com/browse/JGRP-2908
+
+
 === New protocols to show messages sizes
 * `SIZE`: https://issues.redhat.com/browse/JGRP-2893
 [source]
@@ -277,7 +326,7 @@ SIZE.dumpUpSamples=
 4 responses (4 matches, 0 non matches)
 ----
 * The above example is from IspnPerfTest: interesting to see how sizes increase...
-* `SIZE2`:
+* `SIZE2`: https://issues.redhat.com/browse/JGRP-2895
 * Samples size distribution into buckets:
 
 [source]
