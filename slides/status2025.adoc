@@ -110,7 +110,16 @@ RATE={current_receive_rate=69.13MB, current_send_rate=68.76MB, highest_receive_r
 == JGroups 5.3.0 - 5.3.22
 
 === Routing in asymmetric networks: RELAY3
-* <Ref to manual>
+* `RELAY2`: if M is sent from site A to site B, but the site master of B (or A!) crashes, even if a new site
+  master steps in, M is lost and won't get retransmitted.
+* `RELAY3`: M will get retransmitted when the new site master of A (or B) comes up
+* Not all sites are connected to each other: to send a message to a site Y, it might have to get sent
+  via (gateway) site X
+* Example:
+
+.Asymmetric routing with RELAY3
+image::../images/network.png[RELAY3,width="100%"]
+
 * Demo
 * https://issues.redhat.com/browse/JGRP-1506
 
