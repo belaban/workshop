@@ -194,9 +194,25 @@ A: 1.01ms/1.02ms/1.03ms
 == JGroups 5.4.0 - 5.4.12
 
 === NAKACK4
-* Faster stability
-* No need for `STABLE`, `UFC`, `MFC`
-* <ADD>
+* Concepts (`NAKACK2`)
+** A sender keeps message M in a retransmission buffer, until it knows that all members have received M
+** Missing messages are retransmitted
+** `STABLE` periodically (or after N bytes) asks all members for their highest received messages
+** Every sender then removes messages seen by *all members*
+** The retransmission buffer is unbounded, can grow and shrink (compaction)
+** To keep the buffer within limits, flow control protocols (`MFC`) make sure a sender can only send a
+   max number of messages until it needs to wait for acks
+* `NAKACK4`
+** Has a fixed retransmission buffer
+** Senders block when there is no space
+** Receivers add messages and deliver them to the application
+** Receivers send ACKs back to senders
+** When a sender has received ACKs from all receivers for a given message M, it purges M from
+   the retransmission buffer, possibly unblocking senders
+* Advantages
+** Faster stability, built-in flow control
+** No need for `STABLE`, `MFC` -> smaller configuration
+** Less memory churn / pressure
 * https://issues.redhat.com/browse/JGRP-2780
 
 
