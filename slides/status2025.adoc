@@ -119,6 +119,9 @@ RATE={current_receive_rate=69.13MB, current_send_rate=68.76MB, highest_receive_r
 
 .Asymmetric routing with RELAY3
 image::../images/network.png[RELAY3,width="100%"]
+* `hf` - `net1` - `net2` - `net3`
+* To send a message from `net3` to `hf`, it has to be forwarded from `net3` to `net2` to `net1` to `hf`
+* Configuration:
 
 * Demo
 * https://issues.redhat.com/browse/JGRP-1506
