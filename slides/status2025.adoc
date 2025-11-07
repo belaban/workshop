@@ -112,15 +112,16 @@ RATE={current_receive_rate=69.13MB, current_send_rate=68.76MB, highest_receive_r
 === Routing in asymmetric networks: RELAY3
 * `RELAY2`: if M is sent from site A to site B, but the site master of B (or A!) crashes, even if a new site
   master steps in, M is lost and won't get retransmitted.
-* `RELAY3`: M will get retransmitted when the new site master of A (or B) comes up
+* `RELAY3` adds reliability across sites: M will get retransmitted when the new site master of A (or B) comes up
+** This applies only to *unicast* messages
 * Not all sites are connected to each other: to send a message to a site Y, it might have to get sent
   via (gateway) site X
 * Example:
 
 .Asymmetric routing with RELAY3
 image::../images/network.png[RELAY3,width="100%"]
-* `hf` - `net1` - `net2` - `net3`
-* To send a message from `net3` to `hf`, it has to be forwarded from `net3` to `net2` to `net1` to `hf`
+* Topology: `hf` - `net1` - `net2` - `net3`
+* To send a message from `net3` to `hf`, it has to be forwarded from `net3` -> `net2` -> `net1` -> `hf`
 * Configuration:
 
 * Demo
