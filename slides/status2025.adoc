@@ -124,6 +124,34 @@ image::../images/network.png[RELAY3,width="100%"]
 * To send a message from `net3` to `hf`, it has to be forwarded from `net3` -> `net2` -> `net1` -> `hf`
 * Configuration:
 
+[source]
+----
+<relay.RELAY3 site="net1"
+              max_site_masters="1"
+              can_become_site_master="true">
+    <RelayConfiguration xmlns="urn:jgroups:relay:1.0"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:schemaLocation="urn:jgroups:relay:1.0 relay.xsd">
+        <sites>
+            <site name="net1">
+                <bridges>
+                    <bridge name="bridge-net1-net2" config="bridge-net1-net2.xml"/>
+                    <bridge name="bridge-net1-hf"   config="bridge-net1-hf.xml"/>
+                </bridges>
+                <forwards>
+                    <forward to="net3" gateway="net2"/>
+                </forwards>
+            </site>
+        </sites>
+    </RelayConfiguration>
+</relay.RELAY3>
+----
+* The above configuration defines site `net1`
+* There are 2 bridges (= global clusters) between site `net1` and `hf`, and `net1` and `net2`. When those bridges are
+  started, the routing tables will be adjusted automatically, e.g.:
+** Site master `_n2:net2` joins the cluster -> this adds `_n2:net2` to the routes for site `net2`
+* The `<forward>` defines that all messages to site `net3` should be sent to the site master of site `net2`, which
+  forwards them to site `net3`.
 * Demo
 * https://issues.redhat.com/browse/JGRP-1506
 
