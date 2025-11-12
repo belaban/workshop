@@ -1,5 +1,5 @@
 
-= Status JGroups 2022
+= Status JGroups 2025
 :author: Bela Ban belaban@mailbox.org
 :backend: deckjs
 :deckjs_transition: fade
