@@ -491,6 +491,7 @@ SIZE2.dumpUpSamples=[0 .. 100]: 4’613’013
 
 
 == Outlook / todos
-* IspnPerfTest with `5.5.1`, comparing existing versus new protocols
+* IspnPerfTest JGroups `5.5.1` Infinispan `16.Dev08`, comparing existing versus new protocols
 * TBD: use new protocols in Infinispan
 * TBD: use `RELAY3` in Infinispan
+* InfinispanMessage: implement and perf test
